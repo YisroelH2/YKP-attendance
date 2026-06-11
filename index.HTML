@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1e1b4b" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>YKP Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* =========================================================
+   YKP — design tokens
+   A calm "study hall" tool: airy surfaces, soft depth,
+   one indigo accent, a confident status-colour language.
+   ========================================================= */
+:root{
+  --bg:#f3f4f8;
+  --surface:#ffffff;
+  --surface-2:#fafbfd;
+  --ink:#171a2b;
+  --ink-soft:#5b6178;
+  --ink-faint:#9aa0b4;
+  --line:#e7e9f1;
+  --accent:#4f46e5;
+  --accent-ink:#312e81;
+
+  --on:#15803d;    --on-bg:#e7f7ec;    --on-line:#bfe9cd;
+  --late:#b45309;  --late-bg:#fdf2dd;  --late-line:#f2d9a8;
+  --absent:#be123c;--absent-bg:#fdeaef;--absent-line:#f6c4d2;
+  --exc:#1d4ed8;   --exc-bg:#e8eefe;   --exc-line:#c4d4fb;
+
+  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --sh-1:0 1px 2px rgba(23,26,43,.06);
+  --sh-2:0 6px 22px rgba(23,26,43,.10);
+  --sh-3:0 18px 50px rgba(23,26,43,.20);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --nav-h:68px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  font-family:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg); color:var(--ink);
+  font-size:15px; line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y:none;
+}
+[dir="auto"]{unicode-bidi:plaintext}
+button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit}
+input,select,textarea{font-family:inherit; font-size:15px; color:var(--ink)}
+.hidden{display:none !important}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  height:46px; padding:0 18px; border-radius:var(--r-md);
+  font-weight:600; font-size:15px; transition:transform .08s ease, background .15s ease, box-shadow .15s ease;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent); color:#fff; box-shadow:var(--sh-1)}
+.btn-primary:active{background:#4338ca}
+.btn-ghost{background:var(--surface); color:var(--ink); border:1px solid var(--line); box-shadow:var(--sh-1)}
+.btn-soft{background:#eef0fb; color:var(--accent-ink)}
+.btn-block{width:100%}
+.btn-sm{height:38px; padding:0 14px; font-size:14px; border-radius:var(--r-sm)}
+
+/* =========================================================
+   Auth + config screens
+   ========================================================= */
+.gate{min-height:100%; display:flex; align-items:center; justify-content:center; padding:24px}
+.gate-card{
+  width:100%; max-width:380px; background:var(--surface); border-radius:var(--r-lg);
+  box-shadow:var(--sh-2); padding:30px 26px;
+}
+.mark-logo{
+  width:54px; height:54px; border-radius:16px; margin:0 auto 16px;
+  background:linear-gradient(150deg,#6366f1,#3730a3);
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:800; font-size:20px; letter-spacing:.5px; box-shadow:var(--sh-1);
+}
+.gate h1{font-size:21px; margin:0 0 4px; text-align:center; letter-spacing:-.3px}
+.gate p.sub{margin:0 0 22px; text-align:center; color:var(--ink-soft); font-size:14px}
+.lbl{display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin:14px 0 6px}
+.inp{
+  width:100%; height:48px; padding:0 14px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--surface-2); transition:border .15s, box-shadow .15s;
+}
+.inp:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px #4f46e520}
+.gate .btn{margin-top:22px}
+.gate-note{margin-top:16px; font-size:12.5px; color:var(--ink-faint); text-align:center; line-height:1.5}
+.gate-note code{background:#eef0fb; padding:1px 5px; border-radius:5px; color:var(--accent-ink); font-size:12px}
+
+/* =========================================================
+   App shell
+   ========================================================= */
+#app{min-height:100%; display:flex; flex-direction:column}
+.topbar{
+  position:sticky; top:0; z-index:30;
+  display:flex; align-items:center; gap:12px;
+  padding:12px 16px; background:rgba(255,255,255,.82);
+  backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.topbar .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(150deg,#6366f1,#3730a3);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px}
+.topbar .titles{flex:1; min-width:0}
+.topbar .t1{font-weight:700; font-size:16px; letter-spacing:-.2px; line-height:1.1}
+.topbar .t2{font-size:12px; color:var(--ink-faint)}
+.iconbtn{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  color:var(--ink-soft); background:var(--surface-2); border:1px solid var(--line)}
+.iconbtn:active{background:#eef0fb}
+
+main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
+.view{max-width:760px; margin:0 auto}
+
+/* ---------- mark controls ---------- */
+.controls{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px}
+.ctl{display:flex; flex-direction:column; gap:5px}
+.ctl span{font-size:12px; font-weight:600; color:var(--ink-soft); padding-inline-start:2px}
+.ctl select,.ctl input{
+  height:44px; padding:0 12px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--surface); box-shadow:var(--sh-1);
+  -webkit-appearance:none; appearance:none;
+}
+.ctl.full{grid-column:1 / -1}
+.ctl select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0b4' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 14px center; padding-right:34px}
+
+/* ---------- summary chips ---------- */
+.summary{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:12px}
+.chip{display:flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px;
+  font-size:13px; font-weight:600; background:var(--surface); border:1px solid var(--line)}
+.chip b{font-weight:800}
+.chip .dot{width:8px;height:8px;border-radius:50%}
+.chip.on .dot{background:var(--on)} .chip.late .dot{background:var(--late)}
+.chip.absent .dot{background:var(--absent)} .chip.exc .dot{background:var(--exc)}
+.chip.unm .dot{background:var(--ink-faint)}
+
+/* ---------- status tabs (the "brush") ---------- */
+.tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:10px}
+.tab{height:44px; border-radius:var(--r-md); font-weight:700; font-size:13.5px;
+  background:var(--surface); border:1.5px solid var(--line); color:var(--ink-soft);
+  display:flex; align-items:center; justify-content:center; transition:.12s}
+.tab:active{transform:scale(.96)}
+.tab[data-s="on_time"].active{background:var(--on-bg); border-color:var(--on); color:var(--on)}
+.tab[data-s="late"].active{background:var(--late-bg); border-color:var(--late); color:var(--late)}
+.tab[data-s="absent"].active{background:var(--absent-bg); border-color:var(--absent); color:var(--absent)}
+.tab[data-s="excused"].active{background:var(--exc-bg); border-color:var(--exc); color:var(--exc)}
+
+.markall{display:flex; gap:8px; margin-bottom:16px}
+.markall .hint{flex:1; align-self:center; font-size:12px; color:var(--ink-faint); line-height:1.3}
+
+/* ---------- student grid ---------- */
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px}
+.scard{
+  position:relative; background:var(--surface); border:1.5px solid var(--line);
+  border-radius:var(--r-md); padding:10px 8px 9px; text-align:center;
+  box-shadow:var(--sh-1); transition:transform .07s ease, border-color .12s, background .12s;
+  user-select:none; -webkit-user-select:none; touch-action:manipulation;
+}
+.scard:active{transform:scale(.96)}
+.avatar{width:52px;height:52px;border-radius:14px;margin:0 auto 7px; object-fit:cover;
+  display:flex;align-items:center;justify-content:center; color:#fff; font-weight:700; font-size:18px; background:#cbd0e0}
+.sname{font-size:12.5px; font-weight:600; line-height:1.2; height:2.4em; overflow:hidden;
+  display:flex; align-items:center; justify-content:center}
+.scard .badge{position:absolute; top:7px; inset-inline-end:7px; width:20px;height:20px;border-radius:7px;
+  display:none; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800}
+.scard .late-min{margin-top:3px; font-size:11px; font-weight:700; display:none}
+.scard .flagdot{position:absolute; top:7px; inset-inline-start:7px; width:9px;height:9px;border-radius:50%;
+  background:var(--absent); display:none; box-shadow:0 0 0 2px #fff}
+.scard.flagged .flagdot{display:block}
+
+.scard.s-on_time{background:var(--on-bg); border-color:var(--on-line)}
+.scard.s-on_time .badge{display:flex; background:var(--on)}
+.scard.s-late{background:var(--late-bg); border-color:var(--late-line)}
+.scard.s-late .badge{display:flex; background:var(--late)}
+.scard.s-late .late-min{display:block; color:var(--late)}
+.scard.s-absent{background:var(--absent-bg); border-color:var(--absent-line)}
+.scard.s-absent .badge{display:flex; background:var(--absent)}
+.scard.s-excused{background:var(--exc-bg); border-color:var(--exc-line)}
+.scard.s-excused .badge{display:flex; background:var(--exc)}
+
+/* =========================================================
+   Students list + Setup
+   ========================================================= */
+.search{position:relative; margin-bottom:14px}
+.search input{width:100%; height:46px; padding:0 14px 0 42px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--surface); box-shadow:var(--sh-1)}
+.search svg{position:absolute; top:13px; inset-inline-start:13px; color:var(--ink-faint)}
+.list{display:flex; flex-direction:column; gap:8px}
+.lrow{display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r-md); padding:9px 12px; box-shadow:var(--sh-1)}
+.lrow:active{background:var(--surface-2)}
+.lrow .avatar{width:42px;height:42px;border-radius:11px;margin:0;font-size:15px;flex:none}
+.lrow .meta{flex:1; min-width:0}
+.lrow .meta .n{font-weight:600; font-size:15px}
+.lrow .meta .s{font-size:12.5px; color:var(--ink-faint)}
+.lrow .cam{width:34px;height:34px;border-radius:10px;background:#eef0fb;color:var(--accent);
+  display:flex;align-items:center;justify-content:center;flex:none}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
+  box-shadow:var(--sh-1); padding:18px; margin-bottom:14px}
+.card h2{margin:0 0 4px; font-size:16px; letter-spacing:-.2px}
+.card p.muted{margin:0 0 14px; font-size:13px; color:var(--ink-soft)}
+.card textarea{width:100%; min-height:90px; padding:12px; border-radius:var(--r-md);
+  border:1px solid var(--line); background:var(--surface-2); resize:vertical; line-height:1.4}
+.row2{display:flex; gap:10px; flex-wrap:wrap}
+.srow{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line)}
+.srow:first-of-type{border-top:none}
+.srow .sw{width:14px;height:14px;border-radius:5px;flex:none}
+.srow .nm{flex:1; font-weight:600}
+.srow .sub{font-size:12.5px; color:var(--ink-faint)}
+.srow input[type=time]{height:38px;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--surface-2);padding:0 8px}
+.divider{height:1px; background:var(--line); margin:6px 0 14px}
+
+.empty{text-align:center; padding:46px 20px; color:var(--ink-soft)}
+.empty .em-ic{width:56px;height:56px;border-radius:16px;background:#eef0fb;color:var(--accent);
+  display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.empty h3{margin:0 0 6px; color:var(--ink); font-size:16px}
+.empty p{margin:0 0 16px; font-size:14px}
+
+/* =========================================================
+   Bottom nav
+   ========================================================= */
+.nav{
+  position:fixed; left:0; right:0; bottom:0; z-index:40;
+  height:calc(var(--nav-h) + var(--safe-b)); padding-bottom:var(--safe-b);
+  display:flex; background:rgba(255,255,255,.9); backdrop-filter:blur(14px);
+  border-top:1px solid var(--line);
+}
+.navbtn{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  color:var(--ink-faint); font-size:11px; font-weight:600}
+.navbtn svg{width:23px;height:23px}
+.navbtn.active{color:var(--accent)}
+
+/* =========================================================
+   Bottom sheet (per-student detail) + toast
+   ========================================================= */
+.sheet-bg{position:fixed; inset:0; background:rgba(15,17,30,.45); z-index:50; opacity:0; transition:opacity .2s}
+.sheet-bg.show{opacity:1}
+.sheet{position:fixed; left:0; right:0; bottom:0; z-index:51; background:var(--surface);
+  border-radius:24px 24px 0 0; box-shadow:var(--sh-3); padding:8px 20px calc(22px + var(--safe-b));
+  transform:translateY(100%); transition:transform .26s cubic-bezier(.2,.9,.3,1); max-width:760px; margin:0 auto}
+.sheet.show{transform:translateY(0)}
+.grab{width:38px;height:4px;border-radius:99px;background:var(--line);margin:8px auto 14px}
+.sheet h3{margin:0 0 2px; font-size:18px}
+.sheet .who-sub{margin:0 0 16px; font-size:13px; color:var(--ink-faint)}
+.seg{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:16px}
+.seg button{height:42px;border-radius:var(--r-md);font-weight:700;font-size:13px;
+  border:1.5px solid var(--line); background:var(--surface-2); color:var(--ink-soft)}
+.seg button[data-s="on_time"].on{background:var(--on-bg);border-color:var(--on);color:var(--on)}
+.seg button[data-s="late"].on{background:var(--late-bg);border-color:var(--late);color:var(--late)}
+.seg button[data-s="absent"].on{background:var(--absent-bg);border-color:var(--absent);color:var(--absent)}
+.seg button[data-s="excused"].on{background:var(--exc-bg);border-color:var(--exc);color:var(--exc)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px}
+.field input,.field textarea{width:100%;padding:11px 12px;border-radius:var(--r-md);
+  border:1px solid var(--line);background:var(--surface-2)}
+.toggle{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--line);margin-bottom:16px}
+.toggle .tlabel{font-weight:600;font-size:14px}
+.toggle .tsub{font-size:12px;color:var(--ink-faint)}
+.switch{width:46px;height:28px;border-radius:99px;background:#d4d8e6;position:relative;transition:.18s;flex:none}
+.switch.on{background:var(--absent)}
+.switch i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch.on i{left:21px}
+
+.toast{position:fixed; left:50%; bottom:calc(var(--nav-h) + var(--safe-b) + 16px); transform:translate(-50%,20px);
+  z-index:60; background:#171a2b; color:#fff; padding:11px 18px; border-radius:999px; font-size:13.5px; font-weight:600;
+  box-shadow:var(--sh-2); opacity:0; transition:.25s; max-width:88%; text-align:center}
+.toast.show{opacity:1; transform:translate(-50%,0)}
+.toast.err{background:#9f1239}
+
+@media(prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<!-- ======== CONFIG NEEDED ======== -->
+<div id="configGate" class="gate hidden">
+  <div class="gate-card">
+    <div class="mark-logo">YKP</div>
+    <h1>Almost there</h1>
+    <p class="sub">Add your Supabase keys to switch this on.</p>
+    <p class="gate-note">Open this file (<code>index.html</code>) in a text editor and paste your
+    <b>Project URL</b> and <b>anon public key</b> near the top, where it says
+    <code>PASTE_…</code>. They're in Supabase → Project Settings → API.</p>
+  </div>
+</div>
+
+<!-- ======== LOGIN ======== -->
+<div id="loginGate" class="gate hidden">
+  <div class="gate-card">
+    <div class="mark-logo">YKP</div>
+    <h1>YKP Attendance</h1>
+    <p class="sub">Sign in to start marking.</p>
+    <label class="lbl" for="email">Email</label>
+    <input id="email" class="inp" type="email" autocomplete="username" placeholder="you@example.com" />
+    <label class="lbl" for="pw">Password</label>
+    <input id="pw" class="inp" type="password" autocomplete="current-password" placeholder="••••••••" />
+    <button id="loginBtn" class="btn btn-primary btn-block">Sign in</button>
+  </div>
+</div>
+
+<!-- ======== APP ======== -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="mark">YKP</div>
+    <div class="titles">
+      <div class="t1" id="barTitle">Mark attendance</div>
+      <div class="t2" id="barSub"></div>
+    </div>
+    <button class="iconbtn" id="signout" title="Sign out">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <section id="view-mark" class="view"></section>
+    <section id="view-students" class="view hidden"></section>
+    <section id="view-setup" class="view hidden"></section>
+  </main>
+
+  <nav class="nav">
+    <button class="navbtn active" data-view="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Mark
+    </button>
+    <button class="navbtn" data-view="students">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Students
+    </button>
+    <button class="navbtn" data-view="setup">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Setup
+    </button>
+  </nav>
+</div>
+
+<!-- detail sheet -->
+<div id="sheetBg" class="sheet-bg hidden"></div>
+<div id="sheet" class="sheet">
+  <div class="grab"></div>
+  <h3 id="sheetName" dir="auto"></h3>
+  <p class="who-sub" id="sheetSub"></p>
+  <div class="seg" id="sheetSeg">
+    <button data-s="on_time">On time</button>
+    <button data-s="late">Late</button>
+    <button data-s="absent">Absent</button>
+    <button data-s="excused">Excused</button>
+  </div>
+  <div class="field" id="sheetLateWrap">
+    <label>Minutes late</label>
+    <input id="sheetLate" type="number" min="0" inputmode="numeric" placeholder="0" />
+  </div>
+  <div class="field">
+    <label>Note (e.g. sent to head counselor)</label>
+    <input id="sheetNote" type="text" dir="auto" placeholder="Optional" />
+  </div>
+  <div class="toggle">
+    <div><div class="tlabel">Needs attention</div><div class="tsub">Disturbing / see the director later</div></div>
+    <div class="switch" id="sheetFlag"><i></i></div>
+  </div>
+  <div class="row2">
+    <button class="btn btn-ghost" id="sheetClear" style="flex:1">Clear mark</button>
+    <button class="btn btn-primary" id="sheetSave" style="flex:2">Save</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- hidden file input for photos -->
+<input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden" />
+
+<script>
+/* =========================================================
+   1. CONFIG  —  PASTE YOUR TWO VALUES HERE
+   (Supabase → Project Settings → API)
+   ========================================================= */
+const SUPABASE_URL      = 'sb_publishable_KVAfUwsklAbTEQcTANQkMQ_juH1UA0y';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpydmZsbmp5bndxaW92Y2JxaWhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExOTY2NTIsImV4cCI6MjA5Njc3MjY1Mn0.qzgIXidqAijIVfDo6YYwbGtOHUw7ZZh3_PEuXy-rkqM';
+/* ========================================================= */
+
+let sb = null;
+const $ = id => document.getElementById(id);
+const PALETTE = ['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1'];
+const STATUS_LABEL = {on_time:'On time', late:'Late', absent:'Absent', excused:'Excused'};
+const BADGE = {on_time:'✓', late:'!', absent:'✕', excused:'E'};
+
+const state = {
+  user:null, classes:[], sessions:[], students:[], photoUrls:{},
+  marks:{}, activeStatus:'on_time', date:todayStr(), sessionId:null, classId:null,
+  view:'mark', sheetStudent:null, sheetStatus:null, sheetFlag:false,
+};
+
+/* ---------- helpers ---------- */
+function todayStr(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
+function initials(name){const t=(name||'').trim().split(/\s+/);return ((t[0]?.[0]||'')+(t[1]?.[0]||'')).toUpperCase()||'•';}
+function colorFor(id){let h=0;for(const c of String(id))h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
+function esc(s){return String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function lateFor(){
+  const ses=state.sessions.find(s=>s.id===state.sessionId);
+  if(!ses||state.date!==todayStr())return 0;
+  const [h,m]=(ses.start_time||'0:0').split(':');
+  const start=new Date(); start.setHours(+h,+m,0,0);
+  const diff=Math.floor((Date.now()-start.getTime())/60000);
+  return diff>0?diff:0;
+}
+let toastT;
+function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='toast',2600);}
+
+/* =========================================================
+   2. BOOT
+   ========================================================= */
+function boot(){
+  if(SUPABASE_URL.startsWith('PASTE')||SUPABASE_ANON_KEY.startsWith('PASTE')){
+    $('configGate').classList.remove('hidden'); return;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  wireEvents();
+  sb.auth.getSession().then(({data})=>{
+    if(data.session){ state.user=data.session.user; enterApp(); }
+    else $('loginGate').classList.remove('hidden');
+  });
+}
+
+function wireEvents(){
+  $('loginBtn').onclick = doLogin;
+  $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  $('signout').onclick = async()=>{ await sb.auth.signOut(); location.reload(); };
+  document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+  // sheet
+  $('sheetBg').onclick = closeSheet;
+  $('sheetSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>setSheetStatus(b.dataset.s));
+  $('sheetFlag').onclick = ()=>{state.sheetFlag=!state.sheetFlag; $('sheetFlag').classList.toggle('on',state.sheetFlag);};
+  $('sheetSave').onclick = saveSheet;
+  $('sheetClear').onclick = clearSheet;
+}
+
+async function doLogin(){
+  const email=$('email').value.trim(), password=$('pw').value;
+  if(!email||!password){toast('Enter email and password',true);return;}
+  $('loginBtn').textContent='Signing in…';
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){ $('loginBtn').textContent='Sign in'; toast(error.message||'Sign in failed',true); return; }
+  state.user=data.user; enterApp();
+}
+
+async function enterApp(){
+  $('loginGate').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  await loadAll();
+  switchView('mark');
+}
+
+/* =========================================================
+   3. DATA
+   ========================================================= */
+async function loadAll(){
+  const [cl,se,st]=await Promise.all([
+    sb.from('classes').select('*').order('sort_order'),
+    sb.from('sessions').select('*').order('sort_order'),
+    sb.from('students').select('*').eq('active',true).order('sort_order'),
+  ]);
+  state.classes=cl.data||[]; state.sessions=se.data||[]; state.students=st.data||[];
+  if(!state.sessionId && state.sessions[0]) state.sessionId=state.sessions[0].id;
+  if(!state.classId && state.classes[0]) state.classId=state.classes[0].id;
+  await loadPhotos();
+}
+async function loadPhotos(){
+  const withPhoto=state.students.filter(s=>s.photo_path);
+  if(!withPhoto.length)return;
+  const paths=withPhoto.map(s=>s.photo_path);
+  const {data}=await sb.storage.from('photos').createSignedUrls(paths,3600);
+  if(!data)return;
+  const byPath={}; data.forEach(d=>{if(d.signedUrl)byPath[d.path]=d.signedUrl;});
+  withPhoto.forEach(s=>{const u=byPath[s.photo_path]; if(u)state.photoUrls[s.id]=u;});
+}
+async function loadMarks(){
+  state.marks={};
+  if(!state.sessionId)return;
+  const {data}=await sb.from('attendance').select('*')
+    .eq('session_id',state.sessionId).eq('date',state.date);
+  (data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
+}
+
+/* =========================================================
+   4. VIEWS
+   ========================================================= */
+function switchView(v){
+  state.view=v;
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  ['mark','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
+  $('barTitle').textContent = {mark:'Mark attendance',students:'Students',setup:'Setup'}[v];
+  if(v!=='mark') $('barSub').textContent='';
+  if(v==='mark') renderMark();
+  if(v==='students') renderStudents();
+  if(v==='setup') renderSetup();
+}
+
+/* ---------- MARK ---------- */
+async function renderMark(){
+  const v=$('view-mark');
+  if(!state.sessions.length || !state.students.length){
+    v.innerHTML = emptyState('Nothing to mark yet',
+      'Import your students and check your sessions in the Setup tab.','setup','Go to Setup');
+    bindEmpty(v); return;
+  }
+  await loadMarks();
+  v.innerHTML = `
+    <div class="controls">
+      <div class="ctl full"><span>Class</span>
+        <select id="selClass">${state.classes.map(c=>`<option value="${c.id}" ${c.id===state.classId?'selected':''}>${esc(c.name)}${c.teacher?' · '+esc(c.teacher):''}</option>`).join('')}
+        ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${state.classId==='__none__'?'selected':''}>(No class)</option>`:''}</select></div>
+      <div class="ctl"><span>Session</span>
+        <select id="selSession">${state.sessions.map(s=>`<option value="${s.id}" ${s.id===state.sessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+      <div class="ctl"><span>Date</span>
+        <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="tabs" id="tabs">
+      ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
+    </div>
+    <div class="markall">
+      <button class="btn btn-soft btn-sm" id="markAll">Mark all “${STATUS_LABEL[state.activeStatus]}”</button>
+      <div class="hint">Tap a card to mark · tap again to clear · long-press for minutes & notes</div>
+    </div>
+    <div class="grid" id="grid"></div>`;
+
+  $('selClass').onchange=e=>{state.classId=e.target.value;renderMark();};
+  $('selSession').onchange=async e=>{state.sessionId=e.target.value;renderMark();};
+  $('selDate').onchange=async e=>{state.date=e.target.value;renderMark();};
+  $('tabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+    state.activeStatus=t.dataset.s;
+    $('tabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
+    $('markAll').textContent=`Mark all “${STATUS_LABEL[state.activeStatus]}”`;
+  });
+  $('markAll').onclick=markAll;
+  renderGrid();
+}
+
+function classStudents(){
+  if(state.classId==='__none__') return state.students.filter(s=>!s.class_id);
+  return state.students.filter(s=>s.class_id===state.classId);
+}
+
+function renderGrid(){
+  const grid=$('grid'); if(!grid)return;
+  const list=classStudents();
+  grid.innerHTML = list.map(s=>cardHTML(s)).join('') ||
+    `<div class="empty" style="grid-column:1/-1"><p>No students in this class.</p></div>`;
+  attachGrid(grid);
+  renderSummary(list);
+}
+function cardHTML(s){
+  const m=state.marks[s.id];
+  const cls=m?`s-${m.status}`:''; const flag=m&&m.flagged?'flagged':'';
+  const av=state.photoUrls[s.id]
+    ? `<img class="avatar" src="${state.photoUrls[s.id]}" alt="">`
+    : `<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
+  return `<div class="scard ${cls} ${flag}" data-id="${s.id}">
+    <span class="flagdot"></span>
+    <span class="badge">${m?BADGE[m.status]:''}</span>
+    ${av}
+    <div class="sname" dir="auto">${esc(s.hebrew_name)}</div>
+    <div class="late-min">${m&&m.late_minutes?m.late_minutes+'m late':''}</div>
+  </div>`;
+}
+function renderSummary(list){
+  const c={on_time:0,late:0,absent:0,excused:0,unm:0};
+  list.forEach(s=>{const m=state.marks[s.id]; if(m)c[m.status]++; else c.unm++;});
+  $('summary').innerHTML=`
+    <div class="chip on"><span class="dot"></span>On time <b>${c.on_time}</b></div>
+    <div class="chip late"><span class="dot"></span>Late <b>${c.late}</b></div>
+    <div class="chip absent"><span class="dot"></span>Absent <b>${c.absent}</b></div>
+    <div class="chip exc"><span class="dot"></span>Excused <b>${c.excused}</b></div>
+    <div class="chip unm"><span class="dot"></span>Unmarked <b>${c.unm}</b></div>`;
+  $('barSub').textContent=`${list.length} students · ${c.unm} unmarked`;
+}
+
+/* tap + long-press via pointer events */
+function attachGrid(grid){
+  let timer=null, longFired=false, startX=0, startY=0, downId=null;
+  const clear=()=>{clearTimeout(timer);timer=null;};
+  grid.onpointerdown=e=>{
+    const card=e.target.closest('.scard'); if(!card)return;
+    downId=card.dataset.id; longFired=false; startX=e.clientX; startY=e.clientY;
+    timer=setTimeout(()=>{longFired=true; openSheet(downId);},480);
+  };
+  grid.onpointermove=e=>{ if(timer&&(Math.abs(e.clientX-startX)>10||Math.abs(e.clientY-startY)>10))clear(); };
+  grid.onpointerup=e=>{
+    const card=e.target.closest('.scard'); clear();
+    if(card && card.dataset.id===downId && !longFired) tapStudent(downId);
+    downId=null;
+  };
+  grid.onpointercancel=()=>{clear();downId=null;};
+}
+
+async function tapStudent(id){
+  const cur=state.marks[id];
+  if(cur && cur.status===state.activeStatus){           // toggle off
+    state.marks[id]=undefined; delete state.marks[id];
+    paintCard(id);
+    const {error}=await sb.from('attendance').delete()
+      .match({student_id:id,session_id:state.sessionId,date:state.date});
+    if(error){toast('Could not clear mark',true);await loadMarks();renderGrid();}
+    else renderSummary(classStudents());
+    return;
+  }
+  const rec={student_id:id,session_id:state.sessionId,date:state.date,status:state.activeStatus,
+    late_minutes:state.activeStatus==='late'?lateFor():null,
+    note:cur?cur.note:null, flagged:cur?!!cur.flagged:false,
+    marked_by:state.user.id, marked_at:new Date().toISOString()};
+  state.marks[id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
+  paintCard(id); renderSummary(classStudents());
+  const {error}=await sb.from('attendance').upsert(rec,{onConflict:'student_id,session_id,date'});
+  if(error){toast('Save failed — check connection',true); await loadMarks(); renderGrid();}
+}
+function paintCard(id){
+  const el=document.querySelector(`.scard[data-id="${id}"]`); if(!el)return;
+  el.outerHTML=cardHTML(state.students.find(s=>s.id===id));
+}
+
+async function markAll(){
+  const list=classStudents();
+  const already=list.filter(s=>state.marks[s.id]).length;
+  if(already>0 && !confirm(`Set all ${list.length} students to “${STATUS_LABEL[state.activeStatus]}”? This replaces current marks.`))return;
+  const mins=state.activeStatus==='late'?lateFor():null;
+  const recs=list.map(s=>{
+    const cur=state.marks[s.id];
+    return {student_id:s.id,session_id:state.sessionId,date:state.date,status:state.activeStatus,
+      late_minutes:mins, note:cur?cur.note:null, flagged:cur?!!cur.flagged:false,
+      marked_by:state.user.id, marked_at:new Date().toISOString()};
+  });
+  list.forEach(s=>{state.marks[s.id]={status:state.activeStatus,late_minutes:mins,note:state.marks[s.id]?.note||null,flagged:state.marks[s.id]?.flagged||false};});
+  renderGrid();
+  const {error}=await sb.from('attendance').upsert(recs,{onConflict:'student_id,session_id,date'});
+  if(error){toast('Save failed',true); await loadMarks(); renderGrid();}
+  else toast(`Marked ${list.length} ${STATUS_LABEL[state.activeStatus]}`);
+}
+
+/* ---------- detail sheet ---------- */
+function openSheet(id){
+  const s=state.students.find(x=>x.id===id); if(!s)return;
+  state.sheetStudent=s;
+  const m=state.marks[id]||{};
+  state.sheetStatus=m.status||state.activeStatus;
+  state.sheetFlag=!!m.flagged;
+  $('sheetName').textContent=s.hebrew_name;
+  const cls=state.classes.find(c=>c.id===s.class_id);
+  $('sheetSub').textContent=[s.english_name,cls?cls.name:null,s.bunk?'Bunk '+s.bunk:null].filter(Boolean).join(' · ');
+  $('sheetNote').value=m.note||'';
+  $('sheetLate').value=m.late_minutes||'';
+  $('sheetFlag').classList.toggle('on',state.sheetFlag);
+  paintSeg();
+  $('sheetBg').classList.remove('hidden');
+  requestAnimationFrame(()=>{$('sheetBg').classList.add('show');$('sheet').classList.add('show');});
+}
+function paintSeg(){
+  $('sheetSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.s===state.sheetStatus));
+  $('sheetLateWrap').style.display = state.sheetStatus==='late'?'block':'none';
+}
+function setSheetStatus(s){
+  state.sheetStatus=s; paintSeg();
+  if(s==='late' && !$('sheetLate').value) $('sheetLate').value=lateFor();
+}
+function closeSheet(){
+  $('sheet').classList.remove('show');$('sheetBg').classList.remove('show');
+  setTimeout(()=>$('sheetBg').classList.add('hidden'),240);
+}
+async function saveSheet(){
+  const s=state.sheetStudent; if(!s)return;
+  const rec={student_id:s.id,session_id:state.sessionId,date:state.date,status:state.sheetStatus,
+    late_minutes:state.sheetStatus==='late'?(parseInt($('sheetLate').value)||0):null,
+    note:$('sheetNote').value.trim()||null, flagged:state.sheetFlag,
+    marked_by:state.user.id, marked_at:new Date().toISOString()};
+  state.marks[s.id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
+  closeSheet(); renderGrid();
+  const {error}=await sb.from('attendance').upsert(rec,{onConflict:'student_id,session_id,date'});
+  if(error){toast('Save failed',true);await loadMarks();renderGrid();} else toast('Saved');
+}
+async function clearSheet(){
+  const s=state.sheetStudent; if(!s)return;
+  delete state.marks[s.id]; closeSheet(); renderGrid();
+  await sb.from('attendance').delete().match({student_id:s.id,session_id:state.sessionId,date:state.date});
+}
+
+/* ---------- STUDENTS ---------- */
+function renderStudents(){
+  const v=$('view-students');
+  if(!state.students.length){
+    v.innerHTML=emptyState('No students yet','Import them from your spreadsheet in Setup.','setup','Go to Setup');
+    bindEmpty(v); return;
+  }
+  v.innerHTML=`
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="stuSearch" placeholder="Search ${state.students.length} students…">
+    </div>
+    <div class="list" id="stuList"></div>`;
+  const draw=q=>{
+    const list=state.students.filter(s=>!q||
+      (s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
+    $('stuList').innerHTML=list.map(s=>{
+      const cls=state.classes.find(c=>c.id===s.class_id);
+      const av=state.photoUrls[s.id]
+        ?`<img class="avatar" src="${state.photoUrls[s.id]}">`
+        :`<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
+      return `<div class="lrow" data-id="${s.id}">${av}
+        <div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div>
+        <div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>
+        <div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+      </div>`;
+    }).join('')||`<div class="empty"><p>No match.</p></div>`;
+    $('stuList').querySelectorAll('.lrow').forEach(r=>r.onclick=()=>pickPhoto(r.dataset.id));
+  };
+  draw('');
+  $('stuSearch').oninput=e=>draw(e.target.value.trim());
+}
+
+let photoFor=null;
+function pickPhoto(id){ photoFor=id; $('photoInput').value=''; $('photoInput').click(); }
+$('photoInput').addEventListener('change', async e=>{
+  const file=e.target.files[0]; if(!file||!photoFor)return;
+  const id=photoFor; toast('Uploading photo…');
+  const path=`${id}.jpg`;
+  const up=await sb.storage.from('photos').upload(path,file,{upsert:true,contentType:file.type||'image/jpeg'});
+  if(up.error){toast('Upload failed: '+up.error.message,true);return;}
+  await sb.from('students').update({photo_path:path}).eq('id',id);
+  const stu=state.students.find(s=>s.id===id); if(stu)stu.photo_path=path;
+  const {data}=await sb.storage.from('photos').createSignedUrl(path,3600);
+  if(data)state.photoUrls[id]=data.signedUrl;
+  toast('Photo added'); if(state.view==='students')renderStudents();
+});
+
+/* ---------- SETUP ---------- */
+function renderSetup(){
+  const v=$('view-setup');
+  v.innerHTML=`
+    <div class="card">
+      <h2>Import students</h2>
+      <p class="muted">Upload your filled spreadsheet (saved as CSV), or paste the rows below.
+      Columns: <b>hebrew_name, english_name, class, teacher, bunk</b>. New classes are created automatically.</p>
+      <div class="row2" style="margin-bottom:12px">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">Choose CSV file
+          <input id="csvFile" type="file" accept=".csv,text/csv" class="hidden"></label>
+      </div>
+      <textarea id="csvPaste" placeholder="hebrew_name,english_name,class,teacher,bunk
+מנחם מענדל,Menachem Mendel,שיעור א,הרב כהן,3"></textarea>
+      <button class="btn btn-primary btn-block" id="importBtn" style="margin-top:12px">Import students</button>
+    </div>
+
+    <div class="card">
+      <h2>Sessions</h2>
+      <p class="muted">Set each start time — that's what auto-calculates how many minutes late.</p>
+      <div id="sesList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Classes</h2>
+      <div id="clsList"></div>
+    </div>
+
+    <button class="btn btn-ghost btn-block" id="setupSignout">Sign out</button>
+    <p style="text-align:center;color:var(--ink-faint);font-size:12px;margin-top:14px">YKP Attendance · v1 (marking)</p>`;
+
+  $('csvFile').onchange=e=>{const f=e.target.files[0]; if(f)f.text().then(t=>{$('csvPaste').value=t;});};
+  $('importBtn').onclick=runImport;
+  $('setupSignout').onclick=async()=>{await sb.auth.signOut();location.reload();};
+
+  $('sesList').innerHTML=state.sessions.map(s=>`
+    <div class="srow"><div class="nm" dir="auto">${esc(s.name)}</div>
+    <input type="time" value="${(s.start_time||'').slice(0,5)}" data-id="${s.id}" class="sesTime"></div>`).join('')
+    || `<p class="muted">No sessions. Add them in Supabase → sessions table.</p>`;
+  $('sesList').querySelectorAll('.sesTime').forEach(inp=>inp.onchange=async()=>{
+    await sb.from('sessions').update({start_time:inp.value}).eq('id',inp.dataset.id);
+    const s=state.sessions.find(x=>x.id===inp.dataset.id); if(s)s.start_time=inp.value+':00';
+    toast('Session time saved');
+  });
+
+  $('clsList').innerHTML=state.classes.map(c=>{
+    const n=state.students.filter(s=>s.class_id===c.id).length;
+    return `<div class="srow"><div class="sw" style="background:${c.color||'#94a3b8'}"></div>
+      <div class="nm" dir="auto">${esc(c.name)}<div class="sub">${c.teacher?esc(c.teacher)+' · ':''}${n} students</div></div></div>`;
+  }).join('')||`<p class="muted">Classes appear here after you import students.</p>`;
+}
+
+async function runImport(){
+  const text=$('csvPaste').value.trim();
+  if(!text){toast('Paste rows or choose a CSV first',true);return;}
+  $('importBtn').textContent='Importing…';
+  try{
+    const rows=parseCSV(text);
+    const header=rows[0].map(h=>h.toLowerCase().trim().replace(/\s+/g,'_'));
+    const col=names=>{for(const n of names){const i=header.indexOf(n);if(i>=0)return i;}return -1;};
+    const hi=col(['hebrew_name','heb_name','hebrew','שם']);
+    const ei=col(['english_name','eng_name','english','name']);
+    const ci=col(['class','shiur','class_name']);
+    const ti=col(['teacher','rebbi','rabbi']);
+    const bi=col(['bunk','counselor','bunk_counselor']);
+    if(hi<0){toast('No "hebrew_name" column found in header row',true);$('importBtn').textContent='Import students';return;}
+    const data=rows.slice(1).filter(r=>r.join('').trim()!=='');
+
+    // resolve / create classes
+    const byName={}; state.classes.forEach(c=>byName[c.name.trim()]=c);
+    const newCls={};
+    data.forEach(r=>{const cn=(r[ci]||'').trim();
+      if(cn&&!byName[cn]&&!newCls[cn])newCls[cn]={name:cn,teacher:ti>=0?((r[ti]||'').trim()||null):null,color:PALETTE[(Object.keys(byName).length+Object.keys(newCls).length)%PALETTE.length],sort_order:Object.keys(byName).length+Object.keys(newCls).length+1};});
+    if(Object.keys(newCls).length){
+      const {data:ins,error}=await sb.from('classes').insert(Object.values(newCls)).select();
+      if(error)throw error;
+      ins.forEach(c=>byName[c.name.trim()]=c);
+    }
+    // dedupe against existing
+    const seen=new Set(state.students.map(s=>(s.hebrew_name||'').trim()+'|'+(s.class_id||'')));
+    const toInsert=[]; let skipped=0;
+    data.forEach((r,i)=>{
+      const hn=(r[hi]||'').trim(); if(!hn){skipped++;return;}
+      const cn=(r[ci]||'').trim(); const cls=cn?byName[cn]:null;
+      const key=hn+'|'+(cls?cls.id:'');
+      if(seen.has(key)){skipped++;return;} seen.add(key);
+      toInsert.push({hebrew_name:hn, english_name:ei>=0?((r[ei]||'').trim()||null):null,
+        class_id:cls?cls.id:null, bunk:bi>=0?((r[bi]||'').trim()||null):null, sort_order:i});
+    });
+    if(toInsert.length){const {error}=await sb.from('students').insert(toInsert); if(error)throw error;}
+    await loadAll();
+    $('csvPaste').value='';
+    toast(`Imported ${toInsert.length} students${skipped?` · skipped ${skipped}`:''}`);
+    renderSetup();
+  }catch(err){ toast('Import error: '+(err.message||err),true); }
+  $('importBtn').textContent='Import students';
+}
+
+function parseCSV(text){
+  text=text.replace(/\r\n?/g,'\n').replace(/\n+$/,'');
+  const first=text.split('\n')[0];
+  const delim=(first.split('\t').length>first.split(',').length)?'\t':',';
+  const rows=[]; let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else{ if(ch==='"')q=true; else if(ch===delim){row.push(cur);cur='';}
+      else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';} else cur+=ch; }
+  }
+  row.push(cur); rows.push(row);
+  return rows;
+}
+
+/* ---------- shared empty state ---------- */
+function emptyState(title,body,view,btn){
+  return `<div class="empty">
+    <div class="em-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+    <h3>${title}</h3><p>${body}</p>
+    <button class="btn btn-primary" data-goto="${view}">${btn}</button></div>`;
+}
+function bindEmpty(v){const b=v.querySelector('[data-goto]'); if(b)b.onclick=()=>switchView(b.dataset.goto);}
+
+boot();
+</script>
+</body>
+</html>
