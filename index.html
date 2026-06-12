@@ -313,6 +313,33 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .delayfine button{width:54px;height:42px;border-radius:10px;background:#eef0fb;color:var(--accent);font-weight:700;font-size:15px}
 .delayfine button:active{transform:scale(.95)}
 .delayfine b{min-width:54px;text-align:center;font-weight:800;font-size:17px}
+
+/* the Zal */
+.zal-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.zal-toolbar .inp{box-shadow:var(--sh-1)}
+.zal-modes{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px;box-shadow:var(--sh-1)}
+.zal-modes button{height:34px;padding:0 14px;border-radius:999px;font-weight:700;font-size:13px;color:var(--ink-soft)}
+.zal-modes button.on{background:var(--accent);color:#fff}
+.zal-stage{position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 16px,#e9edf5 16px,#e9edf5 32px);
+  border:1px solid var(--line);border-radius:var(--r-lg);height:60vh;touch-action:none;user-select:none;-webkit-user-select:none}
+.zal-canvas{position:absolute;top:0;left:0;transform-origin:0 0;width:1200px;height:1600px}
+.ztable{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:grab}
+.ztable .tbar{width:74px;height:14px;background:#b9c1d6;border-radius:5px}
+.zseat{width:74px;height:42px;border-radius:10px;background:var(--surface);border:1.5px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;line-height:1.05;
+  box-shadow:var(--sh-1);overflow:hidden;text-align:center}
+.zseat .zav{width:20px;height:20px;border-radius:6px;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px}
+.zseat .znm{max-width:68px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
+.zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-size:18px;font-weight:700}
+.zseat.s-on_time{background:var(--on-bg);border-color:var(--on)}
+.zseat.s-late{background:var(--late-bg);border-color:var(--late)}
+.zseat.s-absent{background:var(--absent-bg);border-color:var(--absent)}
+.zseat.s-excused{background:var(--exc-bg);border-color:var(--exc)}
+.zfront{position:absolute;transform:translate(-50%,-50%);background:#1e1b4b;color:#fff;padding:7px 16px;border-radius:10px;
+  font-weight:700;font-size:13px;box-shadow:var(--sh-2);white-space:nowrap;cursor:grab}
+.zoomctl{position:absolute;bottom:12px;inset-inline-end:12px;display:flex;flex-direction:column;gap:6px;z-index:5}
+.zoomctl button{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.96);box-shadow:var(--sh-2);font-size:22px;font-weight:700;color:var(--ink)}
+.zal-hint{font-size:12px;color:var(--ink-faint);margin-top:8px;text-align:center;line-height:1.4}
 </style>
 </head>
 <body>
@@ -358,6 +385,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
   <main>
     <section id="view-mark" class="view"></section>
+    <section id="view-zal" class="view hidden"></section>
     <section id="view-students" class="view hidden"></section>
     <section id="view-setup" class="view hidden"></section>
   </main>
@@ -366,6 +394,10 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
     <button class="navbtn active" data-view="mark">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       Mark
+    </button>
+    <button class="navbtn" data-view="zal">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg>
+      Zal
     </button>
     <button class="navbtn" data-view="students">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -437,6 +469,19 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
     <button id="dlPlus2" type="button">+5</button>
   </div>
   <button class="btn btn-primary btn-block" id="delayDone" type="button" style="margin-top:16px">Done</button>
+</div>
+
+<!-- student picker sheet -->
+<div id="pickBg" class="sheet-bg hidden"></div>
+<div id="pickSheet" class="sheet">
+  <div class="grab"></div>
+  <h3 id="pickTitle">Choose student</h3>
+  <div class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="pickSearch" placeholder="Search…">
+  </div>
+  <button class="btn btn-ghost btn-block" id="pickEmpty" style="margin-bottom:10px">Leave seat empty</button>
+  <div class="list" id="pickList" style="max-height:46vh;overflow:auto"></div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -518,6 +563,8 @@ function wireEvents(){
   $('delayQuick').querySelectorAll('button').forEach(b=>b.onclick=()=>applyDelay(+b.dataset.v));
   $('dlMinus2').onclick = ()=>applyDelay((state.delayMinutes||0)-5);
   $('dlPlus2').onclick = ()=>applyDelay((state.delayMinutes||0)+5);
+  $('pickBg').onclick = closePicker;
+  $('pickEmpty').onclick = ()=>pickerCb&&pickerCb(null);
 }
 
 async function doLogin(){
@@ -577,10 +624,11 @@ async function loadMarks(){
 function switchView(v){
   state.view=v;
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
-  ['mark','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
-  $('barTitle').textContent = {mark:'Mark attendance',students:'Students',setup:'Setup'}[v];
+  ['mark','zal','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
+  $('barTitle').textContent = {mark:'Mark attendance',zal:'The Zal',students:'Students',setup:'Setup'}[v];
   if(v!=='mark') $('barSub').textContent='';
   if(v==='mark') renderMark();
+  if(v==='zal') renderZal();
   if(v==='students') renderStudents();
   if(v==='setup') renderSetup();
 }
@@ -1060,6 +1108,269 @@ async function applyDelay(v){
     {session_id:state.sessionId,date:state.date,delay_minutes:state.delayMinutes},{onConflict:'session_id,date'});
   if(error)toast('Delay needs the session_overrides DB update to save',true);
 }
+
+/* =========================================================
+   6. THE ZAL — director-built room, drag tables, seat & mark
+   ========================================================= */
+state.zal = {arrangementId:null, mode:'mark', scale:0.5, tx:12, ty:12, placingFront:false};
+const zalData = {arrangements:[], tables:[], seats:[], loaded:false, fitted:false};
+const FRONT_KIND = {aron:'Aron Kodesh', bimah:'Bimah', door:'Front Door'};
+const ROOM_W = 1200, ROOM_H = 1600;
+let pickerCb = null;
+
+async function loadZal(){
+  const a = await sb.from('arrangements').select('*').order('created_at');
+  zalData.arrangements = a.data || [];
+  if(!state.zal.arrangementId && zalData.arrangements[0]) state.zal.arrangementId = zalData.arrangements[0].id;
+  await loadZalLayout();
+}
+async function loadZalLayout(){
+  zalData.tables=[]; zalData.seats=[];
+  if(!state.zal.arrangementId) return;
+  const t = await sb.from('zal_tables').select('*').eq('arrangement_id', state.zal.arrangementId);
+  zalData.tables = t.data || [];
+  if(zalData.tables.length){
+    const s = await sb.from('seats').select('*').in('table_id', zalData.tables.map(x=>x.id));
+    zalData.seats = s.data || [];
+  }
+}
+function curArrangement(){ return zalData.arrangements.find(a=>a.id===state.zal.arrangementId); }
+
+async function renderZal(){
+  const v=$('view-zal');
+  if(!zalData.loaded){ await loadZal(); zalData.loaded=true; }
+  if(!zalData.arrangements.length){
+    v.innerHTML = `<div class="empty"><div class="em-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/></svg></div>
+      <h3>No Zal layout yet</h3><p>Make a seating arrangement, then add tables and place the Aron Kodesh.</p>
+      <button class="btn btn-primary" id="zNewArr">Create arrangement</button></div>`;
+    $('zNewArr').onclick=newArrangement; return;
+  }
+  if(!state.sessions.length){ v.innerHTML=emptyState('Add a session first','Sessions live in the Setup tab.','setup','Go to Setup'); bindEmpty(v); return; }
+  await loadMarks();
+  const a=curArrangement();
+  v.innerHTML = `
+    <div class="zal-toolbar">
+      <select id="zArr" class="inp" style="height:40px;flex:1;min-width:120px;-webkit-appearance:none">${zalData.arrangements.map(x=>`<option value="${x.id}" ${x.id===state.zal.arrangementId?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+      <button class="btn btn-ghost btn-sm" id="zNew">+ New</button>
+    </div>
+    <div class="zal-toolbar">
+      <select id="zSession" class="inp" style="height:40px;flex:1;-webkit-appearance:none">${state.sessions.map(s=>`<option value="${s.id}" ${s.id===state.sessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+      <input id="zDate" type="date" class="inp" style="height:40px;width:150px" value="${state.date}" max="${todayStr()}">
+      <div class="zal-modes"><button data-m="mark" class="${state.zal.mode==='mark'?'on':''}">Mark</button><button data-m="edit" class="${state.zal.mode==='edit'?'on':''}">Edit</button></div>
+    </div>
+    ${state.zal.mode==='mark'
+      ? `<div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
+      : `<div class="zal-toolbar">
+          <button class="btn btn-soft btn-sm" id="zAddTable">+ Table</button>
+          <button class="btn btn-ghost btn-sm" id="zFrontKind">Front: ${esc(FRONT_KIND[a.front_kind||'aron'])}</button>
+          <button class="btn btn-ghost btn-sm" id="zPlaceFront">${state.zal.placingFront?'Tap the room…':'Move front'}</button>
+          <button class="btn btn-ghost btn-sm" id="zRename">Rename</button>
+          <button class="btn btn-ghost btn-sm" id="zDel">Delete</button>
+        </div>`}
+    <div class="zal-stage" id="zStage">
+      <div class="zal-canvas" id="zCanvas"></div>
+      <div class="zoomctl"><button id="zIn" type="button">+</button><button id="zOut" type="button">−</button><button id="zFit" type="button" style="font-size:12px;font-weight:700">Fit</button></div>
+    </div>
+    <div class="zal-hint">${state.zal.mode==='mark'
+      ? 'Tap a seat to mark · drag to pan · pinch or +/− to zoom'
+      : (state.zal.placingFront ? 'Tap anywhere in the room to drop the front marker'
+         : 'Drag tables to arrange the room · tap a seat to seat someone (picking the same boy moves him over)')}</div>`;
+
+  renderZalCanvas();
+  if(!zalData.fitted){ zalFit(); zalData.fitted=true; }
+
+  $('zArr').onchange=async e=>{ state.zal.arrangementId=e.target.value; await loadZalLayout(); zalData.fitted=false; renderZal(); };
+  $('zNew').onclick=newArrangement;
+  $('zSession').onchange=async e=>{ state.sessionId=e.target.value; await loadMarks(); renderZalCanvas(); };
+  $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(); renderZalCanvas(); };
+  v.querySelectorAll('.zal-modes button').forEach(b=>b.onclick=()=>{ state.zal.mode=b.dataset.m; state.zal.placingFront=false; renderZal(); });
+  if(state.zal.mode==='mark'){
+    $('ztabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{ state.activeStatus=t.dataset.s; $('ztabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t)); });
+  } else {
+    $('zAddTable').onclick=addZalTable;
+    $('zFrontKind').onclick=cycleFront;
+    $('zPlaceFront').onclick=()=>{ state.zal.placingFront=!state.zal.placingFront; renderZal(); };
+    $('zRename').onclick=renameArrangement;
+    $('zDel').onclick=deleteArrangement;
+  }
+  $('zIn').onclick=()=>zoomBy(1.25);
+  $('zOut').onclick=()=>zoomBy(1/1.25);
+  $('zFit').onclick=zalFit;
+  attachZalGestures();
+}
+
+function renderZalCanvas(){
+  const c=$('zCanvas'); if(!c)return;
+  const a=curArrangement(); if(!a)return;
+  const fk=a.front_kind||'aron', fx=(a.front_x??0.5), fy=(a.front_y??0.05);
+  let html=`<div class="zfront" id="zFront" style="left:${fx*ROOM_W}px;top:${fy*ROOM_H}px">▲ ${esc(FRONT_KIND[fk])}</div>`;
+  zalData.tables.forEach(t=>{
+    const s0=zalData.seats.find(s=>s.table_id===t.id&&s.slot===0);
+    const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
+    html+=`<div class="ztable" data-id="${t.id}" style="left:${(t.x??0.5)*ROOM_W}px;top:${(t.y??0.5)*ROOM_H}px">${seatHTML(s0,t.id,0)}<div class="tbar"></div>${seatHTML(s1,t.id,1)}</div>`;
+  });
+  c.innerHTML=html;
+  applyZalTransform();
+}
+function seatHTML(seat,tableId,slot){
+  const stu = seat&&seat.student_id ? state.students.find(s=>s.id===seat.student_id) : null;
+  if(!stu) return `<div class="zseat empty" data-table="${tableId}" data-slot="${slot}" data-seat="${seat?seat.id:''}">+</div>`;
+  const m = state.marks[stu.id];
+  const av = state.photoUrls[stu.id]
+    ? `<img class="zav" src="${state.photoUrls[stu.id]}">`
+    : `<div class="zav" style="background:${colorFor(stu.id)}">${esc(initials(stu.english_name||stu.hebrew_name))}</div>`;
+  return `<div class="zseat ${m?'s-'+m.status:''}" data-table="${tableId}" data-slot="${slot}" data-seat="${seat.id}" data-student="${stu.id}">${av}<div class="znm" dir="auto">${esc(stu.hebrew_name)}</div></div>`;
+}
+function applyZalTransform(){ const c=$('zCanvas'); if(c) c.style.transform=`translate(${state.zal.tx}px,${state.zal.ty}px) scale(${state.zal.scale})`; }
+function zoomBy(f){ const st=$('zStage'); zoomAround(f, st.getBoundingClientRect().left+st.clientWidth/2, st.getBoundingClientRect().top+st.clientHeight/2); }
+function zoomAround(f, clientX, clientY){
+  const st=$('zStage'); const r=st.getBoundingClientRect();
+  const ns=Math.min(3,Math.max(.15,state.zal.scale*f)); const k=ns/state.zal.scale;
+  const px=clientX-r.left, py=clientY-r.top;
+  state.zal.tx = px-(px-state.zal.tx)*k; state.zal.ty = py-(py-state.zal.ty)*k;
+  state.zal.scale=ns; applyZalTransform();
+}
+function zalFit(){
+  const st=$('zStage'); if(!st)return;
+  const s=Math.min((st.clientWidth-24)/ROOM_W,(st.clientHeight-24)/ROOM_H);
+  state.zal.scale = (isFinite(s)&&s>0)? s : 0.4;
+  state.zal.tx=(st.clientWidth-ROOM_W*state.zal.scale)/2; state.zal.ty=12;
+  applyZalTransform();
+}
+
+/* ---- arrangement / table actions ---- */
+async function newArrangement(){
+  const name=prompt('Name this arrangement (e.g. Chavrusa, Davening):'); if(!name||!name.trim())return;
+  const {data,error}=await sb.from('arrangements').insert({name:name.trim()}).select().single();
+  if(error){toast('Failed: '+error.message,true);return;}
+  state.zal.arrangementId=data.id; state.zal.mode='edit'; zalData.fitted=false;
+  await loadZal(); renderZal();
+}
+async function renameArrangement(){ const a=curArrangement(); const name=prompt('Rename arrangement:',a.name); if(!name||!name.trim())return; await sb.from('arrangements').update({name:name.trim()}).eq('id',a.id); a.name=name.trim(); renderZal(); }
+async function deleteArrangement(){ const a=curArrangement(); if(!confirm(`Delete "${a.name}" and its whole layout?`))return; await sb.from('arrangements').delete().eq('id',a.id); state.zal.arrangementId=null; zalData.fitted=false; await loadZal(); renderZal(); }
+async function addZalTable(){
+  const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,x:0.5,y:0.5}).select().single();
+  if(error){toast('Add table failed: '+error.message,true);return;}
+  await sb.from('seats').insert([{table_id:data.id,slot:0},{table_id:data.id,slot:1}]);
+  await loadZalLayout(); renderZalCanvas();
+}
+async function cycleFront(){ const a=curArrangement(); const o=['aron','bimah','door']; const n=o[(o.indexOf(a.front_kind||'aron')+1)%3]; a.front_kind=n; await sb.from('arrangements').update({front_kind:n}).eq('id',a.id); renderZal(); }
+
+/* ---- seating + marking ---- */
+function onZalSeatTap(el){
+  const seatId=el.dataset.seat;
+  if(state.zal.mode==='mark'){
+    const sid=el.dataset.student||null;
+    if(!sid){ toast('Empty seat',false); return; }
+    zalMark(sid);
+  } else if(seatId){
+    openPicker('Seat a student', sid=>assignSeat(seatId, sid));
+  }
+}
+async function assignSeat(seatId, studentId){
+  const seat=zalData.seats.find(s=>s.id===seatId); if(!seat)return;
+  const prev=seat.student_id||null;
+  const writes=[];
+  if(studentId){
+    const old=zalData.seats.find(s=>s.student_id===studentId && s.id!==seatId);
+    seat.student_id=studentId; writes.push([seatId,studentId]);
+    if(old){ old.student_id=prev; writes.push([old.id,prev]); }   // swap them
+  } else { seat.student_id=null; writes.push([seatId,null]); }
+  closePicker(); renderZalCanvas();
+  for(const [id,sid] of writes){ await sb.from('seats').update({student_id:sid}).eq('id',id); }
+}
+async function zalMark(studentId){
+  const cur=state.marks[studentId];
+  if(cur && cur.status===state.activeStatus){
+    delete state.marks[studentId]; renderZalCanvas();
+    const {error}=await sb.from('attendance').delete().match({student_id:studentId,session_id:state.sessionId,date:state.date});
+    if(error){toast('Save failed — check connection',true); await loadMarks(); renderZalCanvas();}
+    return;
+  }
+  const late=state.activeStatus==='late'?lateFor():null;
+  state.marks[studentId]={status:state.activeStatus,late_minutes:late,note:cur?cur.note:null,flagged:cur?cur.flagged:false};
+  renderZalCanvas();
+  const {error}=await sb.from('attendance').upsert({student_id:studentId,session_id:state.sessionId,date:state.date,status:state.activeStatus,late_minutes:late,note:state.marks[studentId].note,flagged:state.marks[studentId].flagged,marked_by:state.user.id,marked_at:new Date().toISOString()},{onConflict:'student_id,session_id,date'});
+  if(error){toast('Save failed — check connection',true); await loadMarks(); renderZalCanvas();}
+}
+
+/* ---- pan / zoom / drag gestures ---- */
+function attachZalGestures(){
+  const stage=$('zStage'); if(!stage)return;
+  const pts=new Map();
+  let act=null, sx=0, sy=0, startTx=0, startTy=0, dragId=null, dragStart=null, moved=false, downSeat=null, pinchDist=0, pinchMid=null;
+  const T=8;
+  stage.onpointerdown=e=>{
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===2){ const v=[...pts.values()]; pinchDist=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y); pinchMid={x:(v[0].x+v[1].x)/2,y:(v[0].y+v[1].y)/2}; act='pinch'; dragId=null; downSeat=null; return; }
+    try{stage.setPointerCapture(e.pointerId);}catch(_){}
+    moved=false; sx=e.clientX; sy=e.clientY; startTx=state.zal.tx; startTy=state.zal.ty;
+    const seat=e.target.closest('.zseat'), table=e.target.closest('.ztable'), front=e.target.closest('.zfront');
+    if(state.zal.placingFront){ act='placefront'; }
+    else if(state.zal.mode==='edit' && front){ act='frontdrag'; }
+    else if(state.zal.mode==='edit' && table && !seat){ act='tabledrag'; dragId=table.dataset.id; const t=zalData.tables.find(x=>x.id===dragId); dragStart={x:t.x??0.5,y:t.y??0.5}; }
+    else if(seat){ act='seat'; downSeat=seat; }
+    else { act='pan'; }
+  };
+  stage.onpointermove=e=>{
+    if(!pts.has(e.pointerId))return;
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(act==='pinch' && pts.size>=2){ const v=[...pts.values()]; const d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y); if(pinchDist>0) zoomAround(d/pinchDist, pinchMid.x, pinchMid.y); pinchDist=d; return; }
+    const dx=e.clientX-sx, dy=e.clientY-sy;
+    if(!moved && Math.hypot(dx,dy)>T) moved=true;
+    if(!moved) return;
+    if(act==='tabledrag' && dragId){
+      const t=zalData.tables.find(x=>x.id===dragId); if(!t)return;
+      t.x=Math.min(1,Math.max(0,dragStart.x+dx/(ROOM_W*state.zal.scale)));
+      t.y=Math.min(1,Math.max(0,dragStart.y+dy/(ROOM_H*state.zal.scale)));
+      renderZalCanvas();
+    } else if(act==='frontdrag'){
+      const a=curArrangement();
+      a.front_x=Math.min(1,Math.max(0,(a.front_x??0.5)+dx/(ROOM_W*state.zal.scale)));
+      a.front_y=Math.min(1,Math.max(0,(a.front_y??0.05)+dy/(ROOM_H*state.zal.scale)));
+      sx=e.clientX; sy=e.clientY; renderZalCanvas();
+    } else { // pan (including a seat-press that turned into a drag)
+      act='pan'; state.zal.tx=startTx+dx; state.zal.ty=startTy+dy; applyZalTransform();
+    }
+  };
+  stage.onpointerup=e=>{
+    const a=act, seatEl=downSeat, wasMoved=moved;
+    pts.delete(e.pointerId);
+    try{stage.releasePointerCapture(e.pointerId);}catch(_){}
+    if(a==='pinch'){ act=pts.size>=1?'pan':null; return; }
+    if(a==='tabledrag' && dragId){ const t=zalData.tables.find(x=>x.id===dragId); if(t) sb.from('zal_tables').update({x:t.x,y:t.y}).eq('id',dragId); }
+    else if(a==='frontdrag'){ const ar=curArrangement(); sb.from('arrangements').update({front_x:ar.front_x,front_y:ar.front_y}).eq('id',ar.id); }
+    else if(a==='placefront' && !wasMoved){ placeFrontAt(e.clientX,e.clientY); }
+    else if(a==='seat' && !wasMoved && seatEl){ onZalSeatTap(seatEl); }
+    act=null; dragId=null; downSeat=null;
+  };
+  stage.onpointercancel=e=>{ pts.delete(e.pointerId); act=null; dragId=null; downSeat=null; };
+}
+function placeFrontAt(clientX,clientY){
+  const st=$('zStage'); const r=st.getBoundingClientRect();
+  const a=curArrangement();
+  a.front_x=Math.min(1,Math.max(0,(clientX-r.left-state.zal.tx)/(state.zal.scale*ROOM_W)));
+  a.front_y=Math.min(1,Math.max(0,(clientY-r.top-state.zal.ty)/(state.zal.scale*ROOM_H)));
+  sb.from('arrangements').update({front_x:a.front_x,front_y:a.front_y}).eq('id',a.id);
+  state.zal.placingFront=false; renderZal();
+}
+
+/* ---- generic student picker ---- */
+function openPicker(title, cb){
+  pickerCb=cb; $('pickTitle').textContent=title;
+  const draw=q=>{
+    const list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
+    $('pickList').innerHTML=list.map(s=>{
+      const cls=state.classes.find(c=>c.id===s.class_id);
+      const av=state.photoUrls[s.id]?`<img class="avatar" src="${state.photoUrls[s.id]}">`:`<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
+      return `<div class="lrow" data-id="${s.id}">${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${cls?esc(cls.name):''}</div></div></div>`;
+    }).join('')||`<div class="empty"><p>No match.</p></div>`;
+    $('pickList').querySelectorAll('.lrow').forEach(r=>r.onclick=()=>pickerCb&&pickerCb(r.dataset.id));
+  };
+  draw(''); $('pickSearch').value=''; $('pickSearch').oninput=e=>draw(e.target.value.trim());
+  $('pickBg').classList.remove('hidden'); requestAnimationFrame(()=>{$('pickBg').classList.add('show');$('pickSheet').classList.add('show');});
+}
+function closePicker(){ $('pickSheet').classList.remove('show'); $('pickBg').classList.remove('show'); setTimeout(()=>$('pickBg').classList.add('hidden'),240); }
 
 boot();
 </script>
