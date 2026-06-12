@@ -276,6 +276,26 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .toast.err{background:#9f1239}
 
 @media(prefers-reduced-motion:reduce){*{transition:none !important}}
+
+/* management additions */
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.cardhead h2{margin:0}
+.tappable{cursor:pointer}
+.srow.tappable:active{background:var(--surface-2)}
+.chev{width:18px;height:18px;color:var(--ink-faint);flex:none}
+.delaybar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+  box-shadow:var(--sh-1);padding:10px 14px;margin-bottom:12px}
+.delaybar .dl-t{font-weight:600;font-size:13.5px}
+.delaybar .dl-s{font-size:11.5px;color:var(--ink-faint);line-height:1.3}
+.stepper{display:flex;align-items:center;gap:4px;flex:none}
+.stepper button{width:36px;height:36px;border-radius:10px;background:#eef0fb;color:var(--accent);
+  font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.stepper button:active{transform:scale(.94)}
+.stepper b{min-width:42px;text-align:center;font-weight:800}
+.swrow{display:flex;gap:8px;flex-wrap:wrap}
+.sw-opt{width:30px;height:30px;border-radius:8px;cursor:pointer;border:2px solid transparent}
+.sw-opt.on{border-color:var(--ink)}
 </style>
 </head>
 <body>
@@ -371,6 +391,18 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   </div>
 </div>
 
+<!-- generic edit / add sheet -->
+<div id="formBg" class="sheet-bg hidden"></div>
+<div id="formSheet" class="sheet">
+  <div class="grab"></div>
+  <h3 id="formTitle"></h3>
+  <div id="formBody"></div>
+  <div class="row2" style="margin-top:6px">
+    <button class="btn btn-ghost" id="formDelete" style="flex:1;display:none">Delete</button>
+    <button class="btn btn-primary" id="formSave" style="flex:2">Save</button>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <!-- hidden file input for photos -->
@@ -394,7 +426,7 @@ const BADGE = {on_time:'✓', late:'!', absent:'✕', excused:'E'};
 const state = {
   user:null, classes:[], sessions:[], students:[], photoUrls:{},
   marks:{}, activeStatus:'on_time', date:todayStr(), sessionId:null, classId:null,
-  view:'mark', sheetStudent:null, sheetStatus:null, sheetFlag:false,
+  view:'mark', sheetStudent:null, sheetStatus:null, sheetFlag:false, delayMinutes:0,
 };
 
 /* ---------- helpers ---------- */
@@ -406,7 +438,7 @@ function lateFor(){
   const ses=state.sessions.find(s=>s.id===state.sessionId);
   if(!ses||state.date!==todayStr())return 0;
   const [h,m]=(ses.start_time||'0:0').split(':');
-  const start=new Date(); start.setHours(+h,+m,0,0);
+  const start=new Date(); start.setHours(+h, +m + (state.delayMinutes||0), 0, 0);
   const diff=Math.floor((Date.now()-start.getTime())/60000);
   return diff>0?diff:0;
 }
@@ -439,6 +471,7 @@ function wireEvents(){
   $('sheetFlag').onclick = ()=>{state.sheetFlag=!state.sheetFlag; $('sheetFlag').classList.toggle('on',state.sheetFlag);};
   $('sheetSave').onclick = saveSheet;
   $('sheetClear').onclick = clearSheet;
+  $('formBg').onclick = closeForm;
 }
 
 async function doLogin(){
@@ -486,6 +519,10 @@ async function loadMarks(){
   const {data}=await sb.from('attendance').select('*')
     .eq('session_id',state.sessionId).eq('date',state.date);
   (data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
+  state.delayMinutes=0;
+  const ov=await sb.from('session_overrides').select('delay_minutes')
+    .eq('session_id',state.sessionId).eq('date',state.date).maybeSingle();
+  if(ov.data) state.delayMinutes=ov.data.delay_minutes||0;
 }
 
 /* =========================================================
@@ -521,6 +558,10 @@ async function renderMark(){
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
+    <div class="delaybar">
+      <div><div class="dl-t">Today's start delay</div><div class="dl-s">breakfast ran late? push the on-time cutoff</div></div>
+      <div class="stepper"><button id="delMinus" type="button">−</button><b id="delVal">${state.delayMinutes||0}m</b><button id="delPlus" type="button">+</button></div>
+    </div>
     <div class="summary" id="summary"></div>
     <div class="tabs" id="tabs">
       ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
@@ -540,6 +581,15 @@ async function renderMark(){
     $('markAll').textContent=`Mark all “${STATUS_LABEL[state.activeStatus]}”`;
   });
   $('markAll').onclick=markAll;
+  const setDelay=async d=>{
+    state.delayMinutes=Math.max(0,d);
+    $('delVal').textContent=state.delayMinutes+'m';
+    const {error}=await sb.from('session_overrides').upsert(
+      {session_id:state.sessionId,date:state.date,delay_minutes:state.delayMinutes},{onConflict:'session_id,date'});
+    if(error)toast('Delay needs the new DB update to save',true);
+  };
+  $('delMinus').onclick=()=>setDelay((state.delayMinutes||0)-5);
+  $('delPlus').onclick=()=>setDelay((state.delayMinutes||0)+5);
   renderGrid();
 }
 
@@ -697,9 +747,11 @@ function renderStudents(){
     bindEmpty(v); return;
   }
   v.innerHTML=`
+    <div class="cardhead" style="margin-bottom:12px"><h2 style="font-size:16px;margin:0">${state.students.length} students</h2>
+      <button class="btn btn-soft btn-sm" id="addStudent">+ Add student</button></div>
     <div class="search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="stuSearch" placeholder="Search ${state.students.length} students…">
+      <input id="stuSearch" placeholder="Search students…">
     </div>
     <div class="list" id="stuList"></div>`;
   const draw=q=>{
@@ -716,10 +768,14 @@ function renderStudents(){
         <div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
       </div>`;
     }).join('')||`<div class="empty"><p>No match.</p></div>`;
-    $('stuList').querySelectorAll('.lrow').forEach(r=>r.onclick=()=>pickPhoto(r.dataset.id));
+    $('stuList').querySelectorAll('.lrow').forEach(r=>{
+      r.onclick=()=>editStudent(r.dataset.id);
+      const cam=r.querySelector('.cam'); if(cam)cam.onclick=e=>{e.stopPropagation();pickPhoto(r.dataset.id);};
+    });
   };
   draw('');
   $('stuSearch').oninput=e=>draw(e.target.value.trim());
+  $('addStudent').onclick=()=>editStudent(null);
 }
 
 let photoFor=null;
@@ -755,13 +811,14 @@ function renderSetup(){
     </div>
 
     <div class="card">
-      <h2>Sessions</h2>
-      <p class="muted">Set each start time — that's what auto-calculates how many minutes late.</p>
+      <div class="cardhead"><h2>Sessions</h2><button class="btn btn-soft btn-sm" id="addSession">+ Add</button></div>
+      <p class="muted">Tap a session to rename it, set its start time, or remove it. Start time powers the auto late-minutes.</p>
       <div id="sesList"></div>
     </div>
 
     <div class="card">
-      <h2>Classes</h2>
+      <div class="cardhead"><h2>Classes</h2><button class="btn btn-soft btn-sm" id="addClass">+ Add</button></div>
+      <p class="muted">Tap a class to edit its name, teacher, or colour.</p>
       <div id="clsList"></div>
     </div>
 
@@ -770,23 +827,23 @@ function renderSetup(){
 
   $('csvFile').onchange=e=>{const f=e.target.files[0]; if(f)f.text().then(t=>{$('csvPaste').value=t;});};
   $('importBtn').onclick=runImport;
+  $('addSession').onclick=()=>editSession(null);
+  $('addClass').onclick=()=>editClass(null);
   $('setupSignout').onclick=async()=>{await sb.auth.signOut();location.reload();};
 
   $('sesList').innerHTML=state.sessions.map(s=>`
-    <div class="srow"><div class="nm" dir="auto">${esc(s.name)}</div>
-    <input type="time" value="${(s.start_time||'').slice(0,5)}" data-id="${s.id}" class="sesTime"></div>`).join('')
-    || `<p class="muted">No sessions. Add them in Supabase → sessions table.</p>`;
-  $('sesList').querySelectorAll('.sesTime').forEach(inp=>inp.onchange=async()=>{
-    await sb.from('sessions').update({start_time:inp.value}).eq('id',inp.dataset.id);
-    const s=state.sessions.find(x=>x.id===inp.dataset.id); if(s)s.start_time=inp.value+':00';
-    toast('Session time saved');
-  });
+    <div class="srow tappable" data-id="${s.id}"><div class="nm" dir="auto">${esc(s.name)}<div class="sub">${(s.start_time||'—').slice(0,5)}</div></div>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>`).join('')
+    || `<p class="muted">No sessions yet — tap “+ Add”.</p>`;
+  $('sesList').querySelectorAll('.srow').forEach(r=>r.onclick=()=>editSession(r.dataset.id));
 
   $('clsList').innerHTML=state.classes.map(c=>{
     const n=state.students.filter(s=>s.class_id===c.id).length;
-    return `<div class="srow"><div class="sw" style="background:${c.color||'#94a3b8'}"></div>
-      <div class="nm" dir="auto">${esc(c.name)}<div class="sub">${c.teacher?esc(c.teacher)+' · ':''}${n} students</div></div></div>`;
-  }).join('')||`<p class="muted">Classes appear here after you import students.</p>`;
+    return `<div class="srow tappable" data-id="${c.id}"><div class="sw" style="background:${c.color||'#94a3b8'}"></div>
+      <div class="nm" dir="auto">${esc(c.name)}<div class="sub">${c.teacher?esc(c.teacher)+' · ':''}${n} students</div></div>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>`;
+  }).join('')||`<p class="muted">No classes yet — import students or tap “+ Add”.</p>`;
+  $('clsList').querySelectorAll('.srow').forEach(r=>r.onclick=()=>editClass(r.dataset.id));
 }
 
 async function runImport(){
@@ -857,6 +914,105 @@ function emptyState(title,body,view,btn){
     <button class="btn btn-primary" data-goto="${view}">${btn}</button></div>`;
 }
 function bindEmpty(v){const b=v.querySelector('[data-goto]'); if(b)b.onclick=()=>switchView(b.dataset.goto);}
+
+/* =========================================================
+   5. MANAGEMENT — add / edit / delete via a generic sheet
+   ========================================================= */
+function openForm({title, fields, onSave, onDelete}){
+  $('formTitle').textContent=title;
+  $('formBody').innerHTML=fields.map(fieldHTML).join('');
+  $('formBody').querySelectorAll('[data-color-field]').forEach(wrap=>{
+    wrap.querySelectorAll('.sw-opt').forEach(o=>o.onclick=()=>{
+      wrap.querySelectorAll('.sw-opt').forEach(x=>x.classList.remove('on'));
+      o.classList.add('on'); wrap.dataset.value=o.dataset.c;
+    });
+  });
+  $('formDelete').style.display=onDelete?'block':'none';
+  $('formDelete').onclick=onDelete?()=>{if(confirm('Delete this? This cannot be undone.')){onDelete();}}:null;
+  $('formSave').onclick=()=>onSave(readForm());
+  $('formBg').classList.remove('hidden');
+  requestAnimationFrame(()=>{$('formBg').classList.add('show');$('formSheet').classList.add('show');});
+}
+function fieldHTML(f){
+  if(f.type==='select') return `<div class="field"><label>${esc(f.label)}</label>
+    <select data-key="${f.key}" class="inp" style="height:46px">${f.options.map(o=>`<option value="${esc(o.value)}" ${o.value===f.value?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`;
+  if(f.type==='color') return `<div class="field"><label>${esc(f.label)}</label>
+    <div class="swrow" data-color-field data-key="${f.key}" data-value="${esc(f.value||PALETTE[0])}">
+    ${PALETTE.map(c=>`<span class="sw-opt ${c===f.value?'on':''}" data-c="${c}" style="background:${c}"></span>`).join('')}</div></div>`;
+  const t=f.type==='time'?'time':f.type==='number'?'number':'text';
+  return `<div class="field"><label>${esc(f.label)}</label>
+    <input data-key="${f.key}" class="inp" type="${t}" dir="auto" value="${esc(f.value??'')}" ${f.placeholder?`placeholder="${esc(f.placeholder)}"`:''}></div>`;
+}
+function readForm(){
+  const vals={};
+  $('formBody').querySelectorAll('[data-key]').forEach(el=>{
+    vals[el.dataset.key]= el.hasAttribute('data-color-field') ? el.dataset.value : el.value;
+  });
+  return vals;
+}
+function closeForm(){$('formSheet').classList.remove('show');$('formBg').classList.remove('show');setTimeout(()=>$('formBg').classList.add('hidden'),240);}
+
+function editStudent(id){
+  const s=id?state.students.find(x=>x.id===id):null;
+  const classOpts=[{value:'',label:'(No class)'}].concat(state.classes.map(c=>({value:c.id,label:c.name})));
+  openForm({
+    title:s?'Edit student':'Add student',
+    fields:[
+      {key:'hebrew_name',label:'Hebrew name',type:'text',value:s?s.hebrew_name:''},
+      {key:'english_name',label:'English name',type:'text',value:s?s.english_name:''},
+      {key:'class_id',label:'Class',type:'select',value:s?(s.class_id||''):'',options:classOpts},
+      {key:'bunk',label:'Bunk',type:'text',value:s?s.bunk:''},
+    ],
+    onSave:async v=>{
+      const rec={hebrew_name:(v.hebrew_name||'').trim(),english_name:(v.english_name||'').trim()||null,class_id:v.class_id||null,bunk:(v.bunk||'').trim()||null};
+      if(!rec.hebrew_name){toast('Hebrew name required',true);return;}
+      const r = s ? await sb.from('students').update(rec).eq('id',s.id)
+                  : await sb.from('students').insert({...rec,active:true});
+      if(r.error){toast('Save failed: '+r.error.message,true);return;}
+      closeForm(); await loadAll(); renderStudents(); toast('Saved');
+    },
+    onDelete: s?async()=>{await sb.from('students').delete().eq('id',s.id);closeForm();await loadAll();renderStudents();toast('Student deleted');}:null,
+  });
+}
+function editClass(id){
+  const c=id?state.classes.find(x=>x.id===id):null;
+  openForm({
+    title:c?'Edit class':'Add class',
+    fields:[
+      {key:'name',label:'Class name',type:'text',value:c?c.name:''},
+      {key:'teacher',label:'Teacher',type:'text',value:c?c.teacher:''},
+      {key:'color',label:'Colour',type:'color',value:c?(c.color||PALETTE[0]):PALETTE[0]},
+    ],
+    onSave:async v=>{
+      const rec={name:(v.name||'').trim(),teacher:(v.teacher||'').trim()||null,color:v.color};
+      if(!rec.name){toast('Class name required',true);return;}
+      const r = c ? await sb.from('classes').update(rec).eq('id',c.id)
+                  : await sb.from('classes').insert({...rec,sort_order:state.classes.length+1});
+      if(r.error){toast('Save failed: '+r.error.message,true);return;}
+      closeForm(); await loadAll(); renderSetup(); toast('Saved');
+    },
+    onDelete: c?async()=>{await sb.from('classes').delete().eq('id',c.id);closeForm();await loadAll();renderSetup();toast('Class deleted — its students are now unassigned');}:null,
+  });
+}
+function editSession(id){
+  const s=id?state.sessions.find(x=>x.id===id):null;
+  openForm({
+    title:s?'Edit session':'Add session',
+    fields:[
+      {key:'name',label:'Session name',type:'text',value:s?s.name:''},
+      {key:'start_time',label:'Start time',type:'time',value:s?(s.start_time||'').slice(0,5):''},
+    ],
+    onSave:async v=>{
+      const rec={name:(v.name||'').trim(),start_time:v.start_time||null};
+      if(!rec.name){toast('Session name required',true);return;}
+      const r = s ? await sb.from('sessions').update(rec).eq('id',s.id)
+                  : await sb.from('sessions').insert({...rec,sort_order:state.sessions.length+1});
+      if(r.error){toast('Save failed: '+r.error.message,true);return;}
+      closeForm(); state.sessionId=s?state.sessionId:null; await loadAll(); renderSetup(); toast('Saved');
+    },
+    onDelete: s?async()=>{await sb.from('sessions').delete().eq('id',s.id);closeForm();state.sessionId=null;await loadAll();renderSetup();toast('Session deleted');}:null,
+  });
+}
 
 boot();
 </script>
