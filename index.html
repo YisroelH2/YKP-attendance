@@ -154,6 +154,26 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .tab[data-s="absent"].active{background:var(--absent-bg); border-color:var(--absent); color:var(--absent)}
 .tab[data-s="excused"].active{background:var(--exc-bg); border-color:var(--exc); color:var(--exc)}
 
+/* ---------- history ---------- */
+.htabs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
+.htabs .tab{font-size:12px;height:40px;padding:0 2px;text-align:center}
+.tab[data-s="flagged"].active{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.flag .dot{background:var(--accent)}
+.hist-day{font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:16px 2px 6px}
+.hist-day:first-child{margin-top:0}
+.hist-row{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;margin-bottom:6px;box-shadow:var(--sh-1)}
+.hist-main{flex:1;min-width:0}
+.hist-name{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-sub{font-size:12px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-note{font-size:12px;color:var(--ink-soft);font-style:italic;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-flag{flex:none;width:20px;height:20px;color:var(--accent)}
+.stpill{flex:none;padding:5px 10px;border-radius:999px;font-size:11.5px;font-weight:800;color:#fff;white-space:nowrap}
+.stpill.s-on_time{background:var(--on)}
+.stpill.s-late{background:var(--late)}
+.stpill.s-absent{background:var(--absent)}
+.stpill.s-excused{background:var(--exc)}
+.hist-empty{text-align:center;color:var(--ink-faint);font-size:13px;padding:34px 10px}
+
 .markall{display:flex; gap:8px; margin-bottom:16px}
 .markall .hint{flex:1; align-self:center; font-size:12px; color:var(--ink-faint); line-height:1.3}
 
@@ -353,20 +373,22 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
 .zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-weight:700}
-.zseat.s-on_time{background:var(--on-bg);border-color:var(--on)}
-.zseat.s-late{background:var(--late-bg);border-color:var(--late)}
-.zseat.s-absent{background:var(--absent-bg);border-color:var(--absent)}
-.zseat.s-excused{background:var(--exc-bg);border-color:var(--exc)}
+.zseat.s-on_time,.zseat.s-late,.zseat.s-absent,.zseat.s-excused{color:#fff}
+.zseat.s-on_time .zav,.zseat.s-late .zav,.zseat.s-absent .zav,.zseat.s-excused .zav{box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.zseat.s-on_time{background:var(--on);border-color:var(--on)}
+.zseat.s-late{background:var(--late);border-color:var(--late)}
+.zseat.s-absent{background:var(--absent);border-color:var(--absent)}
+.zseat.s-excused{background:var(--exc);border-color:var(--exc)}
 .zal-hint{font-size:12px;color:var(--ink-faint);margin:8px 0 78px;text-align:center;line-height:1.4}
 .zal-editbtn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + var(--safe-b) + 14px);z-index:35;height:46px;padding:0 26px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;font-size:15px;box-shadow:var(--sh-3);border:none}
 .zal-editbtn:active{transform:translateX(-50%) scale(.97)}
 
 /* full-screen marking */
-.zalfs{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:max(env(safe-area-inset-top),10px) 10px 10px}
-.zalfs-top{display:flex;gap:8px;align-items:center;padding:6px 0}
-.zalfs-top .tabs{flex:1;margin:0;overflow-x:auto}
-.zalfs-exit{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-1);font-size:17px;font-weight:700;color:var(--ink);flex:none}
-#zRoomFs{flex:1;max-height:none;margin-top:6px}
+.zalfs{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column}
+#zRoomFs{flex:1;max-height:none;margin:0;padding:max(env(safe-area-inset-top),8px) 8px 0}
+.zalfs-bottom{display:flex;gap:8px;align-items:center;padding:8px 10px max(env(safe-area-inset-bottom),8px);background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.05)}
+.zalfs-bottom .tabs{flex:1;margin:0}
+.zalfs-exit{width:48px;height:44px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);font-size:18px;font-weight:700;color:var(--ink);flex:none}
 .zseat,.zcell{box-sizing:border-box}
 .zseat.empty{opacity:.65}
 
@@ -429,6 +451,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   <main>
     <section id="view-mark" class="view"></section>
     <section id="view-zal" class="view hidden"></section>
+<section id="view-history" class="view hidden"></section>
     <section id="view-students" class="view hidden"></section>
     <section id="view-setup" class="view hidden"></section>
   </main>
@@ -441,6 +464,10 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
     <button class="navbtn" data-view="zal">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg>
       Zal
+    </button>
+    <button class="navbtn" data-view="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+      History
     </button>
     <button class="navbtn" data-view="students">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -531,11 +558,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 <!-- full-screen marking overlay -->
 <div id="zalFs" class="zalfs hidden">
-  <div class="zalfs-top">
+  <div class="zroom" id="zRoomFs"></div>
+  <div class="zalfs-bottom">
     <div class="tabs" id="fsTabs"></div>
     <button class="zalfs-exit" id="fsExit" type="button" aria-label="Exit full screen">✕</button>
   </div>
-  <div class="zroom" id="zRoomFs"></div>
 </div>
 
 <!-- first-run privacy consent -->
@@ -543,9 +570,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   <div class="gate-card">
     <img class="logoimg logo-lg" alt="YKP">
     <h1>Before you start</h1>
-    <p class="sub" style="text-align:left">This app stores student information — names, optional photos, and attendance — which may include children under 13. Please review how that data is handled.</p>
+    <p class="sub" style="text-align:left">This app stores student data — names, optional photos, and attendance — and may be subject to children's privacy laws (COPPA). Please review the policy below.</p>
     <div class="consent-box" id="consentSummary">
-      <strong>In short:</strong> data is used only to run this program's attendance and reports, is visible only to staff who sign in, and is never sold or shared for advertising. The institution is responsible for any parental consent required by law.
+      <strong>In short:</strong> data is used only for this program's attendance and reports, visible only to signed-in staff, and never sold or used for ads. The institution is responsible for COPPA / parental-consent compliance.
     </div>
     <button class="btn btn-ghost btn-block" id="consentRead" type="button" style="margin:10px 0">Read the full Privacy Policy</button>
     <label class="consent-check"><input type="checkbox" id="consentBox"> I have read and agree to the Privacy Policy, and I confirm I am authorized by the institution to enter this information, including data about minors.</label>
@@ -621,6 +648,7 @@ function closePolicy(){ $('privacySheet').classList.remove('show'); $('privacyBg
 
 /* ---------- helpers ---------- */
 function todayStr(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
+function addDays(dateStr,n){const d=new Date(dateStr+'T00:00:00');d.setDate(d.getDate()+n);const p=x=>String(x).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
 function initials(name){const t=(name||'').trim().split(/\s+/);return ((t[0]?.[0]||'')+(t[1]?.[0]||'')).toUpperCase()||'•';}
 function colorFor(id){let h=0;for(const c of String(id))h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
 function esc(s){return String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
@@ -745,11 +773,12 @@ async function loadMarks(sessionId=state.sessionId){
 function switchView(v){
   state.view=v;
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
-  ['mark','zal','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
-  $('barTitle').textContent = {mark:'Mark attendance',zal:'The Zal',students:'Students',setup:'Setup'}[v];
+  ['mark','zal','history','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
+  $('barTitle').textContent = {mark:'Mark attendance',zal:'The Zal',history:'History',students:'Students',setup:'Setup'}[v];
   if(v!=='mark') $('barSub').textContent='';
   if(v==='mark') renderMark();
   if(v==='zal') renderZal();
+  if(v==='history') renderHistory();
   if(v==='students') renderStudents();
   if(v==='setup') renderSetup();
 }
@@ -1507,24 +1536,122 @@ function enterFull(){
   $('fsTabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{ state.activeStatus=t.dataset.s; $('fsTabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t)); });
   $('zalFs').classList.remove('hidden');
   document.body.style.overflow='hidden';
-  const el=document.documentElement;
-  if(el.requestFullscreen){ el.requestFullscreen().catch(()=>{}); }
   renderZalGrid();
 }
 function exitFull(){
   state.zal.full=false;
   $('zalFs').classList.add('hidden');
   document.body.style.overflow='';
-  if(document.fullscreenElement && document.exitFullscreen){ document.exitFullscreen().catch(()=>{}); }
   renderZalGrid();
 }
-document.addEventListener('fullscreenchange',()=>{
-  if(!document.fullscreenElement && state.zal && state.zal.full){
-    state.zal.full=false; $('zalFs').classList.add('hidden'); document.body.style.overflow=''; renderZalGrid();
+
+/* ---------- HISTORY ---------- */
+let histRows=null, histRange='';
+function fmtHistDate(d){
+  if(d===todayStr())return 'Today';
+  if(d===addDays(todayStr(),-1))return 'Yesterday';
+  return new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+}
+async function loadHistoryRows(){
+  const h=state.history;
+  const {data,error}=await sb.from('attendance').select('*')
+    .gte('date',h.from).lte('date',h.to).order('date',{ascending:false});
+  if(error){toast('Could not load history',true);return [];}
+  return data||[];
+}
+async function refreshHistList(){
+  const h=state.history, range=h.from+'_'+h.to;
+  if(histRows===null||histRange!==range){ histRows=await loadHistoryRows(); histRange=range; }
+  renderHistList(histRows);
+}
+function renderHistList(rows){
+  const h=state.history;
+  const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
+  const sesById={}; state.sessions.forEach(s=>sesById[s.id]=s);
+  const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
+
+  let filt=rows.filter(r=>stuById[r.student_id]);
+  if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
+  if(h.studentId) filt=filt.filter(r=>r.student_id===h.studentId);
+
+  const c={on_time:0,late:0,absent:0,excused:0,flagged:0};
+  filt.forEach(r=>{ if(c[r.status]!==undefined)c[r.status]++; if(r.flagged)c.flagged++; });
+  $('hSummary').innerHTML=`
+    <div class="chip on"><span class="dot"></span>On time <b>${c.on_time}</b></div>
+    <div class="chip late"><span class="dot"></span>Late <b>${c.late}</b></div>
+    <div class="chip absent"><span class="dot"></span>Absent <b>${c.absent}</b></div>
+    <div class="chip exc"><span class="dot"></span>Excused <b>${c.excused}</b></div>
+    <div class="chip flag"><span class="dot"></span>Flagged <b>${c.flagged}</b></div>`;
+
+  if(h.statuses.size||h.flagged) filt=filt.filter(r=>h.statuses.has(r.status)||(h.flagged&&r.flagged));
+
+  const list=$('histList');
+  if(!filt.length){ list.innerHTML=`<div class="hist-empty">No attendance records match these filters.</div>`; return; }
+  const FLAG_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`;
+  let html='', curDay='';
+  filt.forEach(r=>{
+    if(r.date!==curDay){ curDay=r.date; html+=`<div class="hist-day">${fmtHistDate(r.date)}</div>`; }
+    const s=stuById[r.student_id], ses=sesById[r.session_id], cls=s.class_id?clsById[s.class_id]:null;
+    html+=`<div class="hist-row">
+      <div class="hist-main">
+        <div class="hist-name" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>
+        <div class="hist-sub">${[cls?cls.name:null,ses?ses.name:null].filter(Boolean).map(esc).join(' · ')}</div>
+        ${r.note?`<div class="hist-note">${esc(r.note)}</div>`:''}
+      </div>
+      ${r.flagged?`<div class="hist-flag">${FLAG_SVG}</div>`:''}
+      <div class="stpill s-${r.status}">${STATUS_LABEL[r.status]||r.status}${r.status==='late'&&r.late_minutes?` +${r.late_minutes}m`:''}</div>
+    </div>`;
+  });
+  list.innerHTML=html;
+}
+async function renderHistory(){
+  const v=$('view-history');
+  if(!state.students.length){
+    v.innerHTML=emptyState('No history yet','Import students and start marking attendance to see history here.','setup','Go to Setup');
+    bindEmpty(v); return;
   }
-});
+  if(!state.history) state.history={from:addDays(todayStr(),-6),to:todayStr(),classId:'',studentId:'',statuses:new Set(),flagged:false};
+  const h=state.history;
+  const forClass = h.classId ? state.students.filter(s=>(s.class_id||'__none__')===h.classId) : state.students;
+  v.innerHTML=`
+    <div class="controls">
+      <div class="ctl full"><span>Class</span>
+        <select id="hClass">
+          <option value="">All classes</option>
+          ${state.classes.map(c=>`<option value="${c.id}" ${c.id===h.classId?'selected':''}>${esc(c.name)}</option>`).join('')}
+          ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${h.classId==='__none__'?'selected':''}>(No class)</option>`:''}
+        </select></div>
+      <div class="ctl full"><span>Student</span>
+        <select id="hStudent">
+          <option value="">All students</option>
+          ${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}
+        </select></div>
+      <div class="ctl"><span>From</span><input id="hFrom" type="date" value="${h.from}" max="${todayStr()}"></div>
+      <div class="ctl"><span>To</span><input id="hTo" type="date" value="${h.to}" max="${todayStr()}"></div>
+    </div>
+    <div class="htabs" id="hStatusTabs">
+      ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${h.statuses.has(s)?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
+      <button class="tab ${h.flagged?'active':''}" data-s="flagged">Flagged</button>
+    </div>
+    <div class="summary" id="hSummary"></div>
+    <div id="histList"></div>`;
+
+  $('hClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; renderHistory(); };
+  $('hStudent').onchange=e=>{ h.studentId=e.target.value; refreshHistList(); };
+  $('hFrom').onchange=e=>{ h.from=e.target.value; if(h.from>h.to)h.to=h.from; renderHistory(); };
+  $('hTo').onchange=e=>{ h.to=e.target.value; if(h.to<h.from)h.from=h.to; renderHistory(); };
+  $('hStatusTabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+    const s=t.dataset.s;
+    if(s==='flagged') h.flagged=!h.flagged;
+    else { h.statuses.has(s)?h.statuses.delete(s):h.statuses.add(s); }
+    t.classList.toggle('active', s==='flagged'?h.flagged:h.statuses.has(s));
+    renderHistList(histRows||[]);
+  });
+  await refreshHistList();
+}
 
 boot();
+
 </script>
 </body>
 </html>
