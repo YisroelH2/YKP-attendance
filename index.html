@@ -314,32 +314,48 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .delayfine button:active{transform:scale(.95)}
 .delayfine b{min-width:54px;text-align:center;font-weight:800;font-size:17px}
 
-/* the Zal */
+/* the Zal (grid + native scroll) */
 .zal-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
 .zal-toolbar .inp{box-shadow:var(--sh-1)}
-.zal-modes{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px;box-shadow:var(--sh-1)}
-.zal-modes button{height:34px;padding:0 14px;border-radius:999px;font-weight:700;font-size:13px;color:var(--ink-soft)}
+.zal-modes{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px;box-shadow:var(--sh-1);flex-wrap:wrap}
+.zal-modes button{height:32px;padding:0 12px;border-radius:999px;font-weight:700;font-size:12.5px;color:var(--ink-soft)}
 .zal-modes button.on{background:var(--accent);color:#fff}
-.zal-stage{position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 16px,#e9edf5 16px,#e9edf5 32px);
-  border:1px solid var(--line);border-radius:var(--r-lg);height:60vh;touch-action:none;user-select:none;-webkit-user-select:none}
-.zal-canvas{position:absolute;top:0;left:0;transform-origin:0 0;width:1200px;height:1600px}
-.ztable{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:grab}
-.ztable .tbar{width:74px;height:14px;background:#b9c1d6;border-radius:5px}
-.zseat{width:74px;height:42px;border-radius:10px;background:var(--surface);border:1.5px solid var(--line);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;line-height:1.05;
-  box-shadow:var(--sh-1);overflow:hidden;text-align:center}
-.zseat .zav{width:20px;height:20px;border-radius:6px;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px}
-.zseat .znm{max-width:68px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
-.zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-size:18px;font-weight:700}
+.zedit{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-1);padding:10px 12px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px}
+.zedit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-soft);font-weight:600}
+.ministep{display:inline-flex;align-items:center;gap:6px}
+.ministep button{width:30px;height:30px;border-radius:8px;background:#eef0fb;color:var(--accent);font-weight:700;font-size:17px}
+.ministep b{min-width:22px;text-align:center;font-weight:800;color:var(--ink)}
+.zoomrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.zoomlbl{font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+.zbtn{width:40px;height:38px;border-radius:10px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-1);font-size:18px;font-weight:700;color:var(--ink)}
+.zbtn:active{transform:scale(.95)}
+.zbtn.wide{width:auto;padding:0 14px;font-size:13px}
+.zroom{overflow:auto;-webkit-overflow-scrolling:touch;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 18px,#e9edf5 18px,#e9edf5 36px);
+  border:1px solid var(--line);border-radius:var(--r-lg);max-height:48vh;padding:14px}
+.zroom-inner{display:flex;gap:10px;width:max-content}
+.zside-top,.zside-bottom{flex-direction:column;align-items:stretch}
+.zside-left,.zside-right{flex-direction:row;align-items:stretch}
+.zbanner{background:#1e1b4b;color:#fff;font-weight:700;font-size:13px;padding:8px 14px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-2);white-space:nowrap}
+.zb-left,.zb-right{writing-mode:vertical-rl;text-orientation:mixed}
+.zgrid{display:grid;justify-content:start;align-items:stretch}
+.zcell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.zcell.gap{border:1.5px dashed transparent;border-radius:10px;color:var(--ink-faint);font-size:20px;font-weight:700}
+.zcell.gap.addable{border-color:var(--line);background:rgba(255,255,255,.45);cursor:pointer}
+.zcell.ztable{position:relative}
+.zcell.ztable.removable{cursor:pointer}
+.zcell .tbar{height:10px;background:#b9c1d6;border-radius:5px}
+.zcell .zx{position:absolute;top:-6px;inset-inline-end:-6px;width:20px;height:20px;border-radius:50%;background:var(--absent);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-1)}
+.zseat{border-radius:10px;background:var(--surface);border:1.5px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;box-shadow:var(--sh-1);overflow:hidden;text-align:center;cursor:pointer}
+.zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
+.zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
+.zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-weight:700}
 .zseat.s-on_time{background:var(--on-bg);border-color:var(--on)}
 .zseat.s-late{background:var(--late-bg);border-color:var(--late)}
 .zseat.s-absent{background:var(--absent-bg);border-color:var(--absent)}
 .zseat.s-excused{background:var(--exc-bg);border-color:var(--exc)}
-.zfront{position:absolute;transform:translate(-50%,-50%);background:#1e1b4b;color:#fff;padding:7px 16px;border-radius:10px;
-  font-weight:700;font-size:13px;box-shadow:var(--sh-2);white-space:nowrap;cursor:grab}
-.zoomctl{position:absolute;bottom:12px;inset-inline-end:12px;display:flex;flex-direction:column;gap:6px;z-index:5}
-.zoomctl button{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.96);box-shadow:var(--sh-2);font-size:22px;font-weight:700;color:var(--ink)}
-.zal-hint{font-size:12px;color:var(--ink-faint);margin-top:8px;text-align:center;line-height:1.4}
+.zal-hint{font-size:12px;color:var(--ink-faint);margin:8px 0 78px;text-align:center;line-height:1.4}
+.zal-editbtn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + var(--safe-b) + 14px);z-index:35;height:46px;padding:0 26px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;font-size:15px;box-shadow:var(--sh-3);border:none}
+.zal-editbtn:active{transform:translateX(-50%) scale(.97)}
 </style>
 </head>
 <body>
@@ -516,8 +532,8 @@ function todayStr(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${
 function initials(name){const t=(name||'').trim().split(/\s+/);return ((t[0]?.[0]||'')+(t[1]?.[0]||'')).toUpperCase()||'•';}
 function colorFor(id){let h=0;for(const c of String(id))h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
 function esc(s){return String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
-function lateFor(){
-  const ses=state.sessions.find(s=>s.id===state.sessionId);
+function lateFor(sessionId=state.sessionId){
+  const ses=state.sessions.find(s=>s.id===sessionId);
   if(!ses||state.date!==todayStr())return 0;
   const [h,m]=(ses.start_time||'0:0').split(':');
   const start=new Date(); start.setHours(+h, +m + (state.delayMinutes||0), 0, 0);
@@ -593,7 +609,10 @@ async function loadAll(){
     sb.from('students').select('*').eq('active',true).order('sort_order'),
   ]);
   state.classes=cl.data||[]; state.sessions=se.data||[]; state.students=st.data||[];
-  if(!state.sessionId && state.sessions[0]) state.sessionId=state.sessions[0].id;
+  const csv=state.sessions.filter(s=>(s.type||'class')==='class');
+  const zsv=state.sessions.filter(s=>s.type==='zal');
+  if(!state.sessionId || !csv.find(s=>s.id===state.sessionId)) state.sessionId=csv[0]?.id||null;
+  if(!state.zalSessionId || !zsv.find(s=>s.id===state.zalSessionId)) state.zalSessionId=zsv[0]?.id||null;
   if(!state.classId && state.classes[0]) state.classId=state.classes[0].id;
   await loadPhotos();
 }
@@ -606,15 +625,15 @@ async function loadPhotos(){
   const byPath={}; data.forEach(d=>{if(d.signedUrl)byPath[d.path]=d.signedUrl;});
   withPhoto.forEach(s=>{const u=byPath[s.photo_path]; if(u)state.photoUrls[s.id]=u;});
 }
-async function loadMarks(){
+async function loadMarks(sessionId=state.sessionId){
   state.marks={};
-  if(!state.sessionId)return;
+  if(!sessionId)return;
   const {data}=await sb.from('attendance').select('*')
-    .eq('session_id',state.sessionId).eq('date',state.date);
+    .eq('session_id',sessionId).eq('date',state.date);
   (data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
   state.delayMinutes=0;
   const ov=await sb.from('session_overrides').select('delay_minutes')
-    .eq('session_id',state.sessionId).eq('date',state.date).maybeSingle();
+    .eq('session_id',sessionId).eq('date',state.date).maybeSingle();
   if(ov.data) state.delayMinutes=ov.data.delay_minutes||0;
 }
 
@@ -636,7 +655,8 @@ function switchView(v){
 /* ---------- MARK ---------- */
 async function renderMark(){
   const v=$('view-mark');
-  if(!state.sessions.length || !state.students.length){
+  const csv=state.sessions.filter(s=>(s.type||'class')==='class');
+  if(!csv.length || !state.students.length){
     v.innerHTML = emptyState('Nothing to mark yet',
       'Import your students and check your sessions in the Setup tab.','setup','Go to Setup');
     bindEmpty(v); return;
@@ -648,7 +668,7 @@ async function renderMark(){
         <select id="selClass">${state.classes.map(c=>`<option value="${c.id}" ${c.id===state.classId?'selected':''}>${esc(c.name)}${c.teacher?' · '+esc(c.teacher):''}</option>`).join('')}
         ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${state.classId==='__none__'?'selected':''}>(No class)</option>`:''}</select></div>
       <div class="ctl"><span>Session</span>
-        <select id="selSession">${state.sessions.map(s=>`<option value="${s.id}" ${s.id===state.sessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+        <select id="selSession">${csv.map(s=>`<option value="${s.id}" ${s.id===state.sessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
@@ -915,7 +935,7 @@ function renderSetup(){
   $('setupSignout').onclick=async()=>{await sb.auth.signOut();location.reload();};
 
   $('sesList').innerHTML=state.sessions.map(s=>`
-    <div class="srow tappable" data-id="${s.id}"><div class="nm" dir="auto">${esc(s.name)}<div class="sub">${(s.start_time||'—').slice(0,5)}</div></div>
+    <div class="srow tappable" data-id="${s.id}"><div class="nm" dir="auto">${esc(s.name)}<div class="sub">${(s.start_time||'—').slice(0,5)} · ${(s.type||'class')==='zal'?'Zal':'Class'}</div></div>
     <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>`).join('')
     || `<p class="muted">No sessions yet — tap “+ Add”.</p>`;
   $('sesList').querySelectorAll('.srow').forEach(r=>r.onclick=()=>editSession(r.dataset.id));
@@ -1084,9 +1104,10 @@ function editSession(id){
     fields:[
       {key:'name',label:'Session name',type:'text',value:s?s.name:''},
       {key:'start_time',label:'Start time',type:'time',value:s?(s.start_time||'').slice(0,5):''},
+      {key:'type',label:'Session type',type:'select',value:s?(s.type||'class'):'class',options:[{value:'class',label:'In-class — marked on the Mark tab'},{value:'zal',label:'Zal — marked on the Zal tab'}]},
     ],
     onSave:async v=>{
-      const rec={name:(v.name||'').trim(),start_time:v.start_time||null};
+      const rec={name:(v.name||'').trim(),start_time:v.start_time||null,type:v.type||'class'};
       if(!rec.name){toast('Session name required',true);return;}
       const r = s ? await sb.from('sessions').update(rec).eq('id',s.id)
                   : await sb.from('sessions').insert({...rec,sort_order:state.sessions.length+1});
@@ -1110,12 +1131,13 @@ async function applyDelay(v){
 }
 
 /* =========================================================
-   6. THE ZAL — director-built room, drag tables, seat & mark
+   6. THE ZAL — grid room, native scroll, seat & mark
    ========================================================= */
-state.zal = {arrangementId:null, mode:'mark', scale:0.5, tx:12, ty:12, placingFront:false};
-const zalData = {arrangements:[], tables:[], seats:[], loaded:false, fitted:false};
+state.zal = {arrangementId:null, mode:'mark', tool:'seat', cell:84};
+state.zalSessionId = state.zalSessionId || null;
+const zalData = {arrangements:[], tables:[], seats:[], loaded:false};
 const FRONT_KIND = {aron:'Aron Kodesh', bimah:'Bimah', door:'Front Door'};
-const ROOM_W = 1200, ROOM_H = 1600;
+const SIDE_LABEL = {top:'Top', bottom:'Bottom', left:'Left', right:'Right'};
 let pickerCb = null;
 
 async function loadZal(){
@@ -1134,127 +1156,168 @@ async function loadZalLayout(){
     zalData.seats = s.data || [];
   }
 }
-function curArrangement(){ return zalData.arrangements.find(a=>a.id===state.zal.arrangementId); }
+function curArr(){ return zalData.arrangements.find(a=>a.id===state.zal.arrangementId); }
 
 async function renderZal(){
   const v=$('view-zal');
   if(!zalData.loaded){ await loadZal(); zalData.loaded=true; }
   if(!zalData.arrangements.length){
-    v.innerHTML = `<div class="empty"><div class="em-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/></svg></div>
-      <h3>No Zal layout yet</h3><p>Make a seating arrangement, then add tables and place the Aron Kodesh.</p>
+    v.innerHTML=`<div class="empty"><div class="em-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/></svg></div>
+      <h3>No Zal layout yet</h3><p>Make a seating arrangement — it starts as a 5×10 grid of tables you can shape.</p>
       <button class="btn btn-primary" id="zNewArr">Create arrangement</button></div>`;
     $('zNewArr').onclick=newArrangement; return;
   }
-  if(!state.sessions.length){ v.innerHTML=emptyState('Add a session first','Sessions live in the Setup tab.','setup','Go to Setup'); bindEmpty(v); return; }
-  await loadMarks();
-  const a=curArrangement();
+  const zs = state.sessions.filter(s=>s.type==='zal');
+  if(!zs.length){
+    v.innerHTML=emptyState('No Zal session yet','In the Setup tab, make a session and set its type to “Zal”. Then come back here to mark the hall.','setup','Go to Setup');
+    bindEmpty(v); return;
+  }
+  if(!state.zalSessionId || !zs.find(s=>s.id===state.zalSessionId)) state.zalSessionId=zs[0].id;
+  await loadMarks(state.zalSessionId);
+  const a=curArr();
+  const hint = state.zal.mode==='mark'
+    ? 'Tap a seat to mark · drag to scroll · use Zoom for bigger seats'
+    : (state.zal.tool==='seat'
+       ? 'Tap a seat to seat a boy. Pick a boy who is already seated to move him over.'
+       : 'Tap an empty cell to add a table · tap a table (or its ×) to remove it for a gap');
   v.innerHTML = `
     <div class="zal-toolbar">
       <select id="zArr" class="inp" style="height:40px;flex:1;min-width:120px;-webkit-appearance:none">${zalData.arrangements.map(x=>`<option value="${x.id}" ${x.id===state.zal.arrangementId?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
       <button class="btn btn-ghost btn-sm" id="zNew">+ New</button>
     </div>
     <div class="zal-toolbar">
-      <select id="zSession" class="inp" style="height:40px;flex:1;-webkit-appearance:none">${state.sessions.map(s=>`<option value="${s.id}" ${s.id===state.sessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+      <select id="zSession" class="inp" style="height:40px;flex:1;-webkit-appearance:none">${zs.map(s=>`<option value="${s.id}" ${s.id===state.zalSessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
       <input id="zDate" type="date" class="inp" style="height:40px;width:150px" value="${state.date}" max="${todayStr()}">
-      <div class="zal-modes"><button data-m="mark" class="${state.zal.mode==='mark'?'on':''}">Mark</button><button data-m="edit" class="${state.zal.mode==='edit'?'on':''}">Edit</button></div>
     </div>
     ${state.zal.mode==='mark'
       ? `<div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
-      : `<div class="zal-toolbar">
-          <button class="btn btn-soft btn-sm" id="zAddTable">+ Table</button>
-          <button class="btn btn-ghost btn-sm" id="zFrontKind">Front: ${esc(FRONT_KIND[a.front_kind||'aron'])}</button>
-          <button class="btn btn-ghost btn-sm" id="zPlaceFront">${state.zal.placingFront?'Tap the room…':'Move front'}</button>
-          <button class="btn btn-ghost btn-sm" id="zRename">Rename</button>
-          <button class="btn btn-ghost btn-sm" id="zDel">Delete</button>
+      : `<div class="zedit">
+          <div class="zedit-row"><span>Grid</span>
+            <div class="ministep"><button id="rMinus" type="button">−</button><b>${a.grid_rows||5}</b><button id="rPlus" type="button">+</button></div>rows
+            <div class="ministep"><button id="cMinus" type="button">−</button><b>${a.grid_cols||10}</b><button id="cPlus" type="button">+</button></div>cols
+            <button class="btn btn-soft btn-sm" id="zFill">Fill all</button>
+          </div>
+          <div class="zedit-row">
+            <button class="btn btn-ghost btn-sm" id="zSide">Front: ${SIDE_LABEL[a.front_side||'top']}</button>
+            <button class="btn btn-ghost btn-sm" id="zKind">${esc(FRONT_KIND[a.front_kind||'aron'])}</button>
+          </div>
+          <div class="zedit-row"><span>Tap action</span>
+            <div class="zal-modes"><button data-t="seat" class="${state.zal.tool==='seat'?'on':''}">Seat boys</button><button data-t="tables" class="${state.zal.tool==='tables'?'on':''}">Add / remove tables</button></div>
+          </div>
+          <div class="zedit-row"><button class="btn btn-ghost btn-sm" id="zRename">Rename</button><button class="btn btn-ghost btn-sm" id="zDel">Delete arrangement</button></div>
         </div>`}
-    <div class="zal-stage" id="zStage">
-      <div class="zal-canvas" id="zCanvas"></div>
-      <div class="zoomctl"><button id="zIn" type="button">+</button><button id="zOut" type="button">−</button><button id="zFit" type="button" style="font-size:12px;font-weight:700">Fit</button></div>
-    </div>
-    <div class="zal-hint">${state.zal.mode==='mark'
-      ? 'Tap a seat to mark · drag to pan · pinch or +/− to zoom'
-      : (state.zal.placingFront ? 'Tap anywhere in the room to drop the front marker'
-         : 'Drag tables to arrange the room · tap a seat to seat someone (picking the same boy moves him over)')}</div>`;
+    <div class="zoomrow"><span class="zoomlbl">Zoom</span><button class="zbtn" id="zOut" type="button">−</button><button class="zbtn" id="zIn" type="button">+</button><button class="zbtn wide" id="zFitW" type="button">Fit width</button></div>
+    <div class="zroom" id="zRoom"></div>
+    <div class="zal-hint">${hint}</div>
+    <button class="zal-editbtn" id="zEdit" type="button">${state.zal.mode==='edit'?'Done editing':'Edit layout'}</button>`;
 
-  renderZalCanvas();
-  if(!zalData.fitted){ zalFit(); zalData.fitted=true; }
-
-  $('zArr').onchange=async e=>{ state.zal.arrangementId=e.target.value; await loadZalLayout(); zalData.fitted=false; renderZal(); };
+  renderZalGrid();
+  $('zArr').onchange=async e=>{ state.zal.arrangementId=e.target.value; await loadZalLayout(); renderZal(); };
   $('zNew').onclick=newArrangement;
-  $('zSession').onchange=async e=>{ state.sessionId=e.target.value; await loadMarks(); renderZalCanvas(); };
-  $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(); renderZalCanvas(); };
-  v.querySelectorAll('.zal-modes button').forEach(b=>b.onclick=()=>{ state.zal.mode=b.dataset.m; state.zal.placingFront=false; renderZal(); });
+  $('zSession').onchange=async e=>{ state.zalSessionId=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
+  $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
+  $('zEdit').onclick=()=>{ state.zal.mode = state.zal.mode==='edit'?'mark':'edit'; renderZal(); };
+  $('zOut').onclick=()=>zCell(-12);
+  $('zIn').onclick=()=>zCell(12);
+  $('zFitW').onclick=zFitW;
   if(state.zal.mode==='mark'){
     $('ztabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{ state.activeStatus=t.dataset.s; $('ztabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t)); });
   } else {
-    $('zAddTable').onclick=addZalTable;
-    $('zFrontKind').onclick=cycleFront;
-    $('zPlaceFront').onclick=()=>{ state.zal.placingFront=!state.zal.placingFront; renderZal(); };
-    $('zRename').onclick=renameArrangement;
-    $('zDel').onclick=deleteArrangement;
+    $('rMinus').onclick=()=>setGrid(-1,0); $('rPlus').onclick=()=>setGrid(1,0);
+    $('cMinus').onclick=()=>setGrid(0,-1); $('cPlus').onclick=()=>setGrid(0,1);
+    $('zFill').onclick=fillGrid;
+    $('zSide').onclick=cycleSide; $('zKind').onclick=cycleFront;
+    v.querySelectorAll('.zal-modes button').forEach(b=>b.onclick=()=>{ state.zal.tool=b.dataset.t; renderZal(); });
+    $('zRename').onclick=renameArrangement; $('zDel').onclick=deleteArrangement;
   }
-  $('zIn').onclick=()=>zoomBy(1.25);
-  $('zOut').onclick=()=>zoomBy(1/1.25);
-  $('zFit').onclick=zalFit;
-  attachZalGestures();
 }
 
-function renderZalCanvas(){
-  const c=$('zCanvas'); if(!c)return;
-  const a=curArrangement(); if(!a)return;
-  const fk=a.front_kind||'aron', fx=(a.front_x??0.5), fy=(a.front_y??0.05);
-  let html=`<div class="zfront" id="zFront" style="left:${fx*ROOM_W}px;top:${fy*ROOM_H}px">▲ ${esc(FRONT_KIND[fk])}</div>`;
-  zalData.tables.forEach(t=>{
-    const s0=zalData.seats.find(s=>s.table_id===t.id&&s.slot===0);
-    const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
-    html+=`<div class="ztable" data-id="${t.id}" style="left:${(t.x??0.5)*ROOM_W}px;top:${(t.y??0.5)*ROOM_H}px">${seatHTML(s0,t.id,0)}<div class="tbar"></div>${seatHTML(s1,t.id,1)}</div>`;
-  });
-  c.innerHTML=html;
-  applyZalTransform();
+function seatH(cell){ return Math.round(cell*0.62); }
+function renderZalGrid(){
+  const wrap=$('zRoom'); if(!wrap)return;
+  const sl=wrap.scrollLeft, st=wrap.scrollTop;
+  const a=curArr(); if(!a){wrap.innerHTML='';return;}
+  const rows=a.grid_rows||5, cols=a.grid_cols||10, cell=state.zal.cell, gap=Math.round(cell*0.18);
+  const at={}; zalData.tables.forEach(t=>at[t.grid_row+'_'+t.grid_col]=t);
+  let cells='';
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
+  const grid=`<div class="zgrid" style="grid-template-columns:repeat(${cols},${cell}px);gap:${gap}px">${cells}</div>`;
+  const side=a.front_side||'top';
+  const banner=`<div class="zbanner zb-${side}">${esc(FRONT_KIND[a.front_kind||'aron'])}</div>`;
+  const order = (side==='top'||side==='left') ? banner+grid : grid+banner;
+  wrap.innerHTML=`<div class="zroom-inner zside-${side}">${order}</div>`;
+  if(state.zal.mode==='edit' && state.zal.tool==='tables'){
+    wrap.querySelectorAll('.zcell.ztable').forEach(el=>el.onclick=()=>deleteTableCell(el.dataset.tid));
+    wrap.querySelectorAll('.zcell.gap.addable').forEach(el=>el.onclick=()=>addTableCell(+el.dataset.r,+el.dataset.c));
+  } else {
+    wrap.querySelectorAll('.zseat').forEach(el=>el.onclick=()=>onZalSeatTap(el));
+  }
+  wrap.scrollLeft=sl; wrap.scrollTop=st;
 }
-function seatHTML(seat,tableId,slot){
+function cellHTML(t,r,c,cell){
+  if(!t){
+    const add = state.zal.mode==='edit' && state.zal.tool==='tables';
+    return `<div class="zcell gap ${add?'addable':''}" data-r="${r}" data-c="${c}">${add?'+':''}</div>`;
+  }
+  const s0=zalData.seats.find(s=>s.table_id===t.id&&s.slot===0);
+  const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
+  const rm = state.zal.mode==='edit' && state.zal.tool==='tables';
+  return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}">${seatCell(s0,cell)}<div class="tbar" style="width:${Math.round(cell*0.7)}px"></div>${seatCell(s1,cell)}${rm?'<div class="zx">×</div>':''}</div>`;
+}
+function seatCell(seat,cell){
+  const h=seatH(cell), av=Math.round(cell*0.42);
   const stu = seat&&seat.student_id ? state.students.find(s=>s.id===seat.student_id) : null;
-  if(!stu) return `<div class="zseat empty" data-table="${tableId}" data-slot="${slot}" data-seat="${seat?seat.id:''}">+</div>`;
-  const m = state.marks[stu.id];
-  const av = state.photoUrls[stu.id]
-    ? `<img class="zav" src="${state.photoUrls[stu.id]}">`
-    : `<div class="zav" style="background:${colorFor(stu.id)}">${esc(initials(stu.english_name||stu.hebrew_name))}</div>`;
-  return `<div class="zseat ${m?'s-'+m.status:''}" data-table="${tableId}" data-slot="${slot}" data-seat="${seat.id}" data-student="${stu.id}">${av}<div class="znm" dir="auto">${esc(stu.hebrew_name)}</div></div>`;
-}
-function applyZalTransform(){ const c=$('zCanvas'); if(c) c.style.transform=`translate(${state.zal.tx}px,${state.zal.ty}px) scale(${state.zal.scale})`; }
-function zoomBy(f){ const st=$('zStage'); zoomAround(f, st.getBoundingClientRect().left+st.clientWidth/2, st.getBoundingClientRect().top+st.clientHeight/2); }
-function zoomAround(f, clientX, clientY){
-  const st=$('zStage'); const r=st.getBoundingClientRect();
-  const ns=Math.min(3,Math.max(.15,state.zal.scale*f)); const k=ns/state.zal.scale;
-  const px=clientX-r.left, py=clientY-r.top;
-  state.zal.tx = px-(px-state.zal.tx)*k; state.zal.ty = py-(py-state.zal.ty)*k;
-  state.zal.scale=ns; applyZalTransform();
-}
-function zalFit(){
-  const st=$('zStage'); if(!st)return;
-  const s=Math.min((st.clientWidth-24)/ROOM_W,(st.clientHeight-24)/ROOM_H);
-  state.zal.scale = (isFinite(s)&&s>0)? s : 0.4;
-  state.zal.tx=(st.clientWidth-ROOM_W*state.zal.scale)/2; state.zal.ty=12;
-  applyZalTransform();
+  if(!stu) return `<div class="zseat empty" data-seat="${seat?seat.id:''}" style="height:${h}px;width:${cell}px;font-size:${Math.round(cell*0.28)}px">+</div>`;
+  const m=state.marks[stu.id];
+  const avHTML = state.photoUrls[stu.id]
+    ? `<img class="zav" style="width:${av}px;height:${av}px" src="${state.photoUrls[stu.id]}">`
+    : `<div class="zav" style="width:${av}px;height:${av}px;background:${colorFor(stu.id)};font-size:${Math.round(av*0.42)}px">${esc(initials(stu.english_name||stu.hebrew_name))}</div>`;
+  return `<div class="zseat ${m?'s-'+m.status:''}" data-seat="${seat.id}" data-student="${stu.id}" style="height:${h}px;width:${cell}px">${avHTML}<div class="znm" style="font-size:${Math.max(9,Math.round(cell*0.135))}px;max-width:${cell-6}px">${esc(stu.hebrew_name)}</div></div>`;
 }
 
-/* ---- arrangement / table actions ---- */
+function zCell(d){ state.zal.cell=Math.max(48,Math.min(150,state.zal.cell+d)); renderZalGrid(); }
+function zFitW(){ const wrap=$('zRoom'); const a=curArr(); if(!wrap||!a)return; const cols=a.grid_cols||10; const w=wrap.clientWidth-28; let c=Math.floor(w/(cols*1.16)); state.zal.cell=Math.max(40,Math.min(150,c)); renderZalGrid(); }
+
+/* ---- arrangement + table actions ---- */
 async function newArrangement(){
   const name=prompt('Name this arrangement (e.g. Chavrusa, Davening):'); if(!name||!name.trim())return;
-  const {data,error}=await sb.from('arrangements').insert({name:name.trim()}).select().single();
+  const {data,error}=await sb.from('arrangements').insert({name:name.trim(),grid_rows:5,grid_cols:10,front_side:'top',front_kind:'aron'}).select().single();
   if(error){toast('Failed: '+error.message,true);return;}
-  state.zal.arrangementId=data.id; state.zal.mode='edit'; zalData.fitted=false;
-  await loadZal(); renderZal();
+  state.zal.arrangementId=data.id; state.zal.mode='edit'; state.zal.tool='seat';
+  await loadZal(); await fillGrid(); renderZal();
 }
-async function renameArrangement(){ const a=curArrangement(); const name=prompt('Rename arrangement:',a.name); if(!name||!name.trim())return; await sb.from('arrangements').update({name:name.trim()}).eq('id',a.id); a.name=name.trim(); renderZal(); }
-async function deleteArrangement(){ const a=curArrangement(); if(!confirm(`Delete "${a.name}" and its whole layout?`))return; await sb.from('arrangements').delete().eq('id',a.id); state.zal.arrangementId=null; zalData.fitted=false; await loadZal(); renderZal(); }
-async function addZalTable(){
-  const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,x:0.5,y:0.5}).select().single();
-  if(error){toast('Add table failed: '+error.message,true);return;}
+async function renameArrangement(){ const a=curArr(); const n=prompt('Rename arrangement:',a.name); if(!n||!n.trim())return; await sb.from('arrangements').update({name:n.trim()}).eq('id',a.id); a.name=n.trim(); renderZal(); }
+async function deleteArrangement(){ const a=curArr(); if(!confirm(`Delete "${a.name}" and its whole layout?`))return; await sb.from('arrangements').delete().eq('id',a.id); state.zal.arrangementId=null; await loadZal(); renderZal(); }
+async function setGrid(dr,dc){
+  const a=curArr();
+  a.grid_rows=Math.max(1,Math.min(20,(a.grid_rows||5)+dr));
+  a.grid_cols=Math.max(1,Math.min(20,(a.grid_cols||10)+dc));
+  await sb.from('arrangements').update({grid_rows:a.grid_rows,grid_cols:a.grid_cols}).eq('id',a.id);
+  const oob=zalData.tables.filter(t=>t.grid_row>=a.grid_rows||t.grid_col>=a.grid_cols);
+  for(const t of oob) await sb.from('zal_tables').delete().eq('id',t.id);
+  await loadZalLayout(); renderZal();
+}
+async function fillGrid(){
+  const a=curArr(); if(!a)return; const rows=a.grid_rows||5, cols=a.grid_cols||10;
+  const have=new Set(zalData.tables.map(t=>t.grid_row+'_'+t.grid_col));
+  const add=[];
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) if(!have.has(r+'_'+c)) add.push({arrangement_id:a.id,grid_row:r,grid_col:c});
+  if(!add.length)return;
+  const {data,error}=await sb.from('zal_tables').insert(add).select();
+  if(error){toast('Fill failed: '+error.message,true);return;}
+  const seats=[]; (data||[]).forEach(t=>{seats.push({table_id:t.id,slot:0});seats.push({table_id:t.id,slot:1});});
+  await sb.from('seats').insert(seats);
+  await loadZalLayout(); renderZalGrid();
+}
+async function addTableCell(r,c){
+  const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,grid_row:r,grid_col:c}).select().single();
+  if(error){toast('Failed: '+error.message,true);return;}
   await sb.from('seats').insert([{table_id:data.id,slot:0},{table_id:data.id,slot:1}]);
-  await loadZalLayout(); renderZalCanvas();
+  await loadZalLayout(); renderZalGrid();
 }
-async function cycleFront(){ const a=curArrangement(); const o=['aron','bimah','door']; const n=o[(o.indexOf(a.front_kind||'aron')+1)%3]; a.front_kind=n; await sb.from('arrangements').update({front_kind:n}).eq('id',a.id); renderZal(); }
+async function deleteTableCell(tid){ await sb.from('zal_tables').delete().eq('id',tid); await loadZalLayout(); renderZalGrid(); }
+async function cycleSide(){ const a=curArr(); const o=['top','right','bottom','left']; const n=o[(o.indexOf(a.front_side||'top')+1)%4]; a.front_side=n; await sb.from('arrangements').update({front_side:n}).eq('id',a.id); renderZal(); }
+async function cycleFront(){ const a=curArr(); const o=['aron','bimah','door']; const n=o[(o.indexOf(a.front_kind||'aron')+1)%3]; a.front_kind=n; await sb.from('arrangements').update({front_kind:n}).eq('id',a.id); renderZal(); }
 
 /* ---- seating + marking ---- */
 function onZalSeatTap(el){
@@ -1269,90 +1332,28 @@ function onZalSeatTap(el){
 }
 async function assignSeat(seatId, studentId){
   const seat=zalData.seats.find(s=>s.id===seatId); if(!seat)return;
-  const prev=seat.student_id||null;
-  const writes=[];
+  const prev=seat.student_id||null; const writes=[];
   if(studentId){
     const old=zalData.seats.find(s=>s.student_id===studentId && s.id!==seatId);
     seat.student_id=studentId; writes.push([seatId,studentId]);
-    if(old){ old.student_id=prev; writes.push([old.id,prev]); }   // swap them
+    if(old){ old.student_id=prev; writes.push([old.id,prev]); }
   } else { seat.student_id=null; writes.push([seatId,null]); }
-  closePicker(); renderZalCanvas();
-  for(const [id,sid] of writes){ await sb.from('seats').update({student_id:sid}).eq('id',id); }
+  closePicker(); renderZalGrid();
+  for(const [id,sid] of writes) await sb.from('seats').update({student_id:sid}).eq('id',id);
 }
 async function zalMark(studentId){
   const cur=state.marks[studentId];
   if(cur && cur.status===state.activeStatus){
-    delete state.marks[studentId]; renderZalCanvas();
-    const {error}=await sb.from('attendance').delete().match({student_id:studentId,session_id:state.sessionId,date:state.date});
-    if(error){toast('Save failed — check connection',true); await loadMarks(); renderZalCanvas();}
+    delete state.marks[studentId]; renderZalGrid();
+    const {error}=await sb.from('attendance').delete().match({student_id:studentId,session_id:state.zalSessionId,date:state.date});
+    if(error){toast('Save failed — check connection',true); await loadMarks(state.zalSessionId); renderZalGrid();}
     return;
   }
-  const late=state.activeStatus==='late'?lateFor():null;
+  const late=state.activeStatus==='late'?lateFor(state.zalSessionId):null;
   state.marks[studentId]={status:state.activeStatus,late_minutes:late,note:cur?cur.note:null,flagged:cur?cur.flagged:false};
-  renderZalCanvas();
-  const {error}=await sb.from('attendance').upsert({student_id:studentId,session_id:state.sessionId,date:state.date,status:state.activeStatus,late_minutes:late,note:state.marks[studentId].note,flagged:state.marks[studentId].flagged,marked_by:state.user.id,marked_at:new Date().toISOString()},{onConflict:'student_id,session_id,date'});
-  if(error){toast('Save failed — check connection',true); await loadMarks(); renderZalCanvas();}
-}
-
-/* ---- pan / zoom / drag gestures ---- */
-function attachZalGestures(){
-  const stage=$('zStage'); if(!stage)return;
-  const pts=new Map();
-  let act=null, sx=0, sy=0, startTx=0, startTy=0, dragId=null, dragStart=null, moved=false, downSeat=null, pinchDist=0, pinchMid=null;
-  const T=8;
-  stage.onpointerdown=e=>{
-    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pts.size===2){ const v=[...pts.values()]; pinchDist=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y); pinchMid={x:(v[0].x+v[1].x)/2,y:(v[0].y+v[1].y)/2}; act='pinch'; dragId=null; downSeat=null; return; }
-    try{stage.setPointerCapture(e.pointerId);}catch(_){}
-    moved=false; sx=e.clientX; sy=e.clientY; startTx=state.zal.tx; startTy=state.zal.ty;
-    const seat=e.target.closest('.zseat'), table=e.target.closest('.ztable'), front=e.target.closest('.zfront');
-    if(state.zal.placingFront){ act='placefront'; }
-    else if(state.zal.mode==='edit' && front){ act='frontdrag'; }
-    else if(state.zal.mode==='edit' && table && !seat){ act='tabledrag'; dragId=table.dataset.id; const t=zalData.tables.find(x=>x.id===dragId); dragStart={x:t.x??0.5,y:t.y??0.5}; }
-    else if(seat){ act='seat'; downSeat=seat; }
-    else { act='pan'; }
-  };
-  stage.onpointermove=e=>{
-    if(!pts.has(e.pointerId))return;
-    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(act==='pinch' && pts.size>=2){ const v=[...pts.values()]; const d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y); if(pinchDist>0) zoomAround(d/pinchDist, pinchMid.x, pinchMid.y); pinchDist=d; return; }
-    const dx=e.clientX-sx, dy=e.clientY-sy;
-    if(!moved && Math.hypot(dx,dy)>T) moved=true;
-    if(!moved) return;
-    if(act==='tabledrag' && dragId){
-      const t=zalData.tables.find(x=>x.id===dragId); if(!t)return;
-      t.x=Math.min(1,Math.max(0,dragStart.x+dx/(ROOM_W*state.zal.scale)));
-      t.y=Math.min(1,Math.max(0,dragStart.y+dy/(ROOM_H*state.zal.scale)));
-      renderZalCanvas();
-    } else if(act==='frontdrag'){
-      const a=curArrangement();
-      a.front_x=Math.min(1,Math.max(0,(a.front_x??0.5)+dx/(ROOM_W*state.zal.scale)));
-      a.front_y=Math.min(1,Math.max(0,(a.front_y??0.05)+dy/(ROOM_H*state.zal.scale)));
-      sx=e.clientX; sy=e.clientY; renderZalCanvas();
-    } else { // pan (including a seat-press that turned into a drag)
-      act='pan'; state.zal.tx=startTx+dx; state.zal.ty=startTy+dy; applyZalTransform();
-    }
-  };
-  stage.onpointerup=e=>{
-    const a=act, seatEl=downSeat, wasMoved=moved;
-    pts.delete(e.pointerId);
-    try{stage.releasePointerCapture(e.pointerId);}catch(_){}
-    if(a==='pinch'){ act=pts.size>=1?'pan':null; return; }
-    if(a==='tabledrag' && dragId){ const t=zalData.tables.find(x=>x.id===dragId); if(t) sb.from('zal_tables').update({x:t.x,y:t.y}).eq('id',dragId); }
-    else if(a==='frontdrag'){ const ar=curArrangement(); sb.from('arrangements').update({front_x:ar.front_x,front_y:ar.front_y}).eq('id',ar.id); }
-    else if(a==='placefront' && !wasMoved){ placeFrontAt(e.clientX,e.clientY); }
-    else if(a==='seat' && !wasMoved && seatEl){ onZalSeatTap(seatEl); }
-    act=null; dragId=null; downSeat=null;
-  };
-  stage.onpointercancel=e=>{ pts.delete(e.pointerId); act=null; dragId=null; downSeat=null; };
-}
-function placeFrontAt(clientX,clientY){
-  const st=$('zStage'); const r=st.getBoundingClientRect();
-  const a=curArrangement();
-  a.front_x=Math.min(1,Math.max(0,(clientX-r.left-state.zal.tx)/(state.zal.scale*ROOM_W)));
-  a.front_y=Math.min(1,Math.max(0,(clientY-r.top-state.zal.ty)/(state.zal.scale*ROOM_H)));
-  sb.from('arrangements').update({front_x:a.front_x,front_y:a.front_y}).eq('id',a.id);
-  state.zal.placingFront=false; renderZal();
+  renderZalGrid();
+  const {error}=await sb.from('attendance').upsert({student_id:studentId,session_id:state.zalSessionId,date:state.date,status:state.activeStatus,late_minutes:late,note:state.marks[studentId].note,flagged:state.marks[studentId].flagged,marked_by:state.user.id,marked_at:new Date().toISOString()},{onConflict:'student_id,session_id,date'});
+  if(error){toast('Save failed — check connection',true); await loadMarks(state.zalSessionId); renderZalGrid();}
 }
 
 /* ---- generic student picker ---- */
