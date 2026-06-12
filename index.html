@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#1e1b4b" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
 <title>YKP Attendance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -356,6 +360,28 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zal-hint{font-size:12px;color:var(--ink-faint);margin:8px 0 78px;text-align:center;line-height:1.4}
 .zal-editbtn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + var(--safe-b) + 14px);z-index:35;height:46px;padding:0 26px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;font-size:15px;box-shadow:var(--sh-3);border:none}
 .zal-editbtn:active{transform:translateX(-50%) scale(.97)}
+
+/* full-screen marking */
+.zalfs{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:max(env(safe-area-inset-top),10px) 10px 10px}
+.zalfs-top{display:flex;gap:8px;align-items:center;padding:6px 0}
+.zalfs-top .tabs{flex:1;margin:0;overflow-x:auto}
+.zalfs-exit{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-1);font-size:17px;font-weight:700;color:var(--ink);flex:none}
+#zRoomFs{flex:1;max-height:none;margin-top:6px}
+.zseat,.zcell{box-sizing:border-box}
+.zseat.empty{opacity:.65}
+
+/* consent + privacy */
+.gate-foot{margin-top:16px;text-align:center;font-size:12px;color:var(--ink-faint);line-height:1.6}
+.gate-foot a{color:var(--accent);font-weight:600;text-decoration:none}
+.consent-box{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;font-size:13px;line-height:1.5;color:var(--ink-soft);text-align:left}
+.consent-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--ink-soft);margin-top:14px;text-align:left;cursor:pointer}
+.consent-check input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--accent)}
+.sheet-tall{max-height:88vh}
+.policy{max-height:64vh;overflow:auto;font-size:13.5px;line-height:1.55;color:var(--ink-soft);text-align:left}
+.policy h4{font-size:14px;color:var(--ink);margin:14px 0 4px;font-weight:700}
+.policy p{margin:6px 0}
+.app-foot{text-align:center;font-size:11.5px;color:var(--ink-faint);line-height:1.7;margin:18px 0 4px}
+.app-foot a{color:var(--accent);text-decoration:none;font-weight:600}
 </style>
 </head>
 <body>
@@ -383,6 +409,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
     <label class="lbl" for="pw">Password</label>
     <input id="pw" class="inp" type="password" autocomplete="current-password" placeholder="••••••••" />
     <button id="loginBtn" class="btn btn-primary btn-block">Sign in</button>
+    <p class="gate-foot">By signing in you agree to the <a href="#" id="loginPrivacy">Privacy&nbsp;Policy</a>.<br>© 2026 Yisroel Haskelevich</p>
   </div>
 </div>
 
@@ -502,6 +529,40 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 <div id="toast" class="toast"></div>
 
+<!-- full-screen marking overlay -->
+<div id="zalFs" class="zalfs hidden">
+  <div class="zalfs-top">
+    <div class="tabs" id="fsTabs"></div>
+    <button class="zalfs-exit" id="fsExit" type="button" aria-label="Exit full screen">✕</button>
+  </div>
+  <div class="zroom" id="zRoomFs"></div>
+</div>
+
+<!-- first-run privacy consent -->
+<div id="consentGate" class="gate hidden">
+  <div class="gate-card">
+    <img class="logoimg logo-lg" alt="YKP">
+    <h1>Before you start</h1>
+    <p class="sub" style="text-align:left">This app stores student information — names, optional photos, and attendance — which may include children under 13. Please review how that data is handled.</p>
+    <div class="consent-box" id="consentSummary">
+      <strong>In short:</strong> data is used only to run this program's attendance and reports, is visible only to staff who sign in, and is never sold or shared for advertising. The institution is responsible for any parental consent required by law.
+    </div>
+    <button class="btn btn-ghost btn-block" id="consentRead" type="button" style="margin:10px 0">Read the full Privacy Policy</button>
+    <label class="consent-check"><input type="checkbox" id="consentBox"> I have read and agree to the Privacy Policy, and I confirm I am authorized by the institution to enter this information, including data about minors.</label>
+    <button class="btn btn-primary btn-block" id="consentContinue" type="button" disabled style="margin-top:14px">Continue</button>
+    <p class="gate-foot">© 2026 Yisroel Haskelevich</p>
+  </div>
+</div>
+
+<!-- privacy policy modal -->
+<div id="privacyBg" class="sheet-bg hidden"></div>
+<div id="privacySheet" class="sheet sheet-tall">
+  <div class="grab"></div>
+  <h3>Privacy Policy</h3>
+  <div class="policy" id="policyBody"></div>
+  <button class="btn btn-primary btn-block" id="privacyClose" type="button" style="margin-top:14px">Close</button>
+</div>
+
 <!-- hidden file input for photos -->
 <input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden" />
 
@@ -527,6 +588,37 @@ const state = {
   view:'mark', sheetStudent:null, sheetStatus:null, sheetFlag:false, delayMinutes:0,
 };
 
+const POLICY_HTML = `
+<p><em>Last updated: 2026.</em></p>
+<p>This application ("the App") is a private tool used by authorized staff of the program to record and manage student attendance. This policy explains what information the App stores and how it is used.</p>
+<h4>What we store</h4>
+<p>Student names (including in Hebrew), optional photographs, class and bunk, and attendance records (status, times, and notes). This information may include children under the age of 13.</p>
+<h4>How it is used</h4>
+<p>The information is used solely to run the program's attendance, seating, and reporting. It is <strong>never</strong> sold, rented, or used for advertising, and is not shared with third parties except the service providers needed to operate the App.</p>
+<h4>Who can see it</h4>
+<p>Data is stored in a secured database (hosted by Supabase) and is accessible only to staff members who have a sign-in account. Access is protected by authentication and database controls.</p>
+<h4>Photographs</h4>
+<p>Photos are optional and are used only to help staff identify students when taking attendance.</p>
+<h4>Children under 13</h4>
+<p>Because the App may hold information about children under 13, the institution operating the App is responsible for obtaining any parental or guardian consent required by applicable law (for example, COPPA in the United States) before a child's information is entered. Staff must only enter information they are authorized to enter.</p>
+<h4>Retention &amp; deletion</h4>
+<p>Information is kept for as long as needed to run the program and may be deleted at the institution's request. To access, correct, or delete a student's information, contact the program administrator.</p>
+<h4>Security</h4>
+<p>We use reasonable measures to protect the information, including sign-in authentication and access controls. No method of storage or transmission is perfectly secure.</p>
+<h4>Responsibility</h4>
+<p>The institution operating the App is responsible for the information collected and for compliance with applicable privacy laws.</p>
+<h4>Contact</h4>
+<p>Questions about this policy should be directed to the program administrator.</p>
+<p style="margin-top:14px">© 2026 Yisroel Haskelevich. All rights reserved.</p>`;
+
+function showConsent(){ $('loginGate').classList.add('hidden'); $('consentGate').classList.remove('hidden'); }
+function showPolicy(){
+  $('policyBody').innerHTML=POLICY_HTML;
+  $('privacyBg').classList.remove('hidden');
+  requestAnimationFrame(()=>{$('privacyBg').classList.add('show');$('privacySheet').classList.add('show');});
+}
+function closePolicy(){ $('privacySheet').classList.remove('show'); $('privacyBg').classList.remove('show'); setTimeout(()=>$('privacyBg').classList.add('hidden'),240); }
+
 /* ---------- helpers ---------- */
 function todayStr(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
 function initials(name){const t=(name||'').trim().split(/\s+/);return ((t[0]?.[0]||'')+(t[1]?.[0]||'')).toUpperCase()||'•';}
@@ -547,6 +639,7 @@ function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast 
    2. BOOT
    ========================================================= */
 function boot(){
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
   if(LOGO && !LOGO.startsWith('__')){
     document.querySelectorAll('.logoimg').forEach(i=>i.src=LOGO);
     let fav=document.querySelector('link[rel="icon"]'); if(!fav){fav=document.createElement('link');fav.rel='icon';document.head.appendChild(fav);} fav.href=LOGO;
@@ -581,6 +674,13 @@ function wireEvents(){
   $('dlPlus2').onclick = ()=>applyDelay((state.delayMinutes||0)+5);
   $('pickBg').onclick = closePicker;
   $('pickEmpty').onclick = ()=>pickerCb&&pickerCb(null);
+  $('consentBox').onchange = e=>{ $('consentContinue').disabled = !e.target.checked; };
+  $('consentContinue').onclick = ()=>{ localStorage.setItem('ykp_consent_v2', new Date().toISOString()); enterApp(); };
+  $('consentRead').onclick = showPolicy;
+  $('loginPrivacy').onclick = e=>{ e.preventDefault(); showPolicy(); };
+  $('privacyBg').onclick = closePolicy;
+  $('privacyClose').onclick = closePolicy;
+  $('fsExit').onclick = exitFull;
 }
 
 async function doLogin(){
@@ -593,7 +693,9 @@ async function doLogin(){
 }
 
 async function enterApp(){
+  if(!localStorage.getItem('ykp_consent_v2')){ showConsent(); return; }
   $('loginGate').classList.add('hidden');
+  $('consentGate').classList.add('hidden');
   $('app').classList.remove('hidden');
   await loadAll();
   switchView('mark');
@@ -797,9 +899,12 @@ async function markAll(){
 }
 
 /* ---------- detail sheet ---------- */
-function openSheet(id){
+function openSheet(id, opts){
+  opts=opts||{};
   const s=state.students.find(x=>x.id===id); if(!s)return;
   state.sheetStudent=s;
+  state.sheetSession=opts.session||state.sessionId;
+  state.sheetRerender=opts.rerender||renderGrid;
   const m=state.marks[id]||{};
   state.sheetStatus=m.status||state.activeStatus;
   state.sheetFlag=!!m.flagged;
@@ -819,7 +924,7 @@ function paintSeg(){
 }
 function setSheetStatus(s){
   state.sheetStatus=s; paintSeg();
-  if(s==='late' && !$('sheetLate').value) $('sheetLate').value=lateFor();
+  if(s==='late' && !$('sheetLate').value) $('sheetLate').value=lateFor(state.sheetSession||state.sessionId);
 }
 function closeSheet(){
   $('sheet').classList.remove('show');$('sheetBg').classList.remove('show');
@@ -827,19 +932,23 @@ function closeSheet(){
 }
 async function saveSheet(){
   const s=state.sheetStudent; if(!s)return;
-  const rec={student_id:s.id,session_id:state.sessionId,date:state.date,status:state.sheetStatus,
+  const ses=state.sheetSession||state.sessionId;
+  const rerender=state.sheetRerender||renderGrid;
+  const rec={student_id:s.id,session_id:ses,date:state.date,status:state.sheetStatus,
     late_minutes:state.sheetStatus==='late'?(parseInt($('sheetLate').value)||0):null,
     note:$('sheetNote').value.trim()||null, flagged:state.sheetFlag,
     marked_by:state.user.id, marked_at:new Date().toISOString()};
   state.marks[s.id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
-  closeSheet(); renderGrid();
+  closeSheet(); rerender();
   const {error}=await sb.from('attendance').upsert(rec,{onConflict:'student_id,session_id,date'});
-  if(error){toast('Save failed',true);await loadMarks();renderGrid();} else toast('Saved');
+  if(error){toast('Save failed',true);await loadMarks(ses);rerender();} else toast('Saved');
 }
 async function clearSheet(){
   const s=state.sheetStudent; if(!s)return;
-  delete state.marks[s.id]; closeSheet(); renderGrid();
-  await sb.from('attendance').delete().match({student_id:s.id,session_id:state.sessionId,date:state.date});
+  const ses=state.sheetSession||state.sessionId;
+  const rerender=state.sheetRerender||renderGrid;
+  delete state.marks[s.id]; closeSheet(); rerender();
+  await sb.from('attendance').delete().match({student_id:s.id,session_id:ses,date:state.date});
 }
 
 /* ---------- STUDENTS ---------- */
@@ -926,13 +1035,14 @@ function renderSetup(){
     </div>
 
     <button class="btn btn-ghost btn-block" id="setupSignout">Sign out</button>
-    <p style="text-align:center;color:var(--ink-faint);font-size:12px;margin-top:14px">YKP Attendance · v1 (marking)</p>`;
+    <p class="app-foot">YKP Attendance · <a href="#" id="setupPrivacy">Privacy Policy</a><br>© 2026 Yisroel Haskelevich</p>`;
 
   $('csvFile').onchange=e=>{const f=e.target.files[0]; if(f)f.text().then(t=>{$('csvPaste').value=t;});};
   $('importBtn').onclick=runImport;
   $('addSession').onclick=()=>editSession(null);
   $('addClass').onclick=()=>editClass(null);
   $('setupSignout').onclick=async()=>{await sb.auth.signOut();location.reload();};
+  $('setupPrivacy').onclick=e=>{e.preventDefault();showPolicy();};
 
   $('sesList').innerHTML=state.sessions.map(s=>`
     <div class="srow tappable" data-id="${s.id}"><div class="nm" dir="auto">${esc(s.name)}<div class="sub">${(s.start_time||'—').slice(0,5)} · ${(s.type||'class')==='zal'?'Zal':'Class'}</div></div>
@@ -1180,17 +1290,18 @@ async function renderZal(){
     : (state.zal.tool==='seat'
        ? 'Tap a seat to seat a boy. Pick a boy who is already seated to move him over.'
        : 'Tap an empty cell to add a table · tap a table (or its ×) to remove it for a gap');
+  const multi = zalData.arrangements.length>1;
+  const arrSel = `<select id="zArr" class="inp" style="height:40px;flex:1;min-width:120px;-webkit-appearance:none">${zalData.arrangements.map(x=>`<option value="${x.id}" ${x.id===state.zal.arrangementId?'selected':''}>${esc(x.name)}</option>`).join('')}</select>`;
   v.innerHTML = `
-    <div class="zal-toolbar">
-      <select id="zArr" class="inp" style="height:40px;flex:1;min-width:120px;-webkit-appearance:none">${zalData.arrangements.map(x=>`<option value="${x.id}" ${x.id===state.zal.arrangementId?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
-      <button class="btn btn-ghost btn-sm" id="zNew">+ New</button>
-    </div>
-    <div class="zal-toolbar">
-      <select id="zSession" class="inp" style="height:40px;flex:1;-webkit-appearance:none">${zs.map(s=>`<option value="${s.id}" ${s.id===state.zalSessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
-      <input id="zDate" type="date" class="inp" style="height:40px;width:150px" value="${state.date}" max="${todayStr()}">
-    </div>
+    ${state.zal.mode==='edit'
+      ? `<div class="zal-toolbar">${arrSel}<button class="btn btn-ghost btn-sm" id="zNew">+ New</button></div>`
+      : (multi ? `<div class="zal-toolbar">${arrSel}</div>` : '')}
     ${state.zal.mode==='mark'
-      ? `<div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
+      ? `<div class="zal-toolbar">
+          <select id="zSession" class="inp" style="height:40px;flex:1;-webkit-appearance:none">${zs.map(s=>`<option value="${s.id}" ${s.id===state.zalSessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+          <input id="zDate" type="date" class="inp" style="height:40px;width:150px" value="${state.date}" max="${todayStr()}">
+        </div>
+        <div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
       : `<div class="zedit">
           <div class="zedit-row"><span>Grid</span>
             <div class="ministep"><button id="rMinus" type="button">−</button><b>${a.grid_rows||5}</b><button id="rPlus" type="button">+</button></div>rows
@@ -1206,16 +1317,17 @@ async function renderZal(){
           </div>
           <div class="zedit-row"><button class="btn btn-ghost btn-sm" id="zRename">Rename</button><button class="btn btn-ghost btn-sm" id="zDel">Delete arrangement</button></div>
         </div>`}
-    <div class="zoomrow"><span class="zoomlbl">Zoom</span><button class="zbtn" id="zOut" type="button">−</button><button class="zbtn" id="zIn" type="button">+</button><button class="zbtn wide" id="zFitW" type="button">Fit width</button></div>
+    <div class="zoomrow"><span class="zoomlbl">Zoom</span><button class="zbtn" id="zOut" type="button">−</button><button class="zbtn" id="zIn" type="button">+</button><button class="zbtn wide" id="zFitW" type="button">Fit width</button>${state.zal.mode==='mark'?'<button class="zbtn wide" id="zFull" type="button">Full screen</button>':''}</div>
     <div class="zroom" id="zRoom"></div>
     <div class="zal-hint">${hint}</div>
     <button class="zal-editbtn" id="zEdit" type="button">${state.zal.mode==='edit'?'Done editing':'Edit layout'}</button>`;
 
   renderZalGrid();
-  $('zArr').onchange=async e=>{ state.zal.arrangementId=e.target.value; await loadZalLayout(); renderZal(); };
-  $('zNew').onclick=newArrangement;
-  $('zSession').onchange=async e=>{ state.zalSessionId=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
-  $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
+  if($('zArr')) $('zArr').onchange=async e=>{ state.zal.arrangementId=e.target.value; await loadZalLayout(); renderZal(); };
+  if($('zNew')) $('zNew').onclick=newArrangement;
+  if($('zSession')) $('zSession').onchange=async e=>{ state.zalSessionId=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
+  if($('zDate')) $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
+  if($('zFull')) $('zFull').onclick=enterFull;
   $('zEdit').onclick=()=>{ state.zal.mode = state.zal.mode==='edit'?'mark':'edit'; renderZal(); };
   $('zOut').onclick=()=>zCell(-12);
   $('zIn').onclick=()=>zCell(12);
@@ -1233,15 +1345,17 @@ async function renderZal(){
 }
 
 function seatH(cell){ return Math.round(cell*0.62); }
+function zRoomEl(){ return state.zal.full ? $('zRoomFs') : $('zRoom'); }
 function renderZalGrid(){
-  const wrap=$('zRoom'); if(!wrap)return;
+  const wrap=zRoomEl(); if(!wrap)return;
   const sl=wrap.scrollLeft, st=wrap.scrollTop;
   const a=curArr(); if(!a){wrap.innerHTML='';return;}
-  const rows=a.grid_rows||5, cols=a.grid_cols||10, cell=state.zal.cell, gap=Math.round(cell*0.18);
+  const rows=a.grid_rows||5, cols=a.grid_cols||10, cell=state.zal.cell, gap=Math.round(cell*0.16);
+  const CH=seatH(cell)*2+16;                       // every cell is exactly this tall -> a perfectly even grid
   const at={}; zalData.tables.forEach(t=>at[t.grid_row+'_'+t.grid_col]=t);
   let cells='';
   for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
-  const grid=`<div class="zgrid" style="grid-template-columns:repeat(${cols},${cell}px);gap:${gap}px">${cells}</div>`;
+  const grid=`<div class="zgrid" style="grid-template-columns:repeat(${cols},${cell}px);grid-auto-rows:${CH}px;gap:${gap}px">${cells}</div>`;
   const side=a.front_side||'top';
   const banner=`<div class="zbanner zb-${side}">${esc(FRONT_KIND[a.front_kind||'aron'])}</div>`;
   const order = (side==='top'||side==='left') ? banner+grid : grid+banner;
@@ -1249,10 +1363,23 @@ function renderZalGrid(){
   if(state.zal.mode==='edit' && state.zal.tool==='tables'){
     wrap.querySelectorAll('.zcell.ztable').forEach(el=>el.onclick=()=>deleteTableCell(el.dataset.tid));
     wrap.querySelectorAll('.zcell.gap.addable').forEach(el=>el.onclick=()=>addTableCell(+el.dataset.r,+el.dataset.c));
-  } else {
+  } else if(state.zal.mode==='edit'){
     wrap.querySelectorAll('.zseat').forEach(el=>el.onclick=()=>onZalSeatTap(el));
+  } else {
+    // mark mode: tap = mark, long-press = details (only on occupied seats)
+    wrap.querySelectorAll('.zseat[data-student]').forEach(el=>bindMarkSeat(el));
   }
   wrap.scrollLeft=sl; wrap.scrollTop=st;
+}
+function bindMarkSeat(el){
+  const sid=el.dataset.student; let timer, longFired, moved, sx, sy;
+  el.addEventListener('pointerdown',e=>{
+    longFired=false; moved=false; sx=e.clientX; sy=e.clientY;
+    timer=setTimeout(()=>{ longFired=true; if(navigator.vibrate)navigator.vibrate(15); openSheet(sid,{session:state.zalSessionId,rerender:renderZalGrid}); },480);
+  });
+  el.addEventListener('pointermove',e=>{ if(!moved && Math.hypot(e.clientX-sx,e.clientY-sy)>10){moved=true; clearTimeout(timer);} });
+  el.addEventListener('pointerup',()=>{ clearTimeout(timer); if(longFired||moved)return; zalMark(sid); });
+  el.addEventListener('pointercancel',()=>clearTimeout(timer));
 }
 function cellHTML(t,r,c,cell){
   if(!t){
@@ -1372,6 +1499,30 @@ function openPicker(title, cb){
   $('pickBg').classList.remove('hidden'); requestAnimationFrame(()=>{$('pickBg').classList.add('show');$('pickSheet').classList.add('show');});
 }
 function closePicker(){ $('pickSheet').classList.remove('show'); $('pickBg').classList.remove('show'); setTimeout(()=>$('pickBg').classList.add('hidden'),240); }
+
+/* ---- full-screen marking ---- */
+function enterFull(){
+  state.zal.full=true;
+  $('fsTabs').innerHTML=['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('');
+  $('fsTabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{ state.activeStatus=t.dataset.s; $('fsTabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t)); });
+  $('zalFs').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+  const el=document.documentElement;
+  if(el.requestFullscreen){ el.requestFullscreen().catch(()=>{}); }
+  renderZalGrid();
+}
+function exitFull(){
+  state.zal.full=false;
+  $('zalFs').classList.add('hidden');
+  document.body.style.overflow='';
+  if(document.fullscreenElement && document.exitFullscreen){ document.exitFullscreen().catch(()=>{}); }
+  renderZalGrid();
+}
+document.addEventListener('fullscreenchange',()=>{
+  if(!document.fullscreenElement && state.zal && state.zal.full){
+    state.zal.full=false; $('zalFs').classList.add('hidden'); document.body.style.overflow=''; renderZalGrid();
+  }
+});
 
 boot();
 </script>
