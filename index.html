@@ -390,11 +390,30 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .ministep{display:inline-flex;align-items:center;gap:6px}
 .ministep button{width:30px;height:30px;border-radius:8px;background:#eef0fb;color:var(--accent);font-weight:700;font-size:17px}
 .ministep b{min-width:22px;text-align:center;font-weight:800;color:var(--ink)}
-.zoomrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.zoomlbl{font-size:12.5px;font-weight:600;color:var(--ink-soft)}
-.zbtn{width:40px;height:38px;border-radius:10px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-1);font-size:18px;font-weight:700;color:var(--ink)}
-.zbtn:active{transform:scale(.95)}
-.zbtn.wide{width:auto;padding:0 14px;font-size:13px}
+/* arrangement pill slider */
+.zarr-wrap{margin-bottom:10px}
+.zarr-label{font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.45px;text-transform:uppercase;margin-bottom:7px}
+.zarr-pills{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}
+.zarr-pills::-webkit-scrollbar{display:none}
+.zarr-pill{flex-shrink:0;padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:600;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-soft);box-shadow:var(--sh-1);white-space:nowrap;transition:background .16s,color .16s,border-color .16s,box-shadow .16s}
+.zarr-pill.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 10px rgba(79,70,229,.3)}
+.zarr-pill:active{transform:scale(.94)}
+/* nicer session selector card */
+.zsess-row{display:flex;gap:8px;align-items:stretch;margin-bottom:10px}
+.zsess-card{flex:1;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-1);padding:7px 12px 5px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.zsess-lbl{font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.45px;text-transform:uppercase}
+.zsess-sel{border:none;background:transparent;font-size:14.5px;font-weight:600;color:var(--ink);padding:0;-webkit-appearance:none;appearance:none;width:100%;cursor:pointer}
+/* fixed bottom bar */
+.zal-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-b));z-index:35;display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 12px rgba(0,0,0,.07)}
+.zfbtn{width:40px;height:40px;border-radius:12px;background:var(--surface);border:1.5px solid var(--line);box-shadow:var(--sh-1);font-size:19px;font-weight:700;color:var(--ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.zfbtn:active{transform:scale(.91)}
+.zal-bar .zal-editbtn{position:static;transform:none;left:auto;bottom:auto;flex:1;height:40px;font-size:14px;box-shadow:var(--sh-2)}
+.zal-bar .zal-editbtn:active{transform:scale(.97)}
+/* full-screen liquid-glass zoom cluster */
+.fs-zoom{position:absolute;right:14px;bottom:calc(60px + max(env(safe-area-inset-bottom),8px) + 12px);display:flex;flex-direction:column;gap:3px;z-index:2}
+.fs-zbtn{width:50px;height:50px;border-radius:16px;background:rgba(255,255,255,.68);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border:1px solid rgba(215,220,240,.72);box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.92);color:var(--accent);font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:transform .12s}
+.fs-zbtn:active{transform:scale(.87)}
+.fs-zbtn-divider{height:1px;margin:1px 6px;background:rgba(160,170,210,.35)}
 .zroom{overflow:auto;-webkit-overflow-scrolling:touch;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 18px,#e9edf5 18px,#e9edf5 36px);
   border:1px solid var(--line);border-radius:var(--r-lg);max-height:48vh;padding:14px}
 .zroom-inner{display:flex;gap:10px;width:max-content}
@@ -422,8 +441,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat.s-late{background:var(--late);border-color:var(--late)}
 .zseat.s-absent{background:var(--absent);border-color:var(--absent)}
 .zseat.s-excused{background:var(--exc);border-color:var(--exc)}
-.zal-hint{font-size:12px;color:var(--ink-faint);margin:8px 0 78px;text-align:center;line-height:1.4}
-.zal-editbtn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + var(--safe-b) + 14px);z-index:35;height:46px;padding:0 26px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;font-size:15px;box-shadow:var(--sh-3);border:none}
+.zal-hint{font-size:12px;color:var(--ink-faint);margin:8px 0 72px;text-align:center;line-height:1.4}
+.zal-editbtn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + var(--safe-b) + 8px);z-index:35;height:40px;padding:0 26px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;font-size:14px;box-shadow:var(--sh-3);border:none}
 .zal-editbtn:active{transform:translateX(-50%) scale(.97)}
 
 /* full-screen marking */
@@ -612,6 +631,14 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 <!-- full-screen marking overlay -->
 <div id="zalFs" class="zalfs hidden">
   <div class="zroom" id="zRoomFs"></div>
+  <!-- floating liquid-glass zoom cluster -->
+  <div class="fs-zoom">
+    <button class="fs-zbtn" id="fsZIn" type="button" aria-label="Zoom in">+</button>
+    <div class="fs-zbtn-divider"></div>
+    <button class="fs-zbtn" id="fsZFitW" type="button" aria-label="Fit width"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 8 2 12 8 16"/><polyline points="16 8 22 12 16 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg></button>
+    <div class="fs-zbtn-divider"></div>
+    <button class="fs-zbtn" id="fsZOut" type="button" aria-label="Zoom out">−</button>
+  </div>
   <div class="zalfs-bottom">
     <div class="tabs" id="fsTabs"></div>
     <button class="zalfs-exit" id="fsExit" type="button" aria-label="Exit full screen">✕</button>
@@ -771,6 +798,9 @@ function wireEvents(){
   $('privacyBg').onclick = closePolicy;
   $('privacyClose').onclick = closePolicy;
   $('fsExit').onclick = exitFull;
+  $('fsZIn').onclick = ()=>zCell(12);
+  $('fsZOut').onclick = ()=>zCell(-12);
+  $('fsZFitW').onclick = zFitW;
 }
 
 async function doLogin(){
@@ -1457,15 +1487,24 @@ async function renderZal(){
        ? 'Tap a seat to seat a boy. Pick a boy who is already seated to move him over.'
        : 'Tap an empty cell to add a table · tap a table (or its ×) to remove it for a gap');
   const multi = zalData.arrangements.length>1;
-  const arrSel = `<select id="zArr" class="inp" style="height:40px;flex:1;min-width:120px;-webkit-appearance:none">${zalData.arrangements.map(x=>`<option value="${x.id}" ${x.id===state.zal.arrangementId?'selected':''}>${esc(x.name)}</option>`).join('')}</select>`;
+  const arrSlider = `<div class="zarr-wrap">
+    <div class="zarr-label">Seating arrangement</div>
+    <div class="zarr-pills">
+      ${zalData.arrangements.map(x=>`<button class="zarr-pill${x.id===state.zal.arrangementId?' active':''}" data-id="${x.id}" type="button">${esc(x.name)}</button>`).join('')}
+    </div>
+    ${state.zal.mode==='edit'?`<button class="btn btn-ghost btn-sm" id="zNew" style="margin-top:8px">+ New arrangement</button>`:''}
+  </div>`;
+  const FIT_ICON=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 8 2 12 8 16"/><polyline points="16 8 22 12 16 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>`;
+  const EXPAND_ICON=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
   v.innerHTML = `
-    ${state.zal.mode==='edit'
-      ? `<div class="zal-toolbar">${arrSel}<button class="btn btn-ghost btn-sm" id="zNew">+ New</button></div>`
-      : (multi ? `<div class="zal-toolbar">${arrSel}</div>` : '')}
+    ${(state.zal.mode==='edit' || multi) ? arrSlider : ''}
     ${state.zal.mode==='mark'
-      ? `<div class="zal-toolbar">
-          <select id="zSession" class="inp" style="height:40px;flex:1;-webkit-appearance:none">${zs.map(s=>`<option value="${s.id}" ${s.id===state.zalSessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
-          <input id="zDate" type="date" class="inp" style="height:40px;width:150px" value="${state.date}" max="${todayStr()}">
+      ? `<div class="zsess-row">
+          <div class="zsess-card">
+            <span class="zsess-lbl">Session</span>
+            <select id="zSession" class="zsess-sel">${zs.map(s=>`<option value="${s.id}" ${s.id===state.zalSessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+          </div>
+          <input id="zDate" type="date" class="inp" style="height:50px;width:150px" value="${state.date}" max="${todayStr()}">
         </div>
         <div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
       : `<div class="zedit">
@@ -1483,13 +1522,20 @@ async function renderZal(){
           </div>
           <div class="zedit-row"><button class="btn btn-ghost btn-sm" id="zRename">Rename</button><button class="btn btn-ghost btn-sm" id="zDel">Delete arrangement</button></div>
         </div>`}
-    <div class="zoomrow"><span class="zoomlbl">Zoom</span><button class="zbtn" id="zOut" type="button">−</button><button class="zbtn" id="zIn" type="button">+</button><button class="zbtn wide" id="zFitW" type="button">Fit width</button>${state.zal.mode==='mark'?'<button class="zbtn wide" id="zFull" type="button">Full screen</button>':''}</div>
     <div class="zroom" id="zRoom"></div>
     <div class="zal-hint">${hint}</div>
-    <button class="zal-editbtn" id="zEdit" type="button">${state.zal.mode==='edit'?'Done editing':'Edit layout'}</button>`;
+    <div class="zal-bar">
+      <button class="zfbtn" id="zOut" type="button" aria-label="Zoom out">−</button>
+      <button class="zfbtn" id="zIn" type="button" aria-label="Zoom in">+</button>
+      <button class="zfbtn" id="zFitW" type="button" aria-label="Fit width">${FIT_ICON}</button>
+      <button class="zal-editbtn" id="zEdit" type="button">${state.zal.mode==='edit'?'Done editing':'Edit layout'}</button>
+      ${state.zal.mode==='mark'
+        ? `<button class="zfbtn" id="zFull" type="button" aria-label="Full screen">${EXPAND_ICON}</button>`
+        : `<div style="width:40px;flex-shrink:0"></div>`}
+    </div>`;
 
   renderZalGrid();
-  if($('zArr')) $('zArr').onchange=async e=>{ state.zal.arrangementId=e.target.value; await loadZalLayout(); renderZal(); };
+  v.querySelectorAll('.zarr-pill').forEach(btn=>btn.onclick=async()=>{ state.zal.arrangementId=btn.dataset.id; await loadZalLayout(); renderZal(); });
   if($('zNew')) $('zNew').onclick=newArrangement;
   if($('zSession')) $('zSession').onchange=async e=>{ state.zalSessionId=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
   if($('zDate')) $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
@@ -1572,7 +1618,7 @@ function seatCell(seat,cell){
 }
 
 function zCell(d){ state.zal.cell=Math.max(48,Math.min(150,state.zal.cell+d)); renderZalGrid(); }
-function zFitW(){ const wrap=$('zRoom'); const a=curArr(); if(!wrap||!a)return; const cols=a.grid_cols||10; const w=wrap.clientWidth-28; let c=Math.floor(w/(cols*1.16)); state.zal.cell=Math.max(40,Math.min(150,c)); renderZalGrid(); }
+function zFitW(){ const wrap=state.zal.full?$('zRoomFs'):$('zRoom'); const a=curArr(); if(!wrap||!a)return; const cols=a.grid_cols||10; const w=wrap.clientWidth-28; let c=Math.floor(w/(cols*1.16)); state.zal.cell=Math.max(40,Math.min(150,c)); renderZalGrid(); }
 
 /* ---- arrangement + table actions ---- */
 async function newArrangement(){
