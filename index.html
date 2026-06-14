@@ -445,7 +445,10 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .policy{max-height:64vh;overflow:auto;font-size:13.5px;line-height:1.55;color:var(--ink-soft);text-align:left}
 .policy h4{font-size:14px;color:var(--ink);margin:14px 0 4px;font-weight:700}
 .policy p{margin:6px 0}
-.app-foot{text-align:center;font-size:11.5px;color:var(--ink-faint);line-height:1.7;margin:18px 0 4px}
+.offline-bar{position:sticky;top:57px;z-index:29;text-align:center;font-size:12px;font-weight:700;padding:5px 12px;letter-spacing:.02em}
+.offline-bar.off{background:#E71124;color:#fff}
+.offline-bar.syn{background:var(--late);color:#1a1a1a}
+.offline-bar.ok{background:var(--on);color:#1a1a1a}
 .app-foot a{color:var(--accent);text-decoration:none;font-weight:600}
 </style>
 </head>
@@ -490,6 +493,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
   </header>
+
+  <div id="offlineBar" class="offline-bar hidden"></div>
 
   <main>
     <section id="view-mark" class="view"></section>
@@ -722,6 +727,7 @@ function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast 
    ========================================================= */
 function boot(){
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+  updateOfflineBar();
   if(LOGO && !LOGO.startsWith('__')){
     document.querySelectorAll('.logoimg').forEach(i=>i.src=LOGO);
     let fav=document.querySelector('link[rel="icon"]'); if(!fav){fav=document.createElement('link');fav.rel='icon';document.head.appendChild(fav);} fav.href=LOGO;
@@ -780,6 +786,7 @@ async function enterApp(){
   $('loginGate').classList.add('hidden');
   $('consentGate').classList.add('hidden');
   $('app').classList.remove('hidden');
+  syncQueue(); // drain anything left from prior session
   await loadAll();
   switchView('history');
 }
@@ -788,12 +795,21 @@ async function enterApp(){
    3. DATA
    ========================================================= */
 async function loadAll(){
-  const [cl,se,st]=await Promise.all([
-    sb.from('classes').select('*').order('sort_order'),
-    sb.from('sessions').select('*').order('sort_order'),
-    sb.from('students').select('*').eq('active',true).order('sort_order'),
-  ]);
-  state.classes=cl.data||[]; state.sessions=se.data||[]; state.students=st.data||[];
+  try{
+    const [cl,se,st]=await Promise.all([
+      sb.from('classes').select('*').order('sort_order'),
+      sb.from('sessions').select('*').order('sort_order'),
+      sb.from('students').select('*').eq('active',true).order('sort_order'),
+    ]);
+    if(cl.error||se.error||st.error) throw new Error('load failed');
+    state.classes=cl.data||[]; state.sessions=se.data||[]; state.students=st.data||[];
+    try{ localStorage.setItem('ykp_cache_v1',JSON.stringify({classes:state.classes,sessions:state.sessions,students:state.students,at:Date.now()})); }catch(_){}
+  }catch(e){
+    const c=offlineCache();
+    if(c){ state.classes=c.classes||[]; state.sessions=c.sessions||[]; state.students=c.students||[]; }
+    else { state.classes=[]; state.sessions=[]; state.students=[]; }
+    updateOfflineBar();
+  }
   const csv=state.sessions.filter(s=>(s.type||'class')==='class');
   const zsv=state.sessions.filter(s=>s.type==='zal');
   if(!state.sessionId || !csv.find(s=>s.id===state.sessionId)) state.sessionId=csv[0]?.id||null;
@@ -813,13 +829,28 @@ async function loadPhotos(){
 async function loadMarks(sessionId=state.sessionId){
   state.marks={};
   if(!sessionId)return;
-  const {data}=await sb.from('attendance').select('*')
-    .eq('session_id',sessionId).eq('date',state.date);
-  (data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
-  state.delayMinutes=0;
-  const ov=await sb.from('session_overrides').select('delay_minutes')
-    .eq('session_id',sessionId).eq('date',state.date).maybeSingle();
-  if(ov.data) state.delayMinutes=ov.data.delay_minutes||0;
+  try{
+    const {data,error}=await sb.from('attendance').select('*')
+      .eq('session_id',sessionId).eq('date',state.date);
+    if(error) throw error;
+    (data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
+    try{ localStorage.setItem('ykp_marks_v1_'+sessionId+'_'+state.date, JSON.stringify(state.marks)); }catch(_){}
+    state.delayMinutes=0;
+    const ov=await sb.from('session_overrides').select('delay_minutes')
+      .eq('session_id',sessionId).eq('date',state.date).maybeSingle();
+    if(ov.data) state.delayMinutes=ov.data.delay_minutes||0;
+  }catch(e){
+    // offline fallback — merge cache + pending queue
+    try{
+      const cached=JSON.parse(localStorage.getItem('ykp_marks_v1_'+sessionId+'_'+state.date)||'{}');
+      state.marks={...cached};
+    }catch(_){}
+    getQueue().filter(q=>q.data?.session_id===sessionId&&q.data?.date===state.date).forEach(q=>{
+      if(q.op==='upsert'&&q.data?.student_id) state.marks[q.data.student_id]={status:q.data.status,late_minutes:q.data.late_minutes,note:q.data.note,flagged:q.data.flagged};
+      if(q.op==='delete'&&q.match?.student_id) delete state.marks[q.match.student_id];
+    });
+    updateOfflineBar();
+  }
 }
 
 /* =========================================================
@@ -942,13 +973,11 @@ function attachGrid(grid){
 
 async function tapStudent(id){
   const cur=state.marks[id];
-  if(cur && cur.status===state.activeStatus){           // toggle off
+  if(cur && cur.status===state.activeStatus){
     state.marks[id]=undefined; delete state.marks[id];
     paintCard(id);
-    const {error}=await sb.from('attendance').delete()
-      .match({student_id:id,session_id:state.sessionId,date:state.date});
-    if(error){toast('Could not clear mark',true);await loadMarks();renderGrid();}
-    else renderSummary(classStudents());
+    await deleteAtt({student_id:id,session_id:state.sessionId,date:state.date},async()=>{await loadMarks();renderGrid();});
+    renderSummary(classStudents());
     return;
   }
   const rec={student_id:id,session_id:state.sessionId,date:state.date,status:state.activeStatus,
@@ -957,8 +986,7 @@ async function tapStudent(id){
     marked_by:state.user.id, marked_at:new Date().toISOString()};
   state.marks[id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
   paintCard(id); renderSummary(classStudents());
-  const {error}=await sb.from('attendance').upsert(rec,{onConflict:'student_id,session_id,date'});
-  if(error){toast('Save failed — check connection',true); await loadMarks(); renderGrid();}
+  await writeAtt(rec,async()=>{await loadMarks();renderGrid();});
 }
 function paintCard(id){
   const el=document.querySelector(`.scard[data-id="${id}"]`); if(!el)return;
@@ -978,9 +1006,8 @@ async function markAll(){
   });
   list.forEach(s=>{state.marks[s.id]={status:state.activeStatus,late_minutes:mins,note:state.marks[s.id]?.note||null,flagged:state.marks[s.id]?.flagged||false};});
   renderGrid();
-  const {error}=await sb.from('attendance').upsert(recs,{onConflict:'student_id,session_id,date'});
-  if(error){toast('Save failed',true); await loadMarks(); renderGrid();}
-  else toast(`Marked ${list.length} ${STATUS_LABEL[state.activeStatus]}`);
+  await writeAtt(recs,async()=>{await loadMarks();renderGrid();},true);
+  toast(`Marked ${list.length} ${STATUS_LABEL[state.activeStatus]}`);
 }
 
 /* ---------- detail sheet ---------- */
@@ -1026,8 +1053,7 @@ async function saveSheet(){
     marked_by:state.user.id, marked_at:new Date().toISOString()};
   state.marks[s.id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
   closeSheet(); rerender();
-  const {error}=await sb.from('attendance').upsert(rec,{onConflict:'student_id,session_id,date'});
-  if(error){toast('Save failed',true);await loadMarks(ses);rerender();} else toast('Saved');
+  await writeAtt(rec,async()=>{await loadMarks(ses);rerender();});
 }
 async function clearSheet(){
   const s=state.sheetStudent; if(!s)return;
@@ -1035,7 +1061,7 @@ async function clearSheet(){
   const d=state.date;
   const rerender=state.sheetRerender||renderGrid;
   delete state.marks[s.id]; closeSheet(); rerender();
-  await sb.from('attendance').delete().match({student_id:s.id,session_id:ses,date:d});
+  await deleteAtt({student_id:s.id,session_id:ses,date:d},async()=>{await loadMarks(ses);rerender();});
 }
 
 /* ---------- STUDENTS ---------- */
@@ -1637,15 +1663,13 @@ async function zalMark(studentId){
   const cur=state.marks[studentId];
   if(cur && cur.status===state.activeStatus){
     delete state.marks[studentId]; renderZalGrid();
-    const {error}=await sb.from('attendance').delete().match({student_id:studentId,session_id:state.zalSessionId,date:state.date});
-    if(error){toast('Save failed — check connection',true); await loadMarks(state.zalSessionId); renderZalGrid();}
+    await deleteAtt({student_id:studentId,session_id:state.zalSessionId,date:state.date},async()=>{await loadMarks(state.zalSessionId);renderZalGrid();});
     return;
   }
   const late=state.activeStatus==='late'?lateFor(state.zalSessionId):null;
   state.marks[studentId]={status:state.activeStatus,late_minutes:late,note:cur?cur.note:null,flagged:cur?cur.flagged:false};
   renderZalGrid();
-  const {error}=await sb.from('attendance').upsert({student_id:studentId,session_id:state.zalSessionId,date:state.date,status:state.activeStatus,late_minutes:late,note:state.marks[studentId].note,flagged:state.marks[studentId].flagged,marked_by:state.user.id,marked_at:new Date().toISOString()},{onConflict:'student_id,session_id,date'});
-  if(error){toast('Save failed — check connection',true); await loadMarks(state.zalSessionId); renderZalGrid();}
+  await writeAtt({student_id:studentId,session_id:state.zalSessionId,date:state.date,status:state.activeStatus,late_minutes:late,note:state.marks[studentId].note,flagged:state.marks[studentId].flagged,marked_by:state.user.id,marked_at:new Date().toISOString()},async()=>{await loadMarks(state.zalSessionId);renderZalGrid();});
 }
 
 /* ---- generic student picker ---- */
@@ -2067,7 +2091,58 @@ function closeCustomSheet(){
   setTimeout(()=>$('customSheetBg').classList.add('hidden'),240);
 }
 
-/* ===================== REPORT CARDS ===================== */
+/* ===================== OFFLINE ===================== */
+function offlineCache(){ try{return JSON.parse(localStorage.getItem('ykp_cache_v1')||'null');}catch(_){return null;} }
+function getQueue(){ try{return JSON.parse(localStorage.getItem('ykp_queue_v1')||'[]');}catch(_){return[];} }
+function setQueue(q){ try{localStorage.setItem('ykp_queue_v1',JSON.stringify(q));}catch(_){} }
+function enqueue(item){
+  const q=getQueue();
+  const key=item.op==='upsert'?item.data.student_id+'|'+item.data.session_id+'|'+item.data.date:item.match.student_id+'|'+item.match.session_id+'|'+item.match.date;
+  // replace any existing entry for the same attendance slot
+  const next=q.filter(x=>x._key!==key); next.push({...item,_key:key}); setQueue(next); updateOfflineBar();
+}
+function updateOfflineBar(){
+  const bar=$('offlineBar'); if(!bar)return;
+  const online=navigator.onLine; const q=getQueue().length;
+  if(!online||q>0){
+    bar.textContent=!online?(q>0?`Offline · ${q} mark${q!==1?'s':''} saved locally`:'Offline — marking works, will sync when back online'):`Back online · syncing ${q} mark${q!==1?'s':''}…`;
+    bar.className='offline-bar '+(!online?'off':'syn');
+    bar.classList.remove('hidden');
+  }else{ bar.classList.add('hidden'); }
+}
+async function writeAtt(rec,onFail,isBatch){
+  const op=navigator.onLine?await sb.from('attendance').upsert(Array.isArray(rec)?rec:[rec],{onConflict:'student_id,session_id,date'}):null;
+  if(!navigator.onLine||op?.error){
+    const recs=Array.isArray(rec)?rec:[rec];
+    recs.forEach(r=>enqueue({op:'upsert',data:r}));
+  }
+}
+async function deleteAtt(match,onFail){
+  // remove any pending upsert for this slot from queue
+  const key=match.student_id+'|'+match.session_id+'|'+match.date;
+  setQueue(getQueue().filter(x=>x._key!==key));
+  const op=navigator.onLine?await sb.from('attendance').delete().match(match):null;
+  if(!navigator.onLine||op?.error) enqueue({op:'delete',match});
+  updateOfflineBar();
+}
+async function syncQueue(){
+  if(!navigator.onLine)return;
+  const q=getQueue(); if(!q.length)return;
+  let failed=[];
+  for(const item of q){
+    let err;
+    if(item.op==='upsert'){const r=await sb.from('attendance').upsert(item.data,{onConflict:'student_id,session_id,date'});err=r.error;}
+    else if(item.op==='delete'){const r=await sb.from('attendance').delete().match(item.match);err=r.error;}
+    if(err) failed.push(item);
+  }
+  setQueue(failed);
+  if(failed.length<q.length) toast(`Synced ${q.length-failed.length} offline mark${q.length-failed.length!==1?'s':''}`);
+  updateOfflineBar();
+}
+window.addEventListener('online',()=>{ updateOfflineBar(); syncQueue(); });
+window.addEventListener('offline',()=>updateOfflineBar());
+
+
 function getYtdStart(d){
   const dt=new Date(d+'T00:00:00');
   const yr=dt.getMonth()>=7?dt.getFullYear():dt.getFullYear()-1;
