@@ -469,6 +469,29 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .offline-bar.syn{background:var(--late);color:#1a1a1a}
 .offline-bar.ok{background:var(--on);color:#1a1a1a}
 .app-foot a{color:var(--accent);text-decoration:none;font-weight:600}
+
+/* ── Schedule / Calendar view ── */
+.cal-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cal-date-label{flex:1;font-weight:700;font-size:16px;color:var(--ink);text-align:center}
+.cal-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 200px);position:relative}
+.cal-grid{position:relative;padding-left:50px}
+.cal-hour-line{position:absolute;left:50px;right:0;height:1px;background:var(--line);pointer-events:none}
+.cal-hour-lbl{position:absolute;left:0;width:46px;font-size:10px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:5px;transform:translateY(-50%);line-height:1;pointer-events:none}
+.cal-lane{position:absolute;left:50px;right:0;top:0;bottom:0}
+.cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:6px 10px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.cal-block:active{opacity:.82;transform:scale(.985)}
+.cal-block-name{font-weight:700;font-size:13.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-block-time{font-size:10.5px;color:rgba(255,255,255,.78);margin-top:1px}
+.cal-block-badge{display:inline-flex;align-items:center;background:rgba(255,255,255,.22);border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700;color:#fff;margin-top:4px;align-self:flex-start}
+.cal-now{position:absolute;left:-50px;right:0;height:2px;background:#EA4335;z-index:2;pointer-events:none}
+.cal-now::before{content:'';position:absolute;left:0;top:-4px;width:10px;height:10px;border-radius:50%;background:#EA4335}
+.cal-empty{text-align:center;color:var(--ink-faint);font-size:14px;padding:60px 24px;line-height:1.7}
+/* Setup session calendar */
+.ses-cal-wrap{position:relative;padding-left:50px;border-radius:var(--r-lg);overflow:hidden;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-1)}
+.ses-cal-block{position:absolute;left:0;right:4px;border-radius:9px;padding:5px 9px;cursor:pointer;min-height:28px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.ses-cal-block:active{opacity:.8}
+.ses-cal-block-name{font-weight:700;font-size:12.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ses-cal-block-time{font-size:10px;color:rgba(255,255,255,.75)}
 </style>
 </head>
 <body>
@@ -516,7 +539,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   <div id="offlineBar" class="offline-bar hidden"></div>
 
   <main>
-    <section id="view-mark" class="view"></section>
+    <section id="view-schedule" class="view hidden"></section>
+    <section id="view-mark" class="view hidden"></section>
     <section id="view-zal" class="view hidden"></section>
 <section id="view-history" class="view hidden"></section>
     <section id="view-students" class="view hidden"></section>
@@ -525,13 +549,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   </main>
 
   <nav class="nav">
-    <button class="navbtn active" data-view="mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      Mark
-    </button>
-    <button class="navbtn" data-view="zal">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg>
-      Zal
+    <button class="navbtn active" data-view="schedule">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="10" y1="14" x2="10" y2="18"/><line x1="8" y1="16" x2="12" y2="16"/></svg>
+      Schedule
     </button>
     <button class="navbtn" data-view="history">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
@@ -819,7 +839,8 @@ async function enterApp(){
   $('app').classList.remove('hidden');
   syncQueue(); // drain anything left from prior session
   await loadAll();
-  switchView('history');
+  if(!state.schedule) state.schedule={date:todayStr()};
+  switchView('schedule');
 }
 
 /* =========================================================
@@ -890,15 +911,123 @@ async function loadMarks(sessionId=state.sessionId){
 function switchView(v){
   state.view=v;
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
-  ['mark','zal','history','tests','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
-  $('barTitle').textContent = {mark:'Mark attendance',zal:'The Zal',history:'History',tests:'Tests',students:'Students',setup:'Setup'}[v];
+  ['schedule','mark','zal','history','tests','students','setup'].forEach(n=>{const el=$('view-'+n);if(el)el.classList.toggle('hidden',n!==v);});
+  const titles={schedule:'Schedule',mark:'Mark attendance',zal:'The Zal',history:'History',tests:'Tests',students:'Students',setup:'Setup'};
+  $('barTitle').textContent=titles[v]||'';
   if(v!=='mark') $('barSub').textContent='';
+  if(v==='schedule') renderSchedule();
   if(v==='mark') renderMark();
   if(v==='zal') renderZal();
   if(v==='history') renderHistory();
   if(v==='tests') renderTests();
   if(v==='students') renderStudents();
   if(v==='setup') renderSetup();
+}
+
+/* =================== SCHEDULE CALENDAR =================== */
+const CAL_S=6, CAL_E=23, HR_PX=68; // 6am–11pm, 68px/hour
+
+function _t2y(t){
+  if(!t)return 0;
+  const [h,m]=(t||'00:00').split(':').map(Number);
+  return ((h+m/60)-CAL_S)*HR_PX;
+}
+function _sesEnd(s){
+  if(s.end_time && s.end_time!=='00:00' && s.end_time!=='') return s.end_time.slice(0,5);
+  const [h,m]=(s.start_time||'08:00').split(':').map(Number);
+  const tot=h*60+m+45;
+  return String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');
+}
+function _fmtHr(h){if(!h)return '12am';if(h<12)return h+'am';if(h===12)return '12pm';return(h-12)+'pm';}
+function _calDateLabel(d){
+  const dt=new Date(d+'T00:00:00');
+  const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return DN[dt.getDay()]+', '+MN[dt.getMonth()]+' '+dt.getDate();
+}
+
+function renderSchedule(){
+  const v=$('view-schedule');
+  if(!state.schedule) state.schedule={date:todayStr()};
+  const date=state.schedule.date;
+  const gridH=(CAL_E-CAL_S)*HR_PX+20;
+
+  // Hour grid
+  let hours='';
+  for(let h=CAL_S;h<=CAL_E;h++){
+    const y=(h-CAL_S)*HR_PX;
+    hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
+  }
+
+  // Session blocks
+  const sorted=[...state.sessions].filter(s=>s.start_time).sort((a,b)=>a.start_time<b.start_time?-1:1);
+  let blocks='';
+  if(!sorted.length){
+    blocks=`<div class="cal-empty">No sessions yet.<br>Add them in <b>Setup</b> → Sessions.</div>`;
+  } else {
+    sorted.forEach(s=>{
+      const top=_t2y(s.start_time);
+      const end=_sesEnd(s);
+      const ht=Math.max(_t2y(end)-top,34);
+      const isZal=s.type==='zal';
+      const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
+      const tall=ht>50;
+      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;background:${bg}">
+        <div class="cal-block-name">${esc(s.name)}</div>
+        ${tall?`<div class="cal-block-time">${s.start_time.slice(0,5)} – ${end}</div>`:''}
+        ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
+      </div>`;
+    });
+  }
+
+  // Current-time line
+  const now=new Date();
+  const nowY=(now.getHours()+now.getMinutes()/60-CAL_S)*HR_PX;
+  const showNow=date===todayStr()&&nowY>0&&nowY<(CAL_E-CAL_S)*HR_PX;
+  const nowLine=showNow?`<div class="cal-now" style="top:${nowY}px"></div>`:'';
+
+  const isToday=date===todayStr();
+  v.innerHTML=`
+    <div class="cal-hdr">
+      <button class="iconbtn" id="calPrev" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="cal-date-label">${_calDateLabel(date)}${isToday?'<span style="font-size:11px;color:var(--accent);font-weight:600;margin-left:6px">Today</span>':''}</div>
+      <button class="iconbtn" id="calNext" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+      <button class="btn btn-soft btn-sm" id="calToday">Today</button>
+    </div>
+    <div class="cal-scroll" id="calScroll">
+      <div class="cal-grid" style="height:${gridH}px">
+        ${hours}
+        <div class="cal-lane">${blocks}${nowLine}</div>
+      </div>
+    </div>`;
+
+  $('calPrev').onclick=()=>{ state.schedule.date=addDays(date,-1); renderSchedule(); };
+  $('calNext').onclick=()=>{ state.schedule.date=addDays(date,1); renderSchedule(); };
+  $('calToday').onclick=()=>{ state.schedule.date=todayStr(); renderSchedule(); };
+
+  v.querySelectorAll('.cal-block').forEach(el=>{
+    el.onclick=()=>{
+      const ses=state.sessions.find(s=>s.id===el.dataset.id);
+      if(!ses)return;
+      state.date=date;
+      if(ses.type==='zal'){
+        const zs=state.sessions.filter(s=>s.type==='zal');
+        if(!state.zalSessionId||!zs.find(s=>s.id===state.zalSessionId)) state.zalSessionId=ses.id;
+        else state.zalSessionId=ses.id;
+        switchView('zal');
+      } else {
+        state.sessionId=ses.id;
+        switchView('mark');
+      }
+    };
+  });
+
+  // Scroll to current time or first session on first render
+  const sc=$('calScroll');
+  if(sc){
+    const target=showNow?Math.max(0,nowY-120):(sorted.length?Math.max(0,_t2y(sorted[0].start_time)-80):(8-CAL_S)*HR_PX);
+    requestAnimationFrame(()=>{ sc.scrollTop=target; });
+  }
 }
 
 /* ---------- MARK ---------- */
@@ -1118,18 +1247,18 @@ function renderStudents(selMode, sel){
       <div class="ctl full"><span>Class</span>
         <select id="stuFilterClass">
           <option value="">All classes</option>
-          ${state.classes.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
-          ${state.students.some(s=>!s.class_id)?`<option value="__none__">(No class)</option>`:''}
+          ${state.classes.map(c=>`<option value="${c.id}" ${c.id===(state.stuFilters?.classId||'')?'selected':''}>${esc(c.name)}</option>`).join('')}
+          ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${'__none__'===(state.stuFilters?.classId||'')?'selected':''}>(No class)</option>`:''}
         </select></div>
       ${allBunks.length?`<div class="ctl full"><span>Bunk</span>
         <select id="stuFilterBunk">
           <option value="">All bunks</option>
-          ${allBunks.map(b=>`<option value="${b}">Bunk ${esc(b)}</option>`).join('')}
+          ${allBunks.map(b=>`<option value="${b}" ${b===(state.stuFilters?.bunkId||'')?'selected':''}>${'Bunk '+esc(b)}</option>`).join('')}
         </select></div>`:''}
     </div>
     <div class="search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="stuSearch" placeholder="Search students…">
+      <input id="stuSearch" placeholder="Search students…" value="${esc(state.stuFilters?.q||'')}">
     </div>
     <div class="list" id="stuList" style="${selMode?'padding-bottom:80px':''}"></div>
     ${selMode?`<div class="sel-bar" id="selBar">
@@ -1137,7 +1266,8 @@ function renderStudents(selMode, sel){
       <button class="btn btn-soft btn-sm" id="selMove">Move to class</button>
       <button class="btn btn-sm" id="selDel" style="background:var(--attn);color:#fff">Delete</button>
     </div>`:''}`;
-  let filterClass='', filterBunk='', stuLimit=50;
+  if(!state.stuFilters) state.stuFilters={classId:'',bunkId:'',q:''};
+  let filterClass=state.stuFilters.classId||'', filterBunk=state.stuFilters.bunkId||'', stuLimit=50;
   const draw=q=>{
     let list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
     if(filterClass==='__none__') list=list.filter(s=>!s.class_id);
@@ -1160,10 +1290,10 @@ function renderStudents(selMode, sel){
     if($('stuMore')) $('stuMore').onclick=()=>{ stuLimit+=50; draw(q); };
     if(selMode && $('selCount')) $('selCount').textContent=`${sel.size} selected`;
   };
-  draw('');
-  $('stuSearch').oninput=e=>{ stuLimit=50; draw(e.target.value.trim()); };
-  if($('stuFilterClass')) $('stuFilterClass').onchange=e=>{ filterClass=e.target.value; stuLimit=50; draw($('stuSearch').value.trim()); };
-  if($('stuFilterBunk')) $('stuFilterBunk').onchange=e=>{ filterBunk=e.target.value; stuLimit=50; draw($('stuSearch').value.trim()); };
+  draw(state.stuFilters.q||'');
+  $('stuSearch').oninput=e=>{ state.stuFilters.q=e.target.value.trim(); stuLimit=50; draw(e.target.value.trim()); };
+  if($('stuFilterClass')) $('stuFilterClass').onchange=e=>{ filterClass=e.target.value; state.stuFilters.classId=filterClass; stuLimit=50; draw($('stuSearch').value.trim()); };
+  if($('stuFilterBunk')) $('stuFilterBunk').onchange=e=>{ filterBunk=e.target.value; state.stuFilters.bunkId=filterBunk; stuLimit=50; draw($('stuSearch').value.trim()); };
   if(!selMode && $('addStudent')) $('addStudent').onclick=()=>editStudent(null);
   if(!selMode && $('rcOpen')) $('rcOpen').onclick=()=>openRCSheet();
   $('selToggle').onclick=()=>renderStudents(!selMode,new Set());
@@ -1224,8 +1354,7 @@ function renderSetup(){
 
     <div class="card">
       <div class="cardhead"><h2>Sessions</h2><button class="btn btn-soft btn-sm" id="addSession">+ Add</button></div>
-      <p class="muted">Tap a session to rename it, set its start time, or remove it. Start time powers the auto late-minutes.</p>
-      <div id="sesList"></div>
+      <div id="sesCal" style="margin-top:4px"></div>
     </div>
 
     <div class="card">
@@ -1245,11 +1374,7 @@ function renderSetup(){
   $('setupPrivacy').onclick=e=>{e.preventDefault();showPolicy();};
 
 
-  $('sesList').innerHTML=state.sessions.map(s=>`
-    <div class="srow tappable" data-id="${s.id}"><div class="nm" dir="auto">${esc(s.name)}<div class="sub">${(s.start_time||'—').slice(0,5)} · ${(s.type||'class')==='zal'?'Zal':'Class'}</div></div>
-    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>`).join('')
-    || `<p class="muted">No sessions yet — tap “+ Add”.</p>`;
-  $('sesList').querySelectorAll('.srow').forEach(r=>r.onclick=()=>editSession(r.dataset.id));
+  _renderSesCal($('sesCal'));
 
   $('clsList').innerHTML=state.classes.map(c=>{
     const n=state.students.filter(s=>s.class_id===c.id).length;
@@ -1408,6 +1533,40 @@ function editClass(id){
     onDelete: c?async()=>{await sb.from('classes').delete().eq('id',c.id);closeForm();await loadAll();renderSetup();toast('Class deleted — its students are now unassigned');}:null,
   });
 }
+function _renderSesCal(container){
+  if(!container)return;
+  const sessions=state.sessions;
+  if(!sessions.length){
+    container.innerHTML='<p class="muted" style="padding:8px 0">No sessions yet — tap "+ Add".</p>';
+    return;
+  }
+  const S_H=6,E_H=23,PX=54;  // 6am–11pm, 54px/hour
+  const gridH=(E_H-S_H)*PX+8;
+  let hours='';
+  for(let h=S_H;h<=E_H;h++){
+    const y=(h-S_H)*PX;
+    hours+=`<div class="cal-hour-lbl" style="top:${y}px;font-size:9.5px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
+  }
+  let blocks='';
+  sessions.filter(s=>s.start_time).forEach(s=>{
+    const top=((parseInt(s.start_time)||0)+(parseInt((s.start_time||':').split(':')[1])||0)/60-S_H)*PX;
+    const end=_sesEnd(s);
+    const eh=parseInt(end)||0,em=parseInt((end||':').split(':')[1])||0;
+    const sh=parseInt(s.start_time)||0,sm=parseInt((s.start_time||':').split(':')[1])||0;
+    const ht=Math.max(((eh+em/60)-(sh+sm/60))*PX,26);
+    const isZal=s.type==='zal';
+    const bg=isZal?'linear-gradient(135deg,#1e1b4b,#312e81)':'linear-gradient(135deg,#4f46e5,#6366f1)';
+    blocks+=`<div class="ses-cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;background:${bg}">
+      <div class="ses-cal-block-name">${esc(s.name)}</div>
+      ${ht>36?`<div class="ses-cal-block-time">${s.start_time.slice(0,5)} – ${end}</div>`:''}
+    </div>`;
+  });
+  container.innerHTML=`<div class="ses-cal-wrap" style="height:${gridH}px">${hours}<div class="cal-lane">${blocks}</div></div>`;
+  container.querySelectorAll('.ses-cal-block').forEach(el=>{
+    el.onclick=()=>editSession(el.dataset.id);
+  });
+}
+
 function editSession(id){
   const s=id?state.sessions.find(x=>x.id===id):null;
   openForm({
@@ -1415,17 +1574,18 @@ function editSession(id){
     fields:[
       {key:'name',label:'Session name',type:'text',value:s?s.name:''},
       {key:'start_time',label:'Start time',type:'time',value:s?(s.start_time||'').slice(0,5):''},
+      {key:'end_time',label:'End time',type:'time',value:s?(s.end_time||'').slice(0,5):''},
       {key:'type',label:'Session type',type:'select',value:s?(s.type||'class'):'class',options:[{value:'class',label:'In-class — marked on the Mark tab'},{value:'zal',label:'Zal — marked on the Zal tab'}]},
     ],
     onSave:async v=>{
-      const rec={name:(v.name||'').trim(),start_time:v.start_time||null,type:v.type||'class'};
+      const rec={name:(v.name||'').trim(),start_time:v.start_time||null,end_time:v.end_time||null,type:v.type||'class'};
       if(!rec.name){toast('Session name required',true);return;}
       const r = s ? await sb.from('sessions').update(rec).eq('id',s.id)
                   : await sb.from('sessions').insert({...rec,sort_order:state.sessions.length+1});
       if(r.error){toast('Save failed: '+r.error.message,true);return;}
-      closeForm(); state.sessionId=s?state.sessionId:null; await loadAll(); renderSetup(); toast('Saved');
+      closeForm(); state.sessionId=s?state.sessionId:null; await loadAll(); renderSetup(); if($('calScroll'))renderSchedule(); toast('Saved');
     },
-    onDelete: s?async()=>{await sb.from('sessions').delete().eq('id',s.id);closeForm();state.sessionId=null;await loadAll();renderSetup();toast('Session deleted');}:null,
+    onDelete: s?async()=>{await sb.from('sessions').delete().eq('id',s.id);closeForm();state.sessionId=null;await loadAll();renderSetup();if($('calScroll'))renderSchedule();toast('Session deleted');}:null,
   });
 }
 
