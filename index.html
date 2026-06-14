@@ -1170,6 +1170,22 @@ function renderSetup(){
       <div id="clsList"></div>
     </div>
 
+    <div class="card">
+      <div class="cardhead"><h2>Report Cards</h2></div>
+      <p class="muted">Print or save attendance + test reports as PDF. Opens a print-ready page — use your device's "Print → Save as PDF".</p>
+      <div class="controls">
+        <div class="ctl full"><span>Class</span>
+          <select id="rcClass">
+            <option value="">All classes</option>
+            ${state.classes.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+          </select></div>
+        <div class="ctl full"><span>Reporting month</span>
+          <input type="month" id="rcMonth" value="${todayStr().slice(0,7)}" max="${todayStr().slice(0,7)}">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="rcGen" style="margin-top:12px">Generate Report Cards</button>
+    </div>
+
     <button class="btn btn-ghost btn-block" id="setupSignout">Sign out</button>
     <p class="app-foot">YKP Attendance · <a href="#" id="setupPrivacy">Privacy Policy</a><br>© 2026 Yisroel Haskelevich</p>`;
 
@@ -1179,6 +1195,16 @@ function renderSetup(){
   $('addClass').onclick=()=>editClass(null);
   $('setupSignout').onclick=async()=>{await sb.auth.signOut();location.reload();};
   $('setupPrivacy').onclick=e=>{e.preventDefault();showPolicy();};
+  $('rcGen').onclick=async()=>{
+    const month=$('rcMonth').value; if(!month){toast('Choose a month',true);return;}
+    const from=month+'-01';
+    const [y,m]=month.split('-').map(Number);
+    const to=`${month}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
+    const clsId=$('rcClass').value;
+    let stus=state.students; if(clsId) stus=stus.filter(s=>s.class_id===clsId);
+    if(!stus.length){toast('No students match',true);return;}
+    await generateReportCards(stus.map(s=>s.id),from,to);
+  };
 
   $('sesList').innerHTML=state.sessions.map(s=>`
     <div class="srow tappable" data-id="${s.id}"><div class="nm" dir="auto">${esc(s.name)}<div class="sub">${(s.start_time||'—').slice(0,5)} · ${(s.type||'class')==='zal'?'Zal':'Class'}</div></div>
@@ -2039,6 +2065,109 @@ function openCustomSheet(s){
 function closeCustomSheet(){
   $('customSheet').classList.remove('show'); $('customSheetBg').classList.remove('show');
   setTimeout(()=>$('customSheetBg').classList.add('hidden'),240);
+}
+
+/* ===================== REPORT CARDS ===================== */
+function getYtdStart(d){
+  const dt=new Date(d+'T00:00:00');
+  const yr=dt.getMonth()>=7?dt.getFullYear():dt.getFullYear()-1;
+  const p=n=>String(n).padStart(2,'0'); return `${yr}-09-01`;
+}
+function buildAttTable(student,sessions,attendance,title){
+  const css=sessions.filter(s=>(s.type||'class')==='class');
+  if(!css.length)return '';
+  const st={};
+  css.forEach(s=>{ st[s.id]={absent:0,excused:0,lateMin:0,total:0}; });
+  attendance.filter(a=>a.student_id===student.id).forEach(a=>{
+    if(!st[a.session_id])return;
+    st[a.session_id].total++;
+    if(a.status==='absent')st[a.session_id].absent++;
+    else if(a.status==='excused')st[a.session_id].excused++;
+    else if(a.status==='late')st[a.session_id].lateMin+=(a.late_minutes||0);
+  });
+  const fm=m=>m?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`:'0:00';
+  const pc=s=>{const t=st[s.id].total;if(!t)return'-';return Math.round((t-st[s.id].absent-st[s.id].excused)/t*100)+'%';};
+  const ths=css.map(s=>`<th>${s.name}</th>`).join('');
+  const row=(vals)=>vals.map(v=>`<td>${v}</td>`).join('');
+  return `<p class="rc-sec">${title}</p><table class="rc-tbl"><thead><tr><th></th>${ths}</tr></thead><tbody>
+    <tr><td class="rl"><div>חסר</div><div class="rsub">Absent</div></td>${row(css.map(s=>st[s.id].absent))}</tr>
+    <tr><td class="rl"><div>חסר עם רשות</div><div class="rsub">Excused</div></td>${row(css.map(s=>st[s.id].excused))}</tr>
+    <tr><td class="rl"><div>איחר</div><div class="rsub">Late</div></td>${row(css.map(s=>fm(st[s.id].lateMin)))}</tr>
+    <tr><td class="rl"><div>% שמירת הסדר</div><div class="rsub">% Attended</div></td>${row(css.map(s=>pc(s)))}</tr>
+  </tbody></table>`;
+}
+function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk){
+  const cls=state.classes.find(c=>c.id===student.class_id);
+  const stu_scores=scores.filter(sc=>sc.student_id===student.id);
+  let testHTML='';
+  if(stu_scores.length){
+    const rows=stu_scores.map(sc=>{
+      const t=tests.find(t=>t.id===sc.test_id);if(!t)return'';
+      const pct=t.grade_type==='percent'?sc.score+'%':(t.max_points?Math.round(sc.score/t.max_points*100)+'%':'');
+      const sc_str=t.grade_type==='percent'?sc.score+'%':`${sc.score}/${t.max_points}`;
+      return `<tr><td>${t.name}</td><td>${t.date}</td><td>${sc_str}</td><td>${pct}</td></tr>`;
+    }).filter(Boolean).join('');
+    if(rows)testHTML=`<p class="rc-sec">Test Marks – ציוני מבחנים</p>
+      <table class="rc-tbl"><thead><tr><th>Test</th><th>Date</th><th>Score</th><th>%</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  return `<div class="rc-page${brk?' brk':''}">
+    <div class="rc-bh">ב"ה</div>
+    <div class="rc-head">
+      <img class="rc-logo" src="${LOGO}" alt="YKP">
+      <div class="rc-inst"><div class="rc-iname">YKP – Yeshivas Kayitz Program</div><div class="rc-isub">Attendance Report</div></div>
+    </div>
+    <hr class="rc-rule">
+    <div class="rc-for">Report for:</div>
+    <div class="rc-sname" dir="auto">${student.hebrew_name||student.english_name||''}</div>
+    ${student.english_name&&student.hebrew_name?`<div class="rc-ename">${student.english_name}</div>`:''}
+    ${cls?`<div class="rc-cls">${esc(cls.name)}${cls.teacher?' · '+esc(cls.teacher):''}</div>`:''}
+    <div class="rc-period">${from} – ${to}</div>
+    ${buildAttTable(student,sessions,mAtt,'Shmiras Hasdorim Totals:')}
+    ${buildAttTable(student,sessions,yAtt,'Shmiras Hasdorim Year-to-Date:')}
+    ${testHTML}
+  </div>`;
+}
+async function generateReportCards(studentIds,from,to){
+  if(!studentIds.length){toast('No students',true);return;}
+  toast('Generating report cards…');
+  const ytdFrom=getYtdStart(to);
+  const [r1,r2,r3]=await Promise.all([
+    sb.from('attendance').select('*').in('student_id',studentIds).gte('date',from).lte('date',to),
+    sb.from('attendance').select('*').in('student_id',studentIds).gte('date',ytdFrom).lte('date',to),
+    sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
+  ]);
+  const mAtt=r1.data||[], yAtt=r2.data||[], tests=r3.data||[];
+  const testIds=tests.map(t=>t.id);
+  let scores=[];
+  if(testIds.length){const r4=await sb.from('ykp_test_scores').select('*').in('test_id',testIds).in('student_id',studentIds);scores=r4.data||[];}
+  const cards=studentIds.map((sid,i)=>{
+    const s=state.students.find(x=>x.id===sid);if(!s)return'';
+    return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0);
+  }).join('');
+  const css=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;background:#fff}
+.rc-page{padding:18px 20px;max-width:720px;margin:0 auto}.brk{page-break-before:always}
+.rc-bh{text-align:right;font-size:12px;margin-bottom:5px}
+.rc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.rc-logo{height:54px;object-fit:contain}.rc-inst{text-align:right}
+.rc-iname{font-size:14px;font-weight:bold}.rc-isub{font-size:11px;color:#555;margin-top:2px}
+.rc-rule{border:none;border-top:2px solid #2b5299;margin:8px 0}
+.rc-for{text-align:center;font-size:12px;margin:12px 0 3px}
+.rc-sname{text-align:center;font-size:18px;font-weight:bold;margin-bottom:3px}
+.rc-ename{text-align:center;font-size:13px;color:#333}
+.rc-cls{text-align:center;font-size:11px;color:#666;margin-top:2px}
+.rc-period{text-align:center;font-size:11px;color:#888;margin:4px 0 14px}
+.rc-sec{font-size:13px;font-weight:bold;margin:12px 0 4px;border-bottom:1px solid #bcd;padding-bottom:3px}
+.rc-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
+.rc-tbl th{background:#c6d8eb;padding:5px 7px;border:1px solid #9ab;text-align:center}
+.rc-tbl td{padding:4px 7px;border:1px solid #bbc;text-align:center}
+.rl{text-align:right!important;direction:rtl}.rsub{font-size:10px;color:#777;font-style:italic}
+.rc-tbl tr:nth-child(even) td{background:#f1f5fa}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script></body></html>`;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,'_blank');
+  if(!w)toast('Allow pop-ups to generate PDFs',true);
 }
 
 boot();
