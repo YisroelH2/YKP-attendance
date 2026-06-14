@@ -31,10 +31,11 @@
   --accent:#4f46e5;
   --accent-ink:#312e81;
 
-  --on:#15803d;    --on-bg:#e7f7ec;    --on-line:#bfe9cd;
-  --late:#b45309;  --late-bg:#fdf2dd;  --late-line:#f2d9a8;
-  --absent:#be123c;--absent-bg:#fdeaef;--absent-line:#f6c4d2;
-  --exc:#1d4ed8;   --exc-bg:#e8eefe;   --exc-line:#c4d4fb;
+  --on:#16D49C;    --on-bg:#E3FBF4;    --on-line:#A6F0DD;
+  --late:#FF6B13;  --late-bg:#FFEADC;  --late-line:#FFC9A6;
+  --absent:#000000;--absent-bg:#E8E8E8;--absent-line:#CFCFCF;
+  --exc:#BCBCBC;   --exc-bg:#F2F2F2;   --exc-line:#D9D9D9;
+  --attn:#E71124;  --attn-bg:#FCE4E8;  --attn-line:#F7B7C0;
 
   --r-lg:20px; --r-md:14px; --r-sm:10px;
   --sh-1:0 1px 2px rgba(23,26,43,.06);
@@ -149,30 +150,58 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   background:var(--surface); border:1.5px solid var(--line); color:var(--ink-soft);
   display:flex; align-items:center; justify-content:center; transition:.12s}
 .tab:active{transform:scale(.96)}
-.tab[data-s="on_time"].active{background:var(--on-bg); border-color:var(--on); color:var(--on)}
-.tab[data-s="late"].active{background:var(--late-bg); border-color:var(--late); color:var(--late)}
-.tab[data-s="absent"].active{background:var(--absent-bg); border-color:var(--absent); color:var(--absent)}
-.tab[data-s="excused"].active{background:var(--exc-bg); border-color:var(--exc); color:var(--exc)}
+.tab[data-s="on_time"].active{background:var(--on-bg); border-color:var(--on); color:var(--ink)}
+.tab[data-s="late"].active{background:var(--late-bg); border-color:var(--late); color:var(--ink)}
+.tab[data-s="absent"].active{background:var(--absent-bg); border-color:var(--absent); color:var(--ink)}
+.tab[data-s="excused"].active{background:var(--exc-bg); border-color:var(--exc); color:var(--ink)}
 
 /* ---------- history ---------- */
 .htabs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
 .htabs .tab{font-size:12px;height:40px;padding:0 2px;text-align:center}
-.tab[data-s="flagged"].active{background:var(--accent);border-color:var(--accent);color:#fff}
-.chip.flag .dot{background:var(--accent)}
+.tab[data-s="attention"].active{background:var(--attn-bg);border-color:var(--attn);color:var(--ink)}
+.chip.attn .dot{background:var(--attn)}
 .hist-day{font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:16px 2px 6px}
 .hist-day:first-child{margin-top:0}
-.hist-row{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;margin-bottom:6px;box-shadow:var(--sh-1)}
+.hist-row{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;margin-bottom:6px;box-shadow:var(--sh-1);cursor:pointer}
+.hist-row:active{transform:scale(.99)}
 .hist-main{flex:1;min-width:0}
 .hist-name{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hist-sub{font-size:12px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hist-note{font-size:12px;color:var(--ink-soft);font-style:italic;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hist-flag{flex:none;width:20px;height:20px;color:var(--accent)}
+.hist-flag{flex:none;width:20px;height:20px;color:var(--attn)}
 .stpill{flex:none;padding:5px 10px;border-radius:999px;font-size:11.5px;font-weight:800;color:#fff;white-space:nowrap}
+.stpill.s-on_time,.stpill.s-late,.stpill.s-excused{color:#1a1a1a}
 .stpill.s-on_time{background:var(--on)}
 .stpill.s-late{background:var(--late)}
 .stpill.s-absent{background:var(--absent)}
 .stpill.s-excused{background:var(--exc)}
 .hist-empty{text-align:center;color:var(--ink-faint);font-size:13px;padding:34px 10px}
+
+/* ---------- tests ---------- */
+.subtabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px}
+.subtab{height:42px;border-radius:var(--r-md);font-weight:700;font-size:14px;background:var(--surface);border:1.5px solid var(--line);color:var(--ink-soft);transition:.12s}
+.subtab.active{background:var(--accent-bg,#eef0fb);border-color:var(--accent);color:var(--accent)}
+.test-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px;box-shadow:var(--sh-1);cursor:pointer;display:flex;align-items:center;gap:10px}
+.test-card:active{transform:scale(.99)}
+.test-card-main{flex:1;min-width:0}
+.test-card-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.test-card-sub{font-size:12px;color:var(--ink-faint);margin-top:2px}
+.test-card-pct{font-size:13px;font-weight:800;color:var(--accent)}
+.score-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.score-row:last-child{border-bottom:none}
+.score-name{flex:1;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:auto}
+.score-inp{width:72px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);text-align:center;font-size:15px;font-weight:700;color:var(--ink)}
+.score-inp:focus{border-color:var(--accent);outline:none}
+.score-unit{font-size:13px;color:var(--ink-faint);font-weight:600;white-space:nowrap;min-width:28px}
+.score-pct{font-size:12px;color:var(--ink-faint);min-width:38px;text-align:right}
+.bp-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 13px;margin-bottom:7px;box-shadow:var(--sh-1)}
+.bp-meta{font-size:12px;color:var(--ink-faint);margin-top:3px}
+.bp-txt{font-size:14px;font-weight:600;line-height:1.4}
+.tests-back{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;color:var(--accent);margin-bottom:12px;cursor:pointer;width:fit-content}
+.tests-back svg{width:18px;height:18px}
+.grade-type-toggle{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 14px}
+.grade-type-toggle button{height:38px;border-radius:10px;border:1.5px solid var(--line);font-weight:600;font-size:13px;background:var(--surface);color:var(--ink-soft)}
+.grade-type-toggle button.on{background:var(--accent-bg,#eef0fb);border-color:var(--accent);color:var(--accent)}
 
 .markall{display:flex; gap:8px; margin-bottom:16px}
 .markall .hint{flex:1; align-self:center; font-size:12px; color:var(--ink-faint); line-height:1.3}
@@ -194,18 +223,18 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   display:none; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800}
 .scard .late-min{margin-top:3px; font-size:11px; font-weight:700; display:none}
 .scard .flagdot{position:absolute; top:7px; inset-inline-start:7px; width:9px;height:9px;border-radius:50%;
-  background:var(--absent); display:none; box-shadow:0 0 0 2px #fff}
+  background:var(--attn); display:none; box-shadow:0 0 0 2px #fff}
 .scard.flagged .flagdot{display:block}
 
 .scard.s-on_time{background:var(--on-bg); border-color:var(--on-line)}
-.scard.s-on_time .badge{display:flex; background:var(--on)}
+.scard.s-on_time .badge{display:flex; background:var(--on); color:#1a1a1a}
 .scard.s-late{background:var(--late-bg); border-color:var(--late-line)}
 .scard.s-late .badge{display:flex; background:var(--late)}
 .scard.s-late .late-min{display:block; color:var(--late)}
 .scard.s-absent{background:var(--absent-bg); border-color:var(--absent-line)}
 .scard.s-absent .badge{display:flex; background:var(--absent)}
 .scard.s-excused{background:var(--exc-bg); border-color:var(--exc-line)}
-.scard.s-excused .badge{display:flex; background:var(--exc)}
+.scard.s-excused .badge{display:flex; background:var(--exc); color:#1a1a1a}
 
 /* =========================================================
    Students list + Setup
@@ -256,9 +285,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   display:flex; background:rgba(255,255,255,.9); backdrop-filter:blur(14px);
   border-top:1px solid var(--line);
 }
-.navbtn{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
-  color:var(--ink-faint); font-size:11px; font-weight:600}
-.navbtn svg{width:23px;height:23px}
+.navbtn{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  color:var(--ink-faint); font-size:10px; font-weight:600}
+.navbtn svg{width:21px;height:21px}
 .navbtn.active{color:var(--accent)}
 
 /* =========================================================
@@ -373,8 +402,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
 .zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-weight:700}
-.zseat.s-on_time,.zseat.s-late,.zseat.s-absent,.zseat.s-excused{color:#fff}
-.zseat.s-on_time .zav,.zseat.s-late .zav,.zseat.s-absent .zav,.zseat.s-excused .zav{box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
+.zseat.s-absent{color:#fff}
+.zseat.s-on_time .zav,.zseat.s-late .zav,.zseat.s-absent .zav,.zseat.s-excused .zav{box-shadow:0 0 0 2px rgba(0,0,0,.14)}
 .zseat.s-on_time{background:var(--on);border-color:var(--on)}
 .zseat.s-late{background:var(--late);border-color:var(--late)}
 .zseat.s-absent{background:var(--absent);border-color:var(--absent)}
@@ -454,6 +484,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 <section id="view-history" class="view hidden"></section>
     <section id="view-students" class="view hidden"></section>
     <section id="view-setup" class="view hidden"></section>
+    <section id="view-tests" class="view hidden"></section>
   </main>
 
   <nav class="nav">
@@ -468,6 +499,10 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
     <button class="navbtn" data-view="history">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
       History
+    </button>
+    <button class="navbtn" data-view="tests">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+      Tests
     </button>
     <button class="navbtn" data-view="students">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -565,7 +600,13 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   </div>
 </div>
 
-<!-- first-run privacy consent -->
+<!-- custom sheet (tests / baal peh forms) -->
+<div id="customSheetBg" class="sheet-bg hidden"></div>
+<div id="customSheet" class="sheet">
+  <div class="grab"></div>
+  <h3 id="customSheetTitle"></h3>
+  <div id="customSheetBody"></div>
+</div>
 <div id="consentGate" class="gate hidden">
   <div class="gate-card">
     <img class="logoimg logo-lg" alt="YKP">
@@ -702,6 +743,7 @@ function wireEvents(){
   $('dlPlus2').onclick = ()=>applyDelay((state.delayMinutes||0)+5);
   $('pickBg').onclick = closePicker;
   $('pickEmpty').onclick = ()=>pickerCb&&pickerCb(null);
+  $('customSheetBg').onclick = closeCustomSheet;
   $('consentBox').onchange = e=>{ $('consentContinue').disabled = !e.target.checked; };
   $('consentContinue').onclick = ()=>{ localStorage.setItem('ykp_consent_v2', new Date().toISOString()); enterApp(); };
   $('consentRead').onclick = showPolicy;
@@ -773,12 +815,13 @@ async function loadMarks(sessionId=state.sessionId){
 function switchView(v){
   state.view=v;
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
-  ['mark','zal','history','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
-  $('barTitle').textContent = {mark:'Mark attendance',zal:'The Zal',history:'History',students:'Students',setup:'Setup'}[v];
+  ['mark','zal','history','tests','students','setup'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));
+  $('barTitle').textContent = {mark:'Mark attendance',zal:'The Zal',history:'History',tests:'Tests',students:'Students',setup:'Setup'}[v];
   if(v!=='mark') $('barSub').textContent='';
   if(v==='mark') renderMark();
   if(v==='zal') renderZal();
   if(v==='history') renderHistory();
+  if(v==='tests') renderTests();
   if(v==='students') renderStudents();
   if(v==='setup') renderSetup();
 }
@@ -962,8 +1005,9 @@ function closeSheet(){
 async function saveSheet(){
   const s=state.sheetStudent; if(!s)return;
   const ses=state.sheetSession||state.sessionId;
+  const d=state.date;
   const rerender=state.sheetRerender||renderGrid;
-  const rec={student_id:s.id,session_id:ses,date:state.date,status:state.sheetStatus,
+  const rec={student_id:s.id,session_id:ses,date:d,status:state.sheetStatus,
     late_minutes:state.sheetStatus==='late'?(parseInt($('sheetLate').value)||0):null,
     note:$('sheetNote').value.trim()||null, flagged:state.sheetFlag,
     marked_by:state.user.id, marked_at:new Date().toISOString()};
@@ -975,9 +1019,10 @@ async function saveSheet(){
 async function clearSheet(){
   const s=state.sheetStudent; if(!s)return;
   const ses=state.sheetSession||state.sessionId;
+  const d=state.date;
   const rerender=state.sheetRerender||renderGrid;
   delete state.marks[s.id]; closeSheet(); rerender();
-  await sb.from('attendance').delete().match({student_id:s.id,session_id:ses,date:state.date});
+  await sb.from('attendance').delete().match({student_id:s.id,session_id:ses,date:d});
 }
 
 /* ---------- STUDENTS ---------- */
@@ -1547,22 +1592,52 @@ function exitFull(){
 
 /* ---------- HISTORY ---------- */
 let histRows=null, histRange='';
+const PERIOD_LABEL={today:'Today',yesterday:'Yesterday',week:'This week',month:'This month',last7:'Last 7 days',last30:'Last 30 days',all:'All time'};
+function periodRange(period){
+  const t=todayStr();
+  switch(period){
+    case 'today': return {from:t,to:t};
+    case 'yesterday': { const y=addDays(t,-1); return {from:y,to:y}; }
+    case 'week': { const dow=new Date(t+'T00:00:00').getDay(); return {from:addDays(t,-dow),to:t}; }
+    case 'month': { const d=new Date(t+'T00:00:00'); const p=n=>String(n).padStart(2,'0'); return {from:`${d.getFullYear()}-${p(d.getMonth()+1)}-01`,to:t}; }
+    case 'last30': return {from:addDays(t,-29),to:t};
+    case 'all': return {from:null,to:t};
+    default: return {from:addDays(t,-6),to:t}; // last7
+  }
+}
 function fmtHistDate(d){
   if(d===todayStr())return 'Today';
   if(d===addDays(todayStr(),-1))return 'Yesterday';
   return new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
 }
 async function loadHistoryRows(){
-  const h=state.history;
-  const {data,error}=await sb.from('attendance').select('*')
-    .gte('date',h.from).lte('date',h.to).order('date',{ascending:false});
+  const {from,to}=periodRange(state.history.period);
+  let q=sb.from('attendance').select('*').lte('date',to).order('date',{ascending:false});
+  if(from) q=q.gte('date',from);
+  const {data,error}=await q;
   if(error){toast('Could not load history',true);return [];}
   return data||[];
 }
 async function refreshHistList(){
-  const h=state.history, range=h.from+'_'+h.to;
-  if(histRows===null||histRange!==range){ histRows=await loadHistoryRows(); histRange=range; }
+  const h=state.history;
+  if(histRows===null||histRange!==h.period){ histRows=await loadHistoryRows(); histRange=h.period; }
   renderHistList(histRows);
+}
+function openHistorySheet(row){
+  const prevDate=state.date;
+  state.date=row.date;
+  state.marks[row.student_id]={status:row.status,late_minutes:row.late_minutes,note:row.note,flagged:row.flagged};
+  openSheet(row.student_id,{
+    session:row.session_id,
+    rerender:()=>{
+      state.date=prevDate;
+      const m=state.marks[row.student_id];
+      const idx=histRows.findIndex(x=>x.student_id===row.student_id&&x.session_id===row.session_id&&x.date===row.date);
+      if(m){ const upd={...row,status:m.status,late_minutes:m.late_minutes,note:m.note,flagged:m.flagged}; if(idx>=0)histRows[idx]=upd; else histRows.unshift(upd); }
+      else if(idx>=0) histRows.splice(idx,1);
+      renderHistList(histRows);
+    }
+  });
 }
 function renderHistList(rows){
   const h=state.history;
@@ -1581,7 +1656,7 @@ function renderHistList(rows){
     <div class="chip late"><span class="dot"></span>Late <b>${c.late}</b></div>
     <div class="chip absent"><span class="dot"></span>Absent <b>${c.absent}</b></div>
     <div class="chip exc"><span class="dot"></span>Excused <b>${c.excused}</b></div>
-    <div class="chip flag"><span class="dot"></span>Flagged <b>${c.flagged}</b></div>`;
+    <div class="chip attn"><span class="dot"></span>Attention <b>${c.flagged}</b></div>`;
 
   if(h.statuses.size||h.flagged) filt=filt.filter(r=>h.statuses.has(r.status)||(h.flagged&&r.flagged));
 
@@ -1603,6 +1678,7 @@ function renderHistList(rows){
     </div>`;
   });
   list.innerHTML=html;
+  list.querySelectorAll('.hist-row').forEach((el,i)=>{ el.onclick=()=>openHistorySheet(filt[i]); });
 }
 async function renderHistory(){
   const v=$('view-history');
@@ -1610,7 +1686,7 @@ async function renderHistory(){
     v.innerHTML=emptyState('No history yet','Import students and start marking attendance to see history here.','setup','Go to Setup');
     bindEmpty(v); return;
   }
-  if(!state.history) state.history={from:addDays(todayStr(),-6),to:todayStr(),classId:'',studentId:'',statuses:new Set(),flagged:false};
+  if(!state.history) state.history={period:'week',classId:'',studentId:'',statuses:new Set(),flagged:false};
   const h=state.history;
   const forClass = h.classId ? state.students.filter(s=>(s.class_id||'__none__')===h.classId) : state.students;
   v.innerHTML=`
@@ -1626,28 +1702,241 @@ async function renderHistory(){
           <option value="">All students</option>
           ${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}
         </select></div>
-      <div class="ctl"><span>From</span><input id="hFrom" type="date" value="${h.from}" max="${todayStr()}"></div>
-      <div class="ctl"><span>To</span><input id="hTo" type="date" value="${h.to}" max="${todayStr()}"></div>
+      <div class="ctl full"><span>Reporting period</span>
+        <select id="hPeriod">${Object.entries(PERIOD_LABEL).map(([k,label])=>`<option value="${k}" ${k===h.period?'selected':''}>${label}</option>`).join('')}</select></div>
     </div>
     <div class="htabs" id="hStatusTabs">
       ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${h.statuses.has(s)?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
-      <button class="tab ${h.flagged?'active':''}" data-s="flagged">Flagged</button>
+      <button class="tab ${h.flagged?'active':''}" data-s="attention">Attention</button>
     </div>
     <div class="summary" id="hSummary"></div>
+    <div class="zal-hint" style="margin:-4px 0 8px">Tap a record to edit it</div>
     <div id="histList"></div>`;
 
   $('hClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; renderHistory(); };
   $('hStudent').onchange=e=>{ h.studentId=e.target.value; refreshHistList(); };
-  $('hFrom').onchange=e=>{ h.from=e.target.value; if(h.from>h.to)h.to=h.from; renderHistory(); };
-  $('hTo').onchange=e=>{ h.to=e.target.value; if(h.to<h.from)h.from=h.to; renderHistory(); };
+  $('hPeriod').onchange=e=>{ h.period=e.target.value; renderHistory(); };
   $('hStatusTabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
     const s=t.dataset.s;
-    if(s==='flagged') h.flagged=!h.flagged;
+    if(s==='attention') h.flagged=!h.flagged;
     else { h.statuses.has(s)?h.statuses.delete(s):h.statuses.add(s); }
-    t.classList.toggle('active', s==='flagged'?h.flagged:h.statuses.has(s));
+    t.classList.toggle('active', s==='attention'?h.flagged:h.statuses.has(s));
     renderHistList(histRows||[]);
   });
   await refreshHistList();
+}
+
+/* ===================== TESTS ===================== */
+const testsState={sub:'tests', activeTest:null};
+
+async function renderTests(){
+  const v=$('view-tests');
+  if(testsState.activeTest) { await renderGradeEntry(v); return; }
+  v.innerHTML=`
+    <div class="subtabs">
+      <button class="subtab ${testsState.sub==='tests'?'active':''}" id="stTests">Tests</button>
+      <button class="subtab ${testsState.sub==='baal'?'active':''}" id="stBaal">Baal Peh</button>
+    </div>
+    <div id="testSubView"></div>`;
+  $('stTests').onclick=()=>{ testsState.sub='tests'; renderTests(); };
+  $('stBaal').onclick=()=>{ testsState.sub='baal'; renderTests(); };
+  if(testsState.sub==='tests') await renderTestsList();
+  else await renderBaalPeh();
+}
+
+/* ---- Tests sub-tab ---- */
+async function renderTestsList(){
+  const wrap=$('testSubView');
+  const {data:tests}=await sb.from('ykp_tests').select('*').order('date',{ascending:false});
+  const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
+  const rows=tests||[];
+  let html=`<button class="btn btn-primary btn-block" id="newTestBtn" style="margin-bottom:14px">+ New test</button>`;
+  if(!rows.length){ html+=`<div class="hist-empty">No tests yet. Tap "New test" to create one.</div>`; }
+  else rows.forEach(t=>{
+    const cls=t.class_id?clsById[t.class_id]:null;
+    html+=`<div class="test-card" data-tid="${t.id}">
+      <div class="test-card-main">
+        <div class="test-card-name">${esc(t.name)}</div>
+        <div class="test-card-sub">${t.date}${cls?' · '+esc(cls.name):' · All classes'} · ${t.grade_type==='percent'?'Percentage':'Out of '+t.max_points}</div>
+      </div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>`;
+  });
+  wrap.innerHTML=html;
+  wrap.querySelectorAll('.test-card').forEach(el=>el.onclick=()=>{ testsState.activeTest=rows.find(r=>r.id===el.dataset.tid); renderTests(); });
+  $('newTestBtn').onclick=()=>openNewTestSheet();
+}
+
+function openNewTestSheet(){
+  let gt='percent', maxPts=100;
+  const clsOpts=`<option value="">All classes</option>${state.classes.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}`;
+  const s={id:'__newTest__',title:'New test',html:`
+    <div class="field"><label>Test name</label><input id="ntName" class="inp" placeholder="e.g. Chumash Perek Aleph"></div>
+    <div class="field"><label>Date</label><input id="ntDate" class="inp" type="date" value="${todayStr()}"></div>
+    <div class="field"><label>Class</label><select id="ntClass" class="inp">${clsOpts}</select></div>
+    <div class="field"><label>Grade type</label>
+      <div class="grade-type-toggle"><button id="gtPct" class="${gt==='percent'?'on':''}">Percentage</button><button id="gtPts" class="${gt==='points'?'on':''}">Score / Total</button></div>
+    </div>
+    <div class="field" id="ntMaxWrap" style="display:none"><label>Total possible (e.g. 20)</label><input id="ntMax" class="inp" type="number" min="1" value="20" inputmode="numeric"></div>
+    <div class="row2">
+      <button class="btn btn-ghost" id="ntCancel" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" id="ntSave" style="flex:1">Create</button>
+    </div>`,
+    onMount(){
+      $('gtPct').onclick=()=>{ gt='percent'; $('gtPct').className='on'; $('gtPts').className=''; $('ntMaxWrap').style.display='none'; };
+      $('gtPts').onclick=()=>{ gt='points'; $('gtPts').className='on'; $('gtPct').className=''; $('ntMaxWrap').style.display=''; };
+      $('ntCancel').onclick=closeCustomSheet;
+      $('ntSave').onclick=async()=>{
+        const name=$('ntName').value.trim(); if(!name){toast('Enter a name',true);return;}
+        const rec={name,date:$('ntDate').value,class_id:$('ntClass').value||null,grade_type:gt,max_points:gt==='points'?(parseInt($('ntMax').value)||20):null};
+        const {error}=await sb.from('ykp_tests').insert(rec);
+        if(error){toast('Could not create test',true);return;}
+        closeCustomSheet(); renderTestsList();
+      };
+    }
+  };
+  openCustomSheet(s);
+}
+
+async function renderGradeEntry(v){
+  const t=testsState.activeTest;
+  const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
+  let students=state.students.filter(s=>s.active!==false);
+  if(t.class_id) students=students.filter(s=>s.class_id===t.class_id);
+  const {data:scores}=await sb.from('ykp_test_scores').select('*').eq('test_id',t.id);
+  const byStudent={}; (scores||[]).forEach(r=>byStudent[r.student_id]=r);
+  const cls=t.class_id?clsById[t.class_id]:null;
+
+  let rows='';
+  students.forEach(s=>{
+    const sc=byStudent[s.id];
+    const val=sc!=null?sc.score:'';
+    const unit=t.grade_type==='percent'?'%':'/'+t.max_points;
+    const pct=sc!=null&&t.grade_type==='points'&&t.max_points?` (${Math.round(sc.score/t.max_points*100)}%)`:'';
+    rows+=`<div class="score-row">
+      <div class="score-name" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>
+      <input class="score-inp" data-sid="${s.id}" type="number" min="0" max="${t.grade_type==='percent'?100:t.max_points}" inputmode="decimal" placeholder="–" value="${val}">
+      <span class="score-unit">${unit}</span>
+      <span class="score-pct" data-pct="${s.id}">${pct}</span>
+    </div>`;
+  });
+
+  v.innerHTML=`
+    <div class="tests-back" id="testsBack">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      All tests
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-weight:800;font-size:17px">${esc(t.name)}</div>
+      <div style="font-size:12px;color:var(--ink-faint)">${t.date}${cls?' · '+esc(cls.name):' · All classes'}</div>
+    </div>
+    <div class="zal-hint" style="margin:-4px 0 10px">Tap a score to edit · changes save automatically</div>
+    <div id="scoreList">${rows}</div>`;
+
+  $('testsBack').onclick=()=>{ testsState.activeTest=null; renderTests(); };
+  v.querySelectorAll('.score-inp').forEach(inp=>{
+    inp.addEventListener('change', async()=>{
+      const sid=inp.dataset.sid;
+      const raw=inp.value.trim();
+      if(raw===''){
+        await sb.from('ykp_test_scores').delete().match({test_id:t.id,student_id:sid});
+        const pctEl=$(`[data-pct="${sid}"]`); if(pctEl)pctEl.textContent='';
+        return;
+      }
+      const score=parseFloat(raw);
+      if(isNaN(score)){return;}
+      const {error}=await sb.from('ykp_test_scores').upsert({test_id:t.id,student_id:sid,score},{onConflict:'test_id,student_id'});
+      if(error){toast('Save failed',true);return;}
+      if(t.grade_type==='points'&&t.max_points){
+        const pctEl=v.querySelector(`[data-pct="${sid}"]`);
+        if(pctEl) pctEl.textContent=` (${Math.round(score/t.max_points*100)}%)`;
+      }
+    });
+  });
+}
+
+/* ---- Baal Peh sub-tab ---- */
+async function renderBaalPeh(){
+  const wrap=$('testSubView');
+  const h=testsState.bp||(testsState.bp={classId:'',studentId:''});
+  const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
+  const stuOpts=`<option value="">All students</option>${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
+  wrap.innerHTML=`
+    <div class="controls">
+      <div class="ctl full"><span>Class</span>
+        <select id="bpClass">
+          <option value="">All classes</option>
+          ${state.classes.map(c=>`<option value="${c.id}" ${c.id===h.classId?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select></div>
+      <div class="ctl full"><span>Student</span><select id="bpStudent">${stuOpts}</select></div>
+    </div>
+    <button class="btn btn-primary btn-block" id="bpLogBtn" style="margin-bottom:14px">+ Log session</button>
+    <div id="bpList"><div class="hist-empty">Loading…</div></div>`;
+  $('bpClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; renderBaalPeh(); };
+  $('bpStudent').onchange=e=>{ h.studentId=e.target.value; loadBaalPehList(); };
+  $('bpLogBtn').onclick=()=>openBpSheet();
+  await loadBaalPehList();
+}
+
+async function loadBaalPehList(){
+  const h=testsState.bp||{};
+  let q=sb.from('ykp_baal_peh').select('*').order('date',{ascending:false}).order('created_at',{ascending:false});
+  if(h.studentId) q=q.eq('student_id',h.studentId);
+  const {data}=await q; const rows=data||[];
+  const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
+  let filt=rows.filter(r=>stuById[r.student_id]);
+  if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
+  const list=$('bpList'); if(!list)return;
+  if(!filt.length){ list.innerHTML=`<div class="hist-empty">No sessions logged yet.</div>`; return; }
+  const stuById2={}; state.students.forEach(s=>stuById2[s.id]=s);
+  list.innerHTML=filt.map(r=>{
+    const s=stuById2[r.student_id];
+    return `<div class="bp-row">
+      <div class="bp-txt" dir="auto">${esc(r.material)}</div>
+      <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} · ${r.date}</div>
+    </div>`;
+  }).join('');
+}
+
+function openBpSheet(){
+  const h=testsState.bp||{};
+  const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
+  const stuOpts=`<option value="">Select student…</option>${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
+  openCustomSheet({id:'__bp__',title:'Log Baal Peh session',html:`
+    <div class="field"><label>Student</label><select id="bpStu" class="inp">${stuOpts}</select></div>
+    <div class="field"><label>Date</label><input id="bpDate" class="inp" type="date" value="${todayStr()}"></div>
+    <div class="field"><label>Material / what they know</label><textarea id="bpMat" class="inp" rows="3" placeholder="e.g. Bava Metzia 5b–7a, fluent" style="height:auto;resize:vertical"></textarea></div>
+    <div class="row2">
+      <button class="btn btn-ghost" id="bpCancel" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" id="bpSave" style="flex:1">Save</button>
+    </div>`,
+    onMount(){
+      $('bpCancel').onclick=closeCustomSheet;
+      $('bpSave').onclick=async()=>{
+        const sid=$('bpStu').value; if(!sid){toast('Select a student',true);return;}
+        const mat=$('bpMat').value.trim(); if(!mat){toast('Enter material',true);return;}
+        const {error}=await sb.from('ykp_baal_peh').insert({student_id:sid,date:$('bpDate').value,material:mat});
+        if(error){toast('Could not save',true);return;}
+        if(h.studentId===sid||!h.studentId){ h.studentId=sid; }
+        closeCustomSheet(); loadBaalPehList();
+      };
+    }
+  });
+}
+
+/* generic custom sheet (for Tests forms that don't need the attendance-status seg) */
+let customSheetData=null;
+function openCustomSheet(s){
+  customSheetData=s;
+  $('customSheetTitle').textContent=s.title||'';
+  $('customSheetBody').innerHTML=s.html||'';
+  $('customSheetBg').classList.remove('hidden');
+  requestAnimationFrame(()=>{ $('customSheetBg').classList.add('show'); $('customSheet').classList.add('show'); });
+  if(s.onMount) s.onMount();
+}
+function closeCustomSheet(){
+  $('customSheet').classList.remove('show'); $('customSheetBg').classList.remove('show');
+  setTimeout(()=>$('customSheetBg').classList.add('hidden'),240);
 }
 
 boot();
