@@ -209,6 +209,10 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .grade-type-toggle{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 14px}
 .grade-type-toggle button{height:38px;border-radius:10px;border:1.5px solid var(--line);font-weight:600;font-size:13px;background:var(--surface);color:var(--ink-soft)}
 .grade-type-toggle button.on{background:var(--accent-bg,#eef0fb);border-color:var(--accent);color:var(--accent)}
+.reorder-btns{display:flex;flex-direction:column;gap:3px;flex-shrink:0;margin-right:4px}
+.reorder-btns button{width:28px;height:22px;border-radius:6px;background:#eef0fb;color:var(--accent);font-size:12px;font-weight:700;line-height:1;border:1px solid #d4d7f5}
+.reorder-btns button:active{transform:scale(.9)}
+.reorder-btns .ph{width:28px;height:22px}
 .sel-bar{position:fixed;bottom:calc(var(--nav-h,64px) + 8px);left:0;right:0;margin:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:0 4px 20px rgba(0,0,0,.12);display:flex;align-items:center;gap:10px;padding:10px 14px;z-index:20}
 .sel-bar span{flex:1;font-weight:700;font-size:13px}
 .sel-chk{width:22px;height:22px;border-radius:6px;border:2px solid var(--line);flex:none;transition:.12s;background:var(--surface)}
@@ -370,7 +374,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 /* delay button + sheet */
 .delayrow{margin-bottom:12px}
-.delaychip{height:38px;padding:0 16px;border-radius:var(--r-md);background:#eef0fb;color:var(--accent-ink);font-weight:700;font-size:14px;border:1px solid var(--line)}
+.delaychip{height:38px;padding:0 16px;border-radius:var(--r-md);background:#eef0fb;color:var(--accent-ink);font-weight:700;font-size:14px;border:1px solid var(--line);transition:background .15s,color .15s,border-color .15s}
+.delaychip.active{background:var(--late-bg);color:var(--late);border-color:var(--late)}
 .delaychip:active{transform:scale(.97)}
 .delayquick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
 .delayquick button{height:48px;border-radius:var(--r-md);font-weight:700;font-size:14px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink-soft)}
@@ -434,6 +439,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zdot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--attn);box-shadow:0 0 0 2px #fff;pointer-events:none}
 .zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
+.zseat .zlate{font-size:9px;font-weight:800;color:var(--late);text-align:center;line-height:1.1;padding-bottom:1px;letter-spacing:.02em}
 .zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-weight:700}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
@@ -598,8 +604,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
     <div class="switch" id="sheetFlag"><i></i></div>
   </div>
   <div class="row2">
-    <button class="btn btn-ghost" id="sheetClear" style="flex:1">Clear mark</button>
-    <button class="btn btn-primary" id="sheetSave" style="flex:2">Save</button>
+    <button class="btn btn-ghost btn-block" id="sheetClear">Clear mark</button>
   </div>
 </div>
 
@@ -799,9 +804,12 @@ function wireEvents(){
   document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
   // sheet
   $('sheetBg').onclick = closeSheet;
-  $('sheetSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>setSheetStatus(b.dataset.s));
-  $('attnRow').onclick = ()=>{state.sheetFlag=!state.sheetFlag; $('sheetFlag').classList.toggle('on',state.sheetFlag);};
-  $('sheetSave').onclick = saveSheet;
+  $('sheetSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{setSheetStatus(b.dataset.s);autoSaveSheet();});
+  $('attnRow').onclick=()=>{state.sheetFlag=!state.sheetFlag;$('sheetFlag').classList.toggle('on',state.sheetFlag);autoSaveSheet();};
+  let _sheetSaveTimer=null;
+  const debouncedAutoSave=()=>{clearTimeout(_sheetSaveTimer);_sheetSaveTimer=setTimeout(autoSaveSheet,600);};
+  $('sheetLate').oninput=debouncedAutoSave;
+  $('sheetNote').oninput=debouncedAutoSave;
   $('sheetClear').onclick = clearSheet;
   $('formBg').onclick = closeForm;
   $('delayBg').onclick = closeDelaySheet;
@@ -913,7 +921,7 @@ function switchView(v){
   state.view=v;
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   ['schedule','mark','zal','history','tests','students','setup'].forEach(n=>{const el=$('view-'+n);if(el)el.classList.toggle('hidden',n!==v);});
-  const titles={schedule:'Schedule',mark:'Mark attendance',zal:'The Zal',history:'History',tests:'Tests',students:'Students',setup:'Setup'};
+  const titles={schedule:'YKP Attendance',mark:'Mark attendance',zal:'The Zal',history:'History',tests:'Tests',students:'Students',setup:'Setup'};
   $('barTitle').textContent=titles[v]||'';
   if(v!=='mark') $('barSub').textContent='';
   if(v==='schedule') renderSchedule();
@@ -1070,7 +1078,7 @@ async function renderMark(){
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
-    <div class="delayrow"><button id="delayBtn" class="delaychip" type="button">Delay${state.delayMinutes?` +${state.delayMinutes}m`:''}</button></div>
+    <div class="delayrow"><button id="delayBtn" class="delaychip${state.delayMinutes?' active':''}" type="button">Delay${state.delayMinutes?` +${state.delayMinutes}m`:''}</button></div>
     <div class="summary" id="summary"></div>
     <div class="tabs" id="tabs">
       ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
@@ -1221,6 +1229,19 @@ function setSheetStatus(s){
 function closeSheet(){
   $('sheet').classList.remove('show');$('sheetBg').classList.remove('show');
   setTimeout(()=>$('sheetBg').classList.add('hidden'),240);
+}
+async function autoSaveSheet(){
+  const s=state.sheetStudent; if(!s) return;
+  const ses=state.sheetSession||state.sessionId;
+  const d=state.date;
+  const rerender=state.sheetRerender||renderGrid;
+  const rec={student_id:s.id,session_id:ses,date:d,status:state.sheetStatus,
+    late_minutes:state.sheetStatus==='late'?(parseInt($('sheetLate').value)||0):null,
+    note:$('sheetNote').value.trim()||null, flagged:state.sheetFlag,
+    marked_by:state.user.id, marked_at:new Date().toISOString()};
+  state.marks[s.id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
+  rerender();
+  await writeAtt(rec,async()=>{await loadMarks(ses);rerender();});
 }
 async function saveSheet(){
   const s=state.sheetStudent; if(!s)return;
@@ -1404,13 +1425,21 @@ function renderSetup(){
 
   _renderSesCal($('sesCal'));
 
-  $('clsList').innerHTML=state.classes.map(c=>{
+  const clsArr=state.classes;
+  $('clsList').innerHTML=clsArr.map((c,i)=>{
     const n=state.students.filter(s=>s.class_id===c.id).length;
-    return `<div class="srow tappable" data-id="${c.id}"><div class="sw" style="background:${c.color||'#94a3b8'}"></div>
+    return `<div class="srow" data-id="${c.id}" data-i="${i}">
+      <div class="reorder-btns">
+        ${i>0?`<button class="reorder-up" data-i="${i}">↑</button>`:'<div class="ph"></div>'}
+        ${i<clsArr.length-1?`<button class="reorder-dn" data-i="${i}">↓</button>`:'<div class="ph"></div>'}
+      </div>
+      <div class="sw" style="background:${c.color||'#94a3b8'}"></div>
       <div class="nm" dir="auto">${esc(c.name)}<div class="sub">${c.teacher?esc(c.teacher)+' · ':''}${n} students</div></div>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>`;
-  }).join('')||`<p class="muted">No classes yet — import students or tap “+ Add”.</p>`;
-  $('clsList').querySelectorAll('.srow').forEach(r=>r.onclick=()=>editClass(r.dataset.id));
+  }).join('')||`<p class="muted">No classes yet — import students or tap "+ Add".</p>`;
+  $('clsList').querySelectorAll('.srow').forEach(r=>r.onclick=e=>{if(e.target.closest('.reorder-btns'))return;editClass(r.dataset.id);});
+  $('clsList').querySelectorAll('.reorder-up').forEach(btn=>btn.onclick=async e=>{e.stopPropagation();await reorderClass(+btn.dataset.i,+btn.dataset.i-1);});
+  $('clsList').querySelectorAll('.reorder-dn').forEach(btn=>btn.onclick=async e=>{e.stopPropagation();await reorderClass(+btn.dataset.i,+btn.dataset.i+1);});
 }
 
 async function runImport(){
@@ -1541,6 +1570,13 @@ function editStudent(id){
     onDelete: s?async()=>{await sb.from('students').delete().eq('id',s.id);closeForm();await loadAll();renderStudents();toast('Student deleted');}:null,
   });
 }
+async function reorderClass(fromIdx,toIdx){
+  const cls=state.classes;
+  if(toIdx<0||toIdx>=cls.length)return;
+  [cls[fromIdx],cls[toIdx]]=[cls[toIdx],cls[fromIdx]];
+  await Promise.all(cls.map((c,i)=>sb.from('classes').update({sort_order:i+1}).eq('id',c.id)));
+  renderSetup();
+}
 function editClass(id){
   const c=id?state.classes.find(x=>x.id===id):null;
   openForm({
@@ -1629,7 +1665,7 @@ function closeDelaySheet(){ $('delaySheet').classList.remove('show'); $('delayBg
 function paintDelay(){ $('dlVal2').textContent=(state.delayMinutes||0)+'m'; $('delayQuick').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===(state.delayMinutes||0))); }
 async function applyDelay(v){
   state.delayMinutes=Math.max(0,v); paintDelay();
-  const btn=$('delayBtn'); if(btn)btn.textContent='Delay'+(state.delayMinutes?` +${state.delayMinutes}m`:'');
+  const btn=$('delayBtn'); if(btn){btn.textContent='Delay'+(state.delayMinutes?` +${state.delayMinutes}m`:'');btn.classList.toggle('active',state.delayMinutes>0);}
   const {error}=await sb.from('session_overrides').upsert(
     {session_id:state.sessionId,date:state.date,delay_minutes:state.delayMinutes},{onConflict:'session_id,date'});
   if(error)toast('Delay needs the session_overrides DB update to save',true);
@@ -1813,7 +1849,8 @@ function seatCell(seat,cell){
   const avHTML = state.photoUrls[stu.id]
     ? `<img class="zav" style="width:${av}px;height:${av}px" src="${state.photoUrls[stu.id]}">`
     : `<div class="zav" style="width:${av}px;height:${av}px;background:${colorFor(stu.id)};font-size:${Math.round(av*0.42)}px">${esc(initials(stu.english_name||stu.hebrew_name))}</div>`;
-  return `<div class="zseat ${m?'s-'+m.status:''}" data-seat="${seat.id}" data-student="${stu.id}" style="height:${h}px;width:${cell}px">${dot}${avHTML}<div class="znm" style="font-size:${Math.max(9,Math.round(cell*0.135))}px;max-width:${cell-6}px">${esc(stu.hebrew_name)}</div></div>`;
+  const lateTag=m&&m.status==='late'&&m.late_minutes?`<div class="zlate">${m.late_minutes}m</div>`:'';
+  return `<div class="zseat ${m?'s-'+m.status:''}" data-seat="${seat.id}" data-student="${stu.id}" style="height:${h}px;width:${cell}px">${dot}${avHTML}<div class="znm" style="font-size:${Math.max(9,Math.round(cell*0.135))}px;max-width:${cell-6}px">${esc(stu.hebrew_name)}</div>${lateTag}</div>`;
 }
 
 function zCell(d){ state.zal.cell=Math.max(48,Math.min(150,state.zal.cell+d)); renderZalGrid(); }
@@ -2205,14 +2242,25 @@ async function renderGradeEntry(v){
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       All tests
     </div>
-    <div style="margin-bottom:12px">
+    <div style="margin-bottom:10px">
       <div style="font-weight:800;font-size:17px">${esc(t.name)}</div>
       <div style="font-size:12px;color:var(--ink-faint)">${t.date} · ${esc(clsText)}</div>
+    </div>
+    <div class="search" style="margin-bottom:10px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="testStuSearch" placeholder="Search students…">
     </div>
     <div class="zal-hint" style="margin:-4px 0 10px">Tap a score to edit · changes save automatically</div>
     <div id="scoreList">${rows}</div>`;
 
   $('testsBack').onclick=()=>{ testsState.activeTest=null; renderTests(); };
+  $('testStuSearch').oninput=e=>{
+    const q=e.target.value.trim().toLowerCase();
+    v.querySelectorAll('.score-row').forEach(row=>{
+      const name=row.querySelector('.score-name')?.textContent||'';
+      row.style.display=(!q||name.toLowerCase().includes(q)||name.includes(e.target.value.trim()))?'':'none';
+    });
+  };
   v.querySelectorAll('.score-inp').forEach(inp=>{
     inp.addEventListener('change', async()=>{
       const sid=inp.dataset.sid;
