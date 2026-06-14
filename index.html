@@ -196,7 +196,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .test-card-pct{font-size:13px;font-weight:800;color:var(--accent)}
 .score-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .score-row:last-child{border-bottom:none}
-.score-name{flex:1;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:auto}
+.score-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.score-heb{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score-eng-sub{font-size:11px;color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .score-inp{width:72px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);text-align:center;font-size:15px;font-weight:700;color:var(--ink)}
 .score-inp:focus{border-color:var(--accent);outline:none}
 .score-unit{font-size:13px;color:var(--ink-faint);font-weight:600;white-space:nowrap;min-width:28px}
@@ -435,11 +437,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zcell.ztable.removable{cursor:pointer}
 .zcell .tbar{height:10px;background:#b9c1d6;border-radius:5px}
 .zcell .zx{position:absolute;top:-6px;inset-inline-end:-6px;width:20px;height:20px;border-radius:50%;background:var(--absent);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-1)}
-.zseat{border-radius:10px;background:var(--surface);border:1.5px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;box-shadow:var(--sh-1);text-align:center;cursor:pointer;position:relative}
+.zseat{border-radius:10px;background:var(--surface);border:1.5px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;box-shadow:var(--sh-1);text-align:center;cursor:pointer;position:relative;overflow:hidden}
 .zdot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--attn);box-shadow:0 0 0 2px #fff;pointer-events:none}
 .zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
-.zseat .zlate{font-size:9px;font-weight:800;color:var(--late);text-align:center;line-height:1.1;padding-bottom:1px;letter-spacing:.02em}
+.zseat .zlate{position:absolute;bottom:2px;left:0;right:0;font-size:9px;font-weight:800;color:var(--late);text-align:center;line-height:1;pointer-events:none}
 .zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-weight:700}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
@@ -486,6 +488,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-hour-lbl{position:absolute;left:0;width:46px;font-size:10px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:5px;transform:translateY(-50%);line-height:1;pointer-events:none}
 .cal-lane{position:absolute;left:50px;right:0;top:0;bottom:0}
 .cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:6px 10px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.cal-mini-wrap{position:absolute;pointer-events:none}
+.cal-mini-bar{border-radius:4px;width:100%;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.cal-mini-lbl{display:flex;align-items:center;gap:4px;padding:1px 2px;cursor:pointer;pointer-events:auto;white-space:nowrap;overflow:hidden}
+.cal-mini-name{font-size:11.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.cal-mini-time{font-size:10px;font-weight:600;color:var(--ink-faint);flex-shrink:0}
 .cal-block:active{opacity:.82;transform:scale(.985)}
 .cal-block-name{font-weight:700;font-size:13.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-block-time{font-size:10.5px;color:rgba(255,255,255,.78);margin-top:1px}
@@ -499,6 +506,13 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .ses-cal-block:active{opacity:.8}
 .ses-cal-block-name{font-weight:700;font-size:12.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ses-cal-block-time{font-size:10px;color:rgba(255,255,255,.75)}
+
+/* ── Session live info card (Mark tab) ── */
+.ses-live{background:linear-gradient(135deg,var(--accent) 0%,#3730a3 100%);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:12px;color:#fff}
+.ses-live-meta{font-size:11px;font-weight:600;opacity:.78;margin-bottom:3px;letter-spacing:.02em}
+.ses-live-name{font-size:20px;font-weight:800;line-height:1.15;margin-bottom:4px}
+.ses-live-ago{font-size:13px;font-weight:700;opacity:.9}
+.ses-live-ago span{background:rgba(255,255,255,.25);border-radius:99px;padding:1px 8px}
 </style>
 </head>
 <body>
@@ -810,6 +824,7 @@ function wireEvents(){
   const debouncedAutoSave=()=>{clearTimeout(_sheetSaveTimer);_sheetSaveTimer=setTimeout(autoSaveSheet,600);};
   $('sheetLate').oninput=debouncedAutoSave;
   $('sheetNote').oninput=debouncedAutoSave;
+  $('sheetSave').onclick = saveSheet;
   $('sheetClear').onclick = clearSheet;
   $('formBg').onclick = closeForm;
   $('delayBg').onclick = closeDelaySheet;
@@ -849,6 +864,14 @@ async function enterApp(){
   syncQueue(); // drain anything left from prior session
   await loadAll();
   if(!state.schedule) state.schedule={date:todayStr()};
+  // Handle tap-from-widget navigation
+  const _wNav=localStorage.getItem('widget_nav');
+  if(_wNav){ try{ const wn=JSON.parse(_wNav); localStorage.removeItem('widget_nav');
+    if(Date.now()-wn.ts<30000){ // only if within 30 seconds
+      if(wn.type==='zal'){state.zalSessionId=wn.sessionId;state.date=todayStr();switchView('zal');return;}
+      else{state.sessionId=wn.sessionId;state.date=todayStr();switchView('mark');return;}
+    }
+  }catch(_){} }
   switchView('schedule');
 }
 
@@ -1000,11 +1023,22 @@ function renderSchedule(){
       const pct=(100/numCols);
       const L=(col*pct).toFixed(1);
       const W=(pct-1.5).toFixed(1);
-      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg}">
-        <div class="cal-block-name">${esc(s.name)}</div>
-        ${tall?`<div class="cal-block-time">${s.start_time.slice(0,5)} – ${_sesEnd(s)}</div>`:''}
-        ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
-      </div>`;
+      if(ht<28){
+        // Too small for text inside — show thin bar + label beside
+        blocks+=`<div class="cal-mini-wrap" data-id="${s.id}" style="top:${top}px;left:${L}%;width:${W}%;min-height:28px">
+          <div class="cal-mini-bar" data-id="${s.id}" style="height:${Math.max(ht,5)}px;background:${bg}"></div>
+          <div class="cal-mini-lbl" data-id="${s.id}">
+            <span class="cal-mini-name">${esc(s.name)}</span>
+            <span class="cal-mini-time">${s.start_time.slice(0,5)}</span>
+          </div>
+        </div>`;
+      } else {
+        blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg}">
+          <div class="cal-block-name">${esc(s.name)}</div>
+          ${tall?`<div class="cal-block-time">${s.start_time.slice(0,5)} – ${_sesEnd(s)}</div>`:''}
+          ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
+        </div>`;
+      }
     });
   }
 
@@ -1033,7 +1067,7 @@ function renderSchedule(){
   $('calNext').onclick=()=>{ state.schedule.date=addDays(date,1); renderSchedule(); };
   $('calToday').onclick=()=>{ state.schedule.date=todayStr(); renderSchedule(); };
 
-  v.querySelectorAll('.cal-block').forEach(el=>{
+  v.querySelectorAll('.cal-block,.cal-mini-bar,.cal-mini-lbl,.cal-mini-wrap').forEach(el=>{
     el.onclick=()=>{
       const ses=state.sessions.find(s=>s.id===el.dataset.id);
       if(!ses)return;
@@ -1058,6 +1092,48 @@ function renderSchedule(){
   }
 }
 
+
+/* ── Hebrew / English date helpers ── */
+async function fetchHebDate(d){
+  const k='hebdate_'+d; const c=localStorage.getItem(k); if(c) return c;
+  try{
+    const [y,mo,dd]=d.split('-');
+    const r=await fetch(`https://www.hebcal.com/converter?cfg=json&gy=${y}&gm=${mo}&gd=${dd}&g2h=1`);
+    const j=await r.json();
+    const heb=j.hebrew||'';
+    localStorage.setItem(k,heb); return heb;
+  }catch{return '';}
+}
+function fmtEngDate(d){
+  const dt=new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+function fmtTime12(t){
+  if(!t)return '';
+  const [h,m]=t.split(':').map(Number);
+  const ap=h>=12?'PM':'AM'; const h12=h%12||12;
+  return h12+':'+(String(m).padStart(2,'0'))+' '+ap;
+}
+
+async function renderSesLiveCard(){
+  const card=$('sesLiveCard'); if(!card)return;
+  const ses=state.sessions.find(s=>s.id===state.sessionId);
+  if(!ses||!ses.start_time){card.innerHTML='';return;}
+  const d=state.date;
+  const engDate=fmtEngDate(d);
+  const hebDate=await fetchHebDate(d);
+  const schTime=fmtTime12(ses.start_time);
+  const late=lateFor(state.sessionId);
+  const isToday=d===todayStr();
+  const agoLine=isToday&&late>0
+    ?`<div class="ses-live-ago">Started <span>${late} min ago</span></div>`
+    :(isToday?`<div class="ses-live-ago"><span>On time – just starting</span></div>`:'');
+  card.innerHTML=`<div class="ses-live">
+    <div class="ses-live-meta">${engDate}${hebDate?' · '+hebDate:''}${schTime?' · scheduled '+schTime:''}</div>
+    <div class="ses-live-name">${esc(ses.name)}</div>
+    ${agoLine}
+  </div>`;
+}
 /* ---------- MARK ---------- */
 async function renderMark(){
   const v=$('view-mark');
@@ -1079,6 +1155,7 @@ async function renderMark(){
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
     <div class="delayrow"><button id="delayBtn" class="delaychip${state.delayMinutes?' active':''}" type="button">Delay${state.delayMinutes?` +${state.delayMinutes}m`:''}</button></div>
+    <div id="sesLiveCard"></div>
     <div class="summary" id="summary"></div>
     <div class="tabs" id="tabs">
       ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
@@ -1092,6 +1169,7 @@ async function renderMark(){
   $('selClass').onchange=e=>{state.classId=e.target.value;renderMark();};
   $('selSession').onchange=async e=>{state.sessionId=e.target.value;renderMark();};
   $('selDate').onchange=async e=>{state.date=e.target.value;renderMark();};
+  renderSesLiveCard();
   $('tabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
     state.activeStatus=t.dataset.s;
     $('tabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
@@ -2230,7 +2308,7 @@ async function renderGradeEntry(v){
     const unit=t.grade_type==='percent'?'%':'/'+t.max_points;
     const pct=sc!=null&&t.grade_type==='points'&&t.max_points?` (${Math.round(sc.score/t.max_points*100)}%)`:'';
     rows+=`<div class="score-row">
-      <div class="score-name" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>
+      <div class="score-name"><div class="score-heb" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>${(s.english_name&&s.hebrew_name)?`<div class="score-eng-sub">${esc(s.english_name)}</div>`:''}</div>
       <input class="score-inp" data-sid="${s.id}" type="number" min="0" max="${t.grade_type==='percent'?100:t.max_points}" inputmode="decimal" placeholder="–" value="${val}">
       <span class="score-unit">${unit}</span>
       <span class="score-pct" data-pct="${s.id}">${pct}</span>
