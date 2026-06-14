@@ -107,7 +107,8 @@ input,select,textarea{font-family:inherit; font-size:15px; color:var(--ink)}
   display:flex; align-items:center; gap:12px;
   padding:12px 16px;
   background:linear-gradient(to bottom,#E8EAF6 0%,#F5F6FA 100%);
-  border-bottom:1px solid rgba(30,31,75,.1);
+  border:none;
+  box-shadow:none;
 }
 .topbar .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(150deg,#6366f1,#3730a3);
   display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px}
@@ -305,9 +306,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 /* =========================================================
    Bottom sheet (per-student detail) + toast
    ========================================================= */
-.sheet-bg{position:fixed; inset:0; background:rgba(15,17,30,.45); z-index:50; opacity:0; transition:opacity .2s}
+.sheet-bg{position:fixed; inset:0; background:rgba(15,17,30,.45); z-index:65; opacity:0; transition:opacity .2s}
 .sheet-bg.show{opacity:1}
-.sheet{position:fixed; left:0; right:0; bottom:0; z-index:51; background:var(--surface);
+.sheet{position:fixed; left:0; right:0; bottom:0; z-index:66; background:var(--surface);
   border-radius:24px 24px 0 0; box-shadow:var(--sh-3); padding:8px 20px calc(22px + var(--safe-b));
   transform:translateY(100%); transition:transform .26s cubic-bezier(.2,.9,.3,1); max-width:760px; margin:0 auto}
 .sheet.show{transform:translateY(0)}
@@ -959,22 +960,41 @@ function renderSchedule(){
     hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
   }
 
-  // Session blocks
+  // Session blocks — side-by-side for overlapping events
   const sorted=[...state.sessions].filter(s=>s.start_time).sort((a,b)=>a.start_time<b.start_time?-1:1);
   let blocks='';
   if(!sorted.length){
     blocks=`<div class="cal-empty">No sessions yet.<br>Add them in <b>Setup</b> → Sessions.</div>`;
   } else {
-    sorted.forEach(s=>{
+    // Compute top/height for each session
+    const evs=sorted.map(s=>{
       const top=_t2y(s.start_time);
       const end=_sesEnd(s);
       const ht=Math.max(_t2y(end)-top,34);
+      return {s,top,ht,col:0,numCols:1};
+    });
+    // Greedy column assignment
+    const colEnds=[];
+    evs.forEach(ev=>{
+      let c=colEnds.findIndex(e=>e<=ev.top+1);
+      if(c<0) c=colEnds.length;
+      ev.col=c;
+      colEnds[c]=ev.top+ev.ht;
+    });
+    // numCols = max concurrent at any given moment for each event
+    evs.forEach(ev=>{
+      ev.numCols=evs.filter(o=>o.top<ev.top+ev.ht-1&&o.top+o.ht>ev.top+1).length||1;
+    });
+    evs.forEach(({s,top,ht,col,numCols})=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
       const tall=ht>50;
-      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;background:${bg}">
+      const pct=(100/numCols);
+      const L=(col*pct).toFixed(1);
+      const W=(pct-1.5).toFixed(1);
+      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg}">
         <div class="cal-block-name">${esc(s.name)}</div>
-        ${tall?`<div class="cal-block-time">${s.start_time.slice(0,5)} – ${end}</div>`:''}
+        ${tall?`<div class="cal-block-time">${s.start_time.slice(0,5)} – ${_sesEnd(s)}</div>`:''}
         ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
       </div>`;
     });
@@ -1263,16 +1283,19 @@ function renderStudents(selMode, sel){
     <div class="list" id="stuList" style="${selMode?'padding-bottom:80px':''}"></div>
     ${selMode?`<div class="sel-bar" id="selBar">
       <span id="selCount">0 selected</span>
-      <button class="btn btn-soft btn-sm" id="selMove">Move to class</button>
+      <button class="btn btn-soft btn-sm" id="selAll">All</button>
+      <button class="btn btn-soft btn-sm" id="selMove">Move</button>
       <button class="btn btn-sm" id="selDel" style="background:var(--attn);color:#fff">Delete</button>
     </div>`:''}`;
   if(!state.stuFilters) state.stuFilters={classId:'',bunkId:'',q:''};
   let filterClass=state.stuFilters.classId||'', filterBunk=state.stuFilters.bunkId||'', stuLimit=50;
+  let currentList=[];
   const draw=q=>{
     let list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
     if(filterClass==='__none__') list=list.filter(s=>!s.class_id);
     else if(filterClass) list=list.filter(s=>s.class_id===filterClass);
     if(filterBunk) list=list.filter(s=>s.bunk===filterBunk);
+    currentList=list;
     const page=list.slice(0,stuLimit); const hasMore=list.length>stuLimit;
     let html=page.map(s=>{
       const cls=state.classes.find(c=>c.id===s.class_id);
@@ -1298,6 +1321,11 @@ function renderStudents(selMode, sel){
   if(!selMode && $('rcOpen')) $('rcOpen').onclick=()=>openRCSheet();
   $('selToggle').onclick=()=>renderStudents(!selMode,new Set());
   if(selMode){
+    if($('selAll')) $('selAll').onclick=()=>{
+      const allOn=currentList.every(s=>sel.has(s.id));
+      if(allOn){ sel.clear(); } else { currentList.forEach(s=>sel.add(s.id)); }
+      renderStudents(true,sel);
+    };
     $('selMove').onclick=()=>{
       if(!sel.size){toast('Select students first',true);return;}
       const clsOpts=`<option value="">No class</option>${state.classes.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}`;
@@ -1548,17 +1576,23 @@ function _renderSesCal(container){
     hours+=`<div class="cal-hour-lbl" style="top:${y}px;font-size:9.5px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
   }
   let blocks='';
-  sessions.filter(s=>s.start_time).forEach(s=>{
-    const top=((parseInt(s.start_time)||0)+(parseInt((s.start_time||':').split(':')[1])||0)/60-S_H)*PX;
+  const sesEvs=sessions.filter(s=>s.start_time).sort((a,b)=>a.start_time<b.start_time?-1:1).map(s=>{
+    const sh=parseInt(s.start_time)||0,sm=parseInt((s.start_time||':').split(':')[1])||0;
     const end=_sesEnd(s);
     const eh=parseInt(end)||0,em=parseInt((end||':').split(':')[1])||0;
-    const sh=parseInt(s.start_time)||0,sm=parseInt((s.start_time||':').split(':')[1])||0;
-    const ht=Math.max(((eh+em/60)-(sh+sm/60))*PX,26);
+    const top=((sh+sm/60)-S_H)*PX; const ht=Math.max(((eh+em/60)-(sh+sm/60))*PX,26);
+    return {s,top,ht,col:0,numCols:1};
+  });
+  const sColEnds=[];
+  sesEvs.forEach(ev=>{let c=sColEnds.findIndex(e=>e<=ev.top+1);if(c<0)c=sColEnds.length;ev.col=c;sColEnds[c]=ev.top+ev.ht;});
+  sesEvs.forEach(ev=>{ ev.numCols=sesEvs.filter(o=>o.top<ev.top+ev.ht-1&&o.top+o.ht>ev.top+1).length||1; });
+  sesEvs.forEach(({s,top,ht,col,numCols})=>{
     const isZal=s.type==='zal';
     const bg=isZal?'linear-gradient(135deg,#1e1b4b,#312e81)':'linear-gradient(135deg,#4f46e5,#6366f1)';
-    blocks+=`<div class="ses-cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;background:${bg}">
+    const pct=100/numCols; const L=(col*pct).toFixed(1); const W=(pct-1.5).toFixed(1);
+    blocks+=`<div class="ses-cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg}">
       <div class="ses-cal-block-name">${esc(s.name)}</div>
-      ${ht>36?`<div class="ses-cal-block-time">${s.start_time.slice(0,5)} – ${end}</div>`:''}
+      ${ht>36?`<div class="ses-cal-block-time">${s.start_time.slice(0,5)} – ${_sesEnd(s)}</div>`:''}
     </div>`;
   });
   container.innerHTML=`<div class="ses-cal-wrap" style="height:${gridH}px">${hours}<div class="cal-lane">${blocks}</div></div>`;
