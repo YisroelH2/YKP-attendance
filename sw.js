@@ -1,7 +1,7 @@
 /* YKP Attendance service worker — caches the app shell so it loads offline
    and makes the app installable. Live data (Supabase) always goes to the
    network; full offline data sync is a separate, upcoming feature. */
-const CACHE = 'ykp-shell-v1';
+const CACHE = 'ykp-shell-v2';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -21,10 +21,11 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.hostname.endsWith('supabase.co')) return; // live data: always network
 
-  // Page loads: try network, fall back to the cached shell so the app opens offline
+  // Page loads: always pull a fresh copy from the server (bypass HTTP cache),
+  // update the shell, fall back to cache only when offline.
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', cp)); return r; })
+      fetch(req, { cache: 'reload' }).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', cp)); return r; })
         .catch(() => caches.match('./index.html'))
     );
     return;
