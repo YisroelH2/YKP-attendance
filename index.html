@@ -205,6 +205,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 #shulNameSeg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 #shulNameSeg .seg-btn{height:42px;border-radius:var(--r-md);font-weight:700;font-size:13px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink-soft)}
 #shulNameSeg .seg-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.rc-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.rc-seg .seg-btn{height:42px;border-radius:var(--r-md);font-weight:700;font-size:13px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink-soft)}
+.rc-seg .seg-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .shul-chip{font-size:12px;padding:7px 10px;border-radius:999px;background:var(--surface-2);border:1.5px solid var(--line);color:var(--ink-soft);text-align:left}
 .shul-chip:active{transform:scale(.96)}
 .shul-opt{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);margin-top:12px;cursor:pointer}
@@ -298,6 +301,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .lrow .meta .s{font-size:12.5px; color:var(--ink-faint)}
 .lrow .cam{width:34px;height:34px;border-radius:10px;background:#eef0fb;color:var(--accent);
   display:flex;align-items:center;justify-content:center;flex:none}
+.lrow .rcbtn{width:34px;height:34px;border-radius:10px;background:#eef0fb;color:var(--accent);
+  display:flex;align-items:center;justify-content:center;flex:none;margin-right:6px}
+.lrow .rcbtn:active,.lrow .cam:active{transform:scale(.92)}
 
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
   box-shadow:var(--sh-1); padding:18px; margin-bottom:14px}
@@ -1003,7 +1009,7 @@ function switchView(v){
 }
 
 /* =================== SCHEDULE CALENDAR =================== */
-const CAL_S=6, CAL_E=23, HR_PX=68; // 6am–11pm, 68px/hour
+const CAL_S=6, CAL_E=24, HR_PX=68; // 6am–midnight, 68px/hour
 
 function _t2y(t){
   if(!t)return 0;
@@ -1016,7 +1022,7 @@ function _sesEnd(s){
   const tot=h*60+m+45;
   return String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');
 }
-function _fmtHr(h){if(!h)return '12am';if(h<12)return h+'am';if(h===12)return '12pm';return(h-12)+'pm';}
+function _fmtHr(h){if(h===0||h===24)return '12am';if(h<12)return h+'am';if(h===12)return '12pm';return(h-12)+'pm';}
 function _calDateLabel(d){
   const dt=new Date(d+'T00:00:00');
   const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1075,13 +1081,13 @@ function renderSchedule(){
           <div class="cal-mini-bar" data-id="${s.id}" style="height:100%;background:${bg}"></div>
           <div class="cal-mini-lbl" data-id="${s.id}">
             <span class="cal-mini-name">${esc(s.name)}</span>
-            <span class="cal-mini-time">${s.start_time.slice(0,5)}</span>
+            <span class="cal-mini-time">${fmtTime12(s.start_time)}</span>
           </div>
         </div>`;
       } else {
         blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg};padding:${tall?'6px 10px':'4px 9px'}">
           <div class="cal-block-name">${esc(s.name)}</div>
-          ${tall?`<div class="cal-block-time">${s.start_time.slice(0,5)} – ${_sesEnd(s)}</div>`:''}
+          ${tall?`<div class="cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
           ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
         </div>`;
       }
@@ -1487,14 +1493,14 @@ function renderStudents(selMode, sel){
       const cls=state.classes.find(c=>c.id===s.class_id);
       const av=state.photoUrls[s.id]?`<img class="avatar" src="${state.photoUrls[s.id]}">`:`<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
       const chk=selMode?`<div class="sel-chk ${sel.has(s.id)?'on':''}" data-id="${s.id}"></div>`:'';
-      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`:''}</div>`;
+      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<div class="rcbtn" title="Report card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div><div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`:''}</div>`;
     }).join('');
     if(!html) html=`<div class="empty"><p>No match.</p></div>`;
     if(hasMore) html+=`<button class="btn btn-soft btn-block" id="stuMore" style="margin:8px 0 4px">Show more (${list.length-stuLimit} more)</button>`;
     $('stuList').innerHTML=html;
     $('stuList').querySelectorAll('.lrow').forEach(r=>{
       if(selMode){ r.onclick=()=>{ const id=r.dataset.id; sel.has(id)?sel.delete(id):sel.add(id); renderStudents(true,sel); }; }
-      else { r.onclick=()=>editStudent(r.dataset.id); const cam=r.querySelector('.cam'); if(cam)cam.onclick=e=>{e.stopPropagation();pickPhoto(r.dataset.id);}; }
+      else { r.onclick=()=>editStudent(r.dataset.id); const cam=r.querySelector('.cam'); if(cam)cam.onclick=e=>{e.stopPropagation();pickPhoto(r.dataset.id);}; const rc=r.querySelector('.rcbtn'); if(rc)rc.onclick=e=>{e.stopPropagation(); const st=state.students.find(x=>x.id===r.dataset.id); if(st)openRCSheet(st);}; }
     });
     if($('stuMore')) $('stuMore').onclick=()=>{ stuLimit+=50; draw(q); };
     if(selMode && $('selCount')) $('selCount').textContent=`${sel.size} selected`;
@@ -1769,7 +1775,7 @@ function _renderSesCal(container){
     container.innerHTML='<p class="muted" style="padding:8px 0">No sessions yet — tap "+ Add".</p>';
     return;
   }
-  const S_H=6,E_H=23,PX=54;  // 6am–11pm, 54px/hour
+  const S_H=6,E_H=24,PX=54;  // 6am–midnight, 54px/hour
   const gridH=(E_H-S_H)*PX+8;
   let hours='';
   for(let h=S_H;h<=E_H;h++){
@@ -1793,7 +1799,7 @@ function _renderSesCal(container){
     const pct=100/numCols; const L=(col*pct).toFixed(1); const W=(pct-1.5).toFixed(1);
     blocks+=`<div class="ses-cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg}">
       <div class="ses-cal-block-name">${esc(s.name)}</div>
-      ${ht>36?`<div class="ses-cal-block-time">${s.start_time.slice(0,5)} – ${_sesEnd(s)}</div>`:''}
+      ${ht>36?`<div class="ses-cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
     </div>`;
   });
   container.innerHTML=`<div class="ses-cal-wrap" style="height:${gridH}px">${hours}<div class="cal-lane">${blocks}</div></div>`;
@@ -2534,6 +2540,7 @@ async function renderBaalPeh(){
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="bpSearch" placeholder="Search by name or material…">
     </div>
+    <div class="zal-hint" style="margin:-2px 0 8px">Long-press a session to edit or delete it</div>
     <div id="bpList"><div class="hist-empty">Loading…</div></div>`;
   $('bpClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; renderBaalPeh(); };
   $('bpStudent').onchange=e=>{ h.studentId=e.target.value; loadBaalPehList(); };
@@ -2561,34 +2568,63 @@ async function loadBaalPehList(){
   const stuById2={}; state.students.forEach(s=>stuById2[s.id]=s);
   list.innerHTML=filt.map(r=>{
     const s=stuById2[r.student_id];
-    return `<div class="bp-row">
+    return `<div class="bp-row" data-id="${r.id}">
       <div class="bp-txt" dir="auto">${esc(r.material)}</div>
       <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} · ${r.date}</div>
     </div>`;
   }).join('');
+  // long-press a row to edit it
+  list.querySelectorAll('.bp-row').forEach(row=>{
+    const rec=filt.find(r=>String(r.id)===row.dataset.id);
+    let lpt, moved=false;
+    const start=()=>{ moved=false; lpt=setTimeout(()=>{ if(!moved){ if(navigator.vibrate)navigator.vibrate(8); openBpSheet(rec); } },500); };
+    const cancel=()=>clearTimeout(lpt);
+    row.addEventListener('pointerdown',start);
+    row.addEventListener('pointerup',cancel);
+    row.addEventListener('pointermove',()=>{moved=true;clearTimeout(lpt);});
+    row.addEventListener('pointercancel',cancel);
+  });
 }
 
-function openBpSheet(){
+function openBpSheet(existing){
   const h=testsState.bp||{};
+  const editing=!!existing;
   const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
-  const stuOpts=`<option value="">Select student…</option>${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
-  openCustomSheet({id:'__bp__',title:'Log Baal Peh session',html:`
+  const selId=editing?existing.student_id:h.studentId;
+  // make sure the editing student appears even if filtered out
+  let optStudents=forClass;
+  if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=state.students.find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
+  const stuOpts=`<option value="">Select student…</option>${optStudents.map(s=>`<option value="${s.id}" ${s.id===selId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
+  openCustomSheet({id:'__bp__',title:editing?'Edit Baal Peh session':'Log Baal Peh session',html:`
     <div class="field"><label>Student</label><select id="bpStu" class="inp">${stuOpts}</select></div>
-    <div class="field"><label>Date</label><input id="bpDate" class="inp" type="date" value="${todayStr()}"></div>
-    <div class="field"><label>Material / what they know</label><textarea id="bpMat" class="inp" rows="3" placeholder="e.g. Bava Metzia 5b–7a, fluent" style="height:auto;resize:vertical"></textarea></div>
+    <div class="field"><label>Date</label><input id="bpDate" class="inp" type="date" value="${editing?existing.date:todayStr()}"></div>
+    <div class="field"><label>Material / what they know</label><textarea id="bpMat" class="inp" rows="3" placeholder="e.g. Bava Metzia 5b–7a, fluent" style="height:auto;resize:vertical">${editing?esc(existing.material):''}</textarea></div>
     <div class="row2">
       <button class="btn btn-ghost" id="bpCancel" style="flex:1">Cancel</button>
-      <button class="btn btn-primary" id="bpSave" style="flex:1">Save</button>
-    </div>`,
+      <button class="btn btn-primary" id="bpSave" style="flex:1">${editing?'Save changes':'Save'}</button>
+    </div>
+    ${editing?`<button class="btn btn-block" id="bpDelete" style="margin-top:8px;background:var(--attn-bg);color:var(--attn);border:1px solid var(--attn)">Delete this session</button>`:''}`,
     onMount(){
       $('bpCancel').onclick=closeCustomSheet;
       $('bpSave').onclick=async()=>{
         const sid=$('bpStu').value; if(!sid){toast('Select a student',true);return;}
         const mat=$('bpMat').value.trim(); if(!mat){toast('Enter material',true);return;}
-        const {error}=await sb.from('ykp_baal_peh').insert({student_id:sid,date:$('bpDate').value,material:mat});
-        if(error){toast('Could not save',true);return;}
-        if(h.studentId===sid||!h.studentId){ h.studentId=sid; }
+        if(editing){
+          const {error}=await sb.from('ykp_baal_peh').update({student_id:sid,date:$('bpDate').value,material:mat}).eq('id',existing.id);
+          if(error){toast('Could not save',true);return;}
+          toast('Updated');
+        } else {
+          const {error}=await sb.from('ykp_baal_peh').insert({student_id:sid,date:$('bpDate').value,material:mat});
+          if(error){toast('Could not save',true);return;}
+          if(h.studentId===sid||!h.studentId){ h.studentId=sid; }
+        }
         closeCustomSheet(); loadBaalPehList();
+      };
+      if($('bpDelete')) $('bpDelete').onclick=async()=>{
+        if(!confirm('Delete this Baal Peh session? This cannot be undone.'))return;
+        const {error}=await sb.from('ykp_baal_peh').delete().eq('id',existing.id);
+        if(error){toast('Could not delete',true);return;}
+        toast('Deleted'); closeCustomSheet(); loadBaalPehList();
       };
     }
   });
@@ -2610,30 +2646,64 @@ function closeCustomSheet(){
 }
 
 /* ===================== REPORT CARD SHEET ===================== */
-function openRCSheet(){
+function openRCSheet(single){
+  const isSingle=single&&single.id;
+  const curMonth=todayStr().slice(0,7);
+  const nm=isSingle?(single.hebrew_name||single.english_name||'student'):'';
   openCustomSheet({
-    title:'Generate Report Cards',
-    html:`<p class="muted" style="margin-bottom:10px">Generates PDF for currently filtered students. Use your browser's Print → Save as PDF.</p>
-      <div class="controls">
-        <div class="ctl full"><span>Month</span>
-          <input type="month" id="rcSheetMonth" value="${todayStr().slice(0,7)}" max="${todayStr().slice(0,7)}">
+    title:isSingle?`Report card — ${nm}`:'Generate Report Cards',
+    html:`<p class="muted" style="margin-bottom:10px">${isSingle?'Generates a PDF report card for this student.':"Generates PDFs for currently filtered students."} Use your browser's Print → Save as PDF.</p>
+      <div class="field"><label>Period</label>
+        <div id="rcPeriodSeg" class="rc-seg">
+          <button class="seg-btn active" data-v="month" type="button">Month</button>
+          <button class="seg-btn" data-v="week" type="button">Week</button>
+          <button class="seg-btn" data-v="all" type="button">All time</button>
         </div>
+      </div>
+      <div class="field" id="rcMonthWrap"><label>Month</label>
+        <input type="month" id="rcSheetMonth" class="inp" value="${curMonth}" max="${curMonth}">
+      </div>
+      <div class="field" id="rcWeekWrap" style="display:none"><label>Week containing</label>
+        <input type="date" id="rcSheetWeek" class="inp" value="${todayStr()}" max="${todayStr()}">
       </div>
       <button class="btn btn-primary btn-block" id="rcSheetGen" style="margin-top:14px">Generate PDF</button>`,
     onMount:()=>{
+      let ptype='month';
+      $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
+        ptype=b.dataset.v;
+        $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b));
+        $('rcMonthWrap').style.display=ptype==='month'?'':'none';
+        $('rcWeekWrap').style.display=ptype==='week'?'':'none';
+      });
       $('rcSheetGen').onclick=async()=>{
-        const month=$('rcSheetMonth').value; if(!month){toast('Choose a month',true);return;}
-        const from=month+'-01';
-        const [y,m]=month.split('-').map(Number);
-        const to=`${month}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
-        const clsId=$('stuFilterClass')?.value||'';
-        const q=($('stuSearch')?.value||'').trim().toLowerCase();
-        let stus=state.students;
-        if(clsId) stus=stus.filter(s=>clsId==='__none__'?!s.class_id:s.class_id===clsId);
-        if(q) stus=stus.filter(s=>((s.hebrew_name||'')+(s.english_name||'')).toLowerCase().includes(q));
-        if(!stus.length){toast('No students match',true);return;}
+        let from,to;
+        if(ptype==='month'){
+          const month=$('rcSheetMonth').value; if(!month){toast('Choose a month',true);return;}
+          from=month+'-01';
+          const [y,m]=month.split('-').map(Number);
+          to=`${month}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
+        } else if(ptype==='week'){
+          const d=$('rcSheetWeek').value; if(!d){toast('Choose a date',true);return;}
+          const dow=new Date(d+'T00:00:00').getDay();
+          from=addDays(d,-dow);     // Sunday of that week
+          to=addDays(from,6);       // Saturday
+        } else {
+          from='2000-01-01'; to=todayStr();
+        }
+        if(to>todayStr()) to=todayStr();   // never report past today
+        let ids;
+        if(isSingle){ ids=[single.id]; }
+        else {
+          const clsId=$('stuFilterClass')?.value||'';
+          const q=($('stuSearch')?.value||'').trim().toLowerCase();
+          let stus=state.students;
+          if(clsId) stus=stus.filter(s=>clsId==='__none__'?!s.class_id:s.class_id===clsId);
+          if(q) stus=stus.filter(s=>((s.hebrew_name||'')+(s.english_name||'')).toLowerCase().includes(q));
+          if(!stus.length){toast('No students match',true);return;}
+          ids=stus.map(s=>s.id);
+        }
         closeCustomSheet();
-        await generateReportCards(stus.map(s=>s.id),from,to);
+        await generateReportCards(ids,from,to);
       };
     }
   });
@@ -2719,6 +2789,11 @@ function buildAttTable(student,sessions,attendance,title){
     <tr><td class="rl"><div>% שמירת הסדר</div><div class="rsub">% Attended</div></td>${row(css.map(s=>pc(s)))}</tr>
   </tbody></table>`;
 }
+function _rcPeriodLabel(from,to){
+  const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  if(from<='2000-12-31') return `All time · through ${fmt(to)}`;
+  return `${fmt(from)} – ${fmt(to)}`;
+}
 function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk){
   const cls=state.classes.find(c=>c.id===student.class_id);
   const stu_scores=scores.filter(sc=>sc.student_id===student.id);
@@ -2744,7 +2819,7 @@ function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk){
     <div class="rc-sname" dir="auto">${student.hebrew_name||student.english_name||''}</div>
     ${student.english_name&&student.hebrew_name?`<div class="rc-ename">${student.english_name}</div>`:''}
     ${cls?`<div class="rc-cls">${esc(cls.name)}${cls.teacher?' · '+esc(cls.teacher):''}</div>`:''}
-    <div class="rc-period">${from} – ${to}</div>
+    <div class="rc-period">${_rcPeriodLabel(from,to)}</div>
     ${buildAttTable(student,sessions,mAtt,'Shmiras Hasdorim Totals:')}
     ${buildAttTable(student,sessions,yAtt,'Shmiras Hasdorim Year-to-Date:')}
     ${testHTML}
