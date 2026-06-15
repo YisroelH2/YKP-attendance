@@ -147,9 +147,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 /* ---------- status tabs (the "brush") ---------- */
 .tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:10px}
-.mark-status-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-b));z-index:34;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 14px rgba(0,0,0,.08);padding:9px 14px}
-.mark-status-bar .tabs{max-width:760px;margin:0 auto}
-.mark-status-bar .btn-block{max-width:760px;margin-left:auto;margin-right:auto}
+.mark-toprow{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.mark-toprow #markAll{flex:1;height:40px}
+.mark-toprow .delaychip{flex-shrink:0}
+.mark-status-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-b));z-index:34;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 14px rgba(0,0,0,.08);padding:9px 14px;display:flex;justify-content:center}
+.mark-status-bar .tabs{width:100%;max-width:732px;margin:0}
 .tab{height:44px; border-radius:var(--r-md); font-weight:700; font-size:13.5px;
   background:var(--surface); border:1.5px solid var(--line); color:var(--ink-soft);
   display:flex; align-items:center; justify-content:center; transition:.12s}
@@ -229,7 +231,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .markall .hint{flex:1; align-self:center; font-size:12px; color:var(--ink-faint); line-height:1.3}
 
 /* ---------- student grid ---------- */
-.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px; padding-bottom:120px}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px; padding-bottom:80px}
 .scard{
   position:relative; background:var(--surface); border:1.5px solid var(--line);
   border-radius:var(--r-md); padding:10px 8px 9px; text-align:center;
@@ -484,7 +486,12 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 /* ── Schedule / Calendar view ── */
 .cal-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.cal-date-label{flex:1;font-weight:700;font-size:16px;color:var(--ink);text-align:center}
+.cal-date-block{flex:1;text-align:center;cursor:pointer;line-height:1.2;padding:2px 0}
+.cal-date-row{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.cal-date-eng{font-weight:700;font-size:16px;color:var(--ink)}
+.cal-date-heb{font-size:14.5px;color:var(--accent);font-weight:700;min-height:16px}
+.cal-date-heb:not(:empty)::before{content:'·';color:var(--ink-faint);margin-right:8px;font-weight:400}
+.cal-date-today{font-size:11px;color:var(--accent);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:3px}
 .cal-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 200px);position:relative}
 .cal-grid{position:relative;padding-left:50px}
 .cal-hour-line{position:absolute;left:50px;right:0;height:1px;background:var(--line);pointer-events:none}
@@ -789,7 +796,16 @@ function lateFor(sessionId=state.sessionId){
   const [h,m]=(ses.start_time||'0:0').split(':');
   const start=new Date(); start.setHours(+h, +m + (state.delayMinutes||0), 0, 0);
   const diff=Math.floor((Date.now()-start.getTime())/60000);
-  return diff>0?diff:0;
+  if(diff<=0) return 0;
+  // Cap: once the session is clearly over (start + its duration + 30min grace),
+  // auto-late no longer makes sense — default to 0 so the user enters it manually.
+  let durMin=45;
+  if(ses.end_time && ses.end_time!=='00:00' && ses.end_time!==''){
+    const [eh,em]=ses.end_time.split(':').map(Number);
+    durMin=Math.max(15,(eh*60+em)-(+h*60+ +m));
+  }
+  if(diff > durMin + 30) return 0;
+  return diff;
 }
 let toastT;
 function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='toast',2600);}
@@ -1056,9 +1072,14 @@ function renderSchedule(){
   v.innerHTML=`
     <div class="cal-hdr">
       <button class="iconbtn" id="calPrev" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <div class="cal-date-label">${_calDateLabel(date)}${isToday?'<span style="font-size:11px;color:var(--accent);font-weight:600;margin-left:6px">Today</span>':''}</div>
+      <div class="cal-date-block">
+        <div class="cal-date-row">
+          <span class="cal-date-eng">${_calDateLabel(date)}</span>
+          <span class="cal-date-heb" id="calHebDate" dir="rtl"></span>
+        </div>
+        ${isToday?'<div class="cal-date-today">Today</div>':''}
+      </div>
       <button class="iconbtn" id="calNext" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
-      <button class="btn btn-soft btn-sm" id="calToday">Today</button>
     </div>
     <div class="cal-scroll" id="calScroll">
       <div class="cal-grid" style="height:${gridH}px">
@@ -1069,7 +1090,8 @@ function renderSchedule(){
 
   $('calPrev').onclick=()=>{ state.schedule.date=addDays(date,-1); renderSchedule(); };
   $('calNext').onclick=()=>{ state.schedule.date=addDays(date,1); renderSchedule(); };
-  $('calToday').onclick=()=>{ state.schedule.date=todayStr(); renderSchedule(); };
+  const _db=document.querySelector('.cal-date-block'); if(_db) _db.onclick=()=>{ if(state.schedule.date!==todayStr()){ state.schedule.date=todayStr(); renderSchedule(); } };
+  fetchHebDate(date).then(h=>{ const el=$('calHebDate'); if(el && h) el.textContent=h; });
 
   v.querySelectorAll('.cal-block,.cal-mini-bar,.cal-mini-lbl,.cal-mini-wrap').forEach(el=>{
     el.onclick=()=>{
@@ -1166,16 +1188,18 @@ async function renderMark(){
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
-    <div class="delayrow"><button id="delayBtn" class="delaychip${state.delayMinutes?' active':''}" type="button">Delay${state.delayMinutes?` +${state.delayMinutes}m`:''}</button></div>
+    <div class="mark-toprow">
+      <button class="btn btn-soft btn-sm" id="markAll">Mark all “${STATUS_LABEL[state.activeStatus]}”</button>
+      <button id="delayBtn" class="delaychip${state.delayMinutes?' active':''}" type="button">Delay${state.delayMinutes?` +${state.delayMinutes}m`:''}</button>
+    </div>
     <div id="sesLiveCard"></div>
     <div class="summary" id="summary"></div>
     <div class="hint" style="text-align:center;margin-bottom:8px">Tap a card to mark · tap again to clear · long-press for minutes & notes</div>
     <div class="grid" id="grid"></div>
     <div class="mark-status-bar" id="markStatusBar">
-      <div class="tabs" id="tabs" style="margin:0">
+      <div class="tabs" id="tabs">
         ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
       </div>
-      <button class="btn btn-soft btn-sm btn-block" id="markAll" style="margin-top:7px">Mark all “${STATUS_LABEL[state.activeStatus]}”</button>
     </div>`;
 
   $('selClass').onchange=e=>{state.classId=e.target.value;renderMark();};
@@ -1825,14 +1849,10 @@ async function renderZal(){
     ${state.zal.mode==='mark'
       ? `<div id="zSesLiveCard"></div>
         <div class="zsess-row">
-          <div class="zsess-card">
-            <span class="zsess-lbl">Session</span>
-            <select id="zSession" class="zsess-sel">${zs.map(s=>`<option value="${s.id}" ${s.id===state.zalSessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
-          </div>
+          <button class="btn btn-soft btn-sm" id="zMarkAllOnTime" style="flex:1;height:50px">✓ Mark all on time</button>
           <input id="zDate" type="date" class="inp" style="height:50px;width:150px" value="${state.date}" max="${todayStr()}">
         </div>
-        <div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>
-        <div class="markall" style="margin-top:8px"><button class="btn btn-soft btn-sm" id="zMarkAllOnTime">✓ Mark all on time</button></div>`
+        <div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
       : `<div class="zedit">
           <div class="zedit-row"><span>Grid</span>
             <div class="ministep"><button id="rMinus" type="button">−</button><b>${a.grid_rows||5}</b><button id="rPlus" type="button">+</button></div>rows
@@ -1864,7 +1884,6 @@ async function renderZal(){
   if(state.zal.mode==='mark') renderSesLiveCard('zSesLiveCard', state.zalSessionId);
   v.querySelectorAll('.zarr-pill').forEach(btn=>btn.onclick=async()=>{ state.zal.arrangementId=btn.dataset.id; await loadZalLayout(); renderZal(); });
   if($('zNew')) $('zNew').onclick=newArrangement;
-  if($('zSession')) $('zSession').onchange=async e=>{ state.zalSessionId=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); renderSesLiveCard('zSesLiveCard', state.zalSessionId); };
   if($('zDate')) $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); renderSesLiveCard('zSesLiveCard', state.zalSessionId); };
   if($('zFull')) $('zFull').onclick=enterFull;
   $('zEdit').onclick=()=>{ state.zal.mode = state.zal.mode==='edit'?'mark':'edit'; renderZal(); };
