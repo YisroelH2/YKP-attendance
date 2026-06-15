@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#E8EAF6" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -147,6 +147,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 /* ---------- status tabs (the "brush") ---------- */
 .tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:10px}
+.mark-status-bar{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-b));z-index:34;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 14px rgba(0,0,0,.08);padding:9px 14px}
+.mark-status-bar .tabs{max-width:760px;margin:0 auto}
+.mark-status-bar .btn-block{max-width:760px;margin-left:auto;margin-right:auto}
 .tab{height:44px; border-radius:var(--r-md); font-weight:700; font-size:13.5px;
   background:var(--surface); border:1.5px solid var(--line); color:var(--ink-soft);
   display:flex; align-items:center; justify-content:center; transition:.12s}
@@ -226,7 +229,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .markall .hint{flex:1; align-self:center; font-size:12px; color:var(--ink-faint); line-height:1.3}
 
 /* ---------- student grid ---------- */
-.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px; padding-bottom:120px}
 .scard{
   position:relative; background:var(--surface); border:1.5px solid var(--line);
   border-radius:var(--r-md); padding:10px 8px 9px; text-align:center;
@@ -441,7 +444,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zdot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--attn);box-shadow:0 0 0 2px #fff;pointer-events:none}
 .zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
-.zseat .zlate{position:absolute;bottom:2px;left:0;right:0;font-size:9px;font-weight:800;color:var(--late);text-align:center;line-height:1;pointer-events:none}
+.zseat .zlate{position:absolute;top:2px;right:2px;background:var(--late);color:#fff;font-size:8.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-weight:700}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
@@ -488,9 +491,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-hour-lbl{position:absolute;left:0;width:46px;font-size:10px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:5px;transform:translateY(-50%);line-height:1;pointer-events:none}
 .cal-lane{position:absolute;left:50px;right:0;top:0;bottom:0}
 .cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:6px 10px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.cal-mini-wrap{position:absolute;pointer-events:none}
-.cal-mini-bar{border-radius:4px;width:100%;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
-.cal-mini-lbl{display:flex;align-items:center;gap:4px;padding:1px 2px;cursor:pointer;pointer-events:auto;white-space:nowrap;overflow:hidden}
+.cal-mini-wrap{position:absolute;pointer-events:none;display:flex;align-items:center;gap:6px;min-height:14px}
+.cal-mini-bar{border-radius:4px;width:5px;flex-shrink:0;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.cal-mini-lbl{display:flex;align-items:center;gap:5px;padding:1px 2px;cursor:pointer;pointer-events:auto;white-space:nowrap;overflow:hidden;min-width:0;flex:1}
 .cal-mini-name{font-size:11.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
 .cal-mini-time{font-size:10px;font-weight:600;color:var(--ink-faint);flex-shrink:0}
 .cal-block:active{opacity:.82;transform:scale(.985)}
@@ -619,7 +622,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   </div>
   <div class="row2">
     <button class="btn btn-ghost" id="sheetClear" style="flex:1">Clear mark</button>
-    <button class="btn btn-soft" id="sheetSave" style="flex:1">Save & close</button>
+    <button class="btn btn-primary" id="sheetSave" style="flex:1">Save & close</button>
   </div>
 </div>
 
@@ -1020,21 +1023,21 @@ function renderSchedule(){
     evs.forEach(({s,top,ht,col,numCols})=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
-      const tall=ht>50;
+      const tall=ht>56;
       const pct=(100/numCols);
       const L=(col*pct).toFixed(1);
       const W=(pct-1.5).toFixed(1);
-      if(ht<28){
-        // Too small for text inside — show thin bar + label beside
-        blocks+=`<div class="cal-mini-wrap" data-id="${s.id}" style="top:${top}px;left:${L}%;width:${W}%;min-height:28px">
-          <div class="cal-mini-bar" data-id="${s.id}" style="height:${Math.max(ht,5)}px;background:${bg}"></div>
+      if(ht<40){
+        // Too short for text inside — show colored bar + label to the side
+        blocks+=`<div class="cal-mini-wrap" data-id="${s.id}" style="top:${top}px;left:${L}%;width:${W}%;height:${Math.max(ht,14)}px">
+          <div class="cal-mini-bar" data-id="${s.id}" style="height:100%;background:${bg}"></div>
           <div class="cal-mini-lbl" data-id="${s.id}">
             <span class="cal-mini-name">${esc(s.name)}</span>
             <span class="cal-mini-time">${s.start_time.slice(0,5)}</span>
           </div>
         </div>`;
       } else {
-        blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg}">
+        blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg};padding:${tall?'6px 10px':'4px 9px'}">
           <div class="cal-block-name">${esc(s.name)}</div>
           ${tall?`<div class="cal-block-time">${s.start_time.slice(0,5)} – ${_sesEnd(s)}</div>`:''}
           ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
@@ -1116,19 +1119,29 @@ function fmtTime12(t){
   return h12+':'+(String(m).padStart(2,'0'))+' '+ap;
 }
 
-async function renderSesLiveCard(){
-  const card=$('sesLiveCard'); if(!card)return;
-  const ses=state.sessions.find(s=>s.id===state.sessionId);
+async function renderSesLiveCard(cardId='sesLiveCard', sessionId=state.sessionId){
+  const card=$(cardId); if(!card)return;
+  const ses=state.sessions.find(s=>s.id===sessionId);
   if(!ses||!ses.start_time){card.innerHTML='';return;}
   const d=state.date;
   const engDate=fmtEngDate(d);
   const hebDate=await fetchHebDate(d);
   const schTime=fmtTime12(ses.start_time);
-  const late=lateFor(state.sessionId);
   const isToday=d===todayStr();
-  const agoLine=isToday&&late>0
-    ?`<div class="ses-live-ago">Started <span>${late} min ago</span></div>`
-    :(isToday?`<div class="ses-live-ago"><span>On time – just starting</span></div>`:'');
+  let agoLine='';
+  if(isToday){
+    const late=lateFor(sessionId);
+    if(late>0){
+      agoLine=`<div class="ses-live-ago">Started <span>${late} min ago</span></div>`;
+    } else {
+      // upcoming today: compute minutes until start
+      const [h,m]=(ses.start_time||'0:0').split(':').map(Number);
+      const start=new Date(); start.setHours(h,m,0,0);
+      const mins=Math.round((start.getTime()-Date.now())/60000);
+      if(mins>0) agoLine=`<div class="ses-live-ago">Starts <span>in ${mins} min</span></div>`;
+      else agoLine=`<div class="ses-live-ago"><span>Starting now</span></div>`;
+    }
+  }
   card.innerHTML=`<div class="ses-live">
     <div class="ses-live-meta">${engDate}${hebDate?' · '+hebDate:''}${schTime?' · scheduled '+schTime:''}</div>
     <div class="ses-live-name">${esc(ses.name)}</div>
@@ -1150,25 +1163,22 @@ async function renderMark(){
       <div class="ctl full"><span>Class</span>
         <select id="selClass">${state.classes.map(c=>`<option value="${c.id}" ${c.id===state.classId?'selected':''}>${esc(c.name)}${c.teacher?' · '+esc(c.teacher):''}</option>`).join('')}
         ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${state.classId==='__none__'?'selected':''}>(No class)</option>`:''}</select></div>
-      <div class="ctl"><span>Session</span>
-        <select id="selSession">${csv.map(s=>`<option value="${s.id}" ${s.id===state.sessionId?'selected':''}>${esc(s.name)}${s.start_time?' · '+s.start_time:''}</option>`).join('')}</select></div>
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
     <div class="delayrow"><button id="delayBtn" class="delaychip${state.delayMinutes?' active':''}" type="button">Delay${state.delayMinutes?` +${state.delayMinutes}m`:''}</button></div>
     <div id="sesLiveCard"></div>
     <div class="summary" id="summary"></div>
-    <div class="tabs" id="tabs">
-      ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
-    </div>
-    <div class="markall">
-      <button class="btn btn-soft btn-sm" id="markAll">Mark all “${STATUS_LABEL[state.activeStatus]}”</button>
-      <div class="hint">Tap a card to mark · tap again to clear · long-press for minutes & notes</div>
-    </div>
-    <div class="grid" id="grid"></div>`;
+    <div class="hint" style="text-align:center;margin-bottom:8px">Tap a card to mark · tap again to clear · long-press for minutes & notes</div>
+    <div class="grid" id="grid"></div>
+    <div class="mark-status-bar" id="markStatusBar">
+      <div class="tabs" id="tabs" style="margin:0">
+        ${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}
+      </div>
+      <button class="btn btn-soft btn-sm btn-block" id="markAll" style="margin-top:7px">Mark all “${STATUS_LABEL[state.activeStatus]}”</button>
+    </div>`;
 
   $('selClass').onchange=e=>{state.classId=e.target.value;renderMark();};
-  $('selSession').onchange=async e=>{state.sessionId=e.target.value;renderMark();};
   $('selDate').onchange=async e=>{state.date=e.target.value;renderMark();};
   renderSesLiveCard();
   $('tabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
@@ -1813,14 +1823,16 @@ async function renderZal(){
   v.innerHTML = `
     ${(state.zal.mode==='edit' || multi) ? arrSlider : ''}
     ${state.zal.mode==='mark'
-      ? `<div class="zsess-row">
+      ? `<div id="zSesLiveCard"></div>
+        <div class="zsess-row">
           <div class="zsess-card">
             <span class="zsess-lbl">Session</span>
             <select id="zSession" class="zsess-sel">${zs.map(s=>`<option value="${s.id}" ${s.id===state.zalSessionId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
           </div>
           <input id="zDate" type="date" class="inp" style="height:50px;width:150px" value="${state.date}" max="${todayStr()}">
         </div>
-        <div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
+        <div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>
+        <div class="markall" style="margin-top:8px"><button class="btn btn-soft btn-sm" id="zMarkAllOnTime">✓ Mark all on time</button></div>`
       : `<div class="zedit">
           <div class="zedit-row"><span>Grid</span>
             <div class="ministep"><button id="rMinus" type="button">−</button><b>${a.grid_rows||5}</b><button id="rPlus" type="button">+</button></div>rows
@@ -1849,10 +1861,11 @@ async function renderZal(){
     </div>`;
 
   renderZalGrid();
+  if(state.zal.mode==='mark') renderSesLiveCard('zSesLiveCard', state.zalSessionId);
   v.querySelectorAll('.zarr-pill').forEach(btn=>btn.onclick=async()=>{ state.zal.arrangementId=btn.dataset.id; await loadZalLayout(); renderZal(); });
   if($('zNew')) $('zNew').onclick=newArrangement;
-  if($('zSession')) $('zSession').onchange=async e=>{ state.zalSessionId=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
-  if($('zDate')) $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); };
+  if($('zSession')) $('zSession').onchange=async e=>{ state.zalSessionId=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); renderSesLiveCard('zSesLiveCard', state.zalSessionId); };
+  if($('zDate')) $('zDate').onchange=async e=>{ state.date=e.target.value; await loadMarks(state.zalSessionId); renderZalGrid(); renderSesLiveCard('zSesLiveCard', state.zalSessionId); };
   if($('zFull')) $('zFull').onclick=enterFull;
   $('zEdit').onclick=()=>{ state.zal.mode = state.zal.mode==='edit'?'mark':'edit'; renderZal(); };
   $('zOut').onclick=()=>zCell(-12);
@@ -1860,6 +1873,12 @@ async function renderZal(){
   $('zFitW').onclick=zFitW;
   if(state.zal.mode==='mark'){
     $('ztabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{ state.activeStatus=t.dataset.s; $('ztabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t)); });
+    if($('zMarkAllOnTime')){
+      const seated=[...new Set(zalData.seats.filter(s=>s.student_id).map(s=>s.student_id))];
+      const allOn=seated.length>0 && seated.every(id=>state.marks[id]&&state.marks[id].status==='on_time');
+      $('zMarkAllOnTime').textContent=allOn?'✕ Unmark all on time':'✓ Mark all on time';
+      $('zMarkAllOnTime').onclick=async()=>{ await zMarkAllOnTime(); renderZal(); };
+    }
   } else {
     $('rMinus').onclick=()=>setGrid(-1,0); $('rPlus').onclick=()=>setGrid(1,0);
     $('cMinus').onclick=()=>setGrid(0,-1); $('cPlus').onclick=()=>setGrid(0,1);
@@ -1998,6 +2017,27 @@ async function assignSeat(seatId, studentId){
   closePicker(); renderZalGrid();
   for(const [id,sid] of writes) await sb.from('seats').update({student_id:sid}).eq('id',id);
 }
+async function zMarkAllOnTime(){
+  const seated=zalData.seats.filter(s=>s.student_id);
+  const ids=[...new Set(seated.map(s=>s.student_id))];
+  if(!ids.length){toast('No boys seated yet',true);return;}
+  const allOnTime=ids.every(id=>state.marks[id]&&state.marks[id].status==='on_time');
+  if(allOnTime){
+    // unmark all (clear)
+    if(!confirm(`Clear on-time marks for all ${ids.length} seated boys?`))return;
+    ids.forEach(id=>{ if(state.marks[id]&&state.marks[id].status==='on_time') delete state.marks[id]; });
+    renderZalGrid();
+    for(const id of ids) await deleteAtt({student_id:id,session_id:state.zalSessionId,date:state.date},null);
+    toast('Cleared on-time marks');
+  } else {
+    const recs=ids.map(id=>{const cur=state.marks[id];return {student_id:id,session_id:state.zalSessionId,date:state.date,status:'on_time',late_minutes:null,note:cur?cur.note:null,flagged:cur?!!cur.flagged:false,marked_by:state.user.id,marked_at:new Date().toISOString()};});
+    ids.forEach(id=>{state.marks[id]={status:'on_time',late_minutes:null,note:state.marks[id]?.note||null,flagged:state.marks[id]?.flagged||false};});
+    renderZalGrid();
+    await writeAtt(recs,async()=>{await loadMarks(state.zalSessionId);renderZalGrid();},true);
+    toast(`Marked ${ids.length} on time`);
+  }
+}
+
 async function zalMark(studentId){
   const cur=state.marks[studentId];
   if(cur && cur.status===state.activeStatus){
@@ -2376,11 +2416,22 @@ async function renderBaalPeh(){
         </select></div>
       <div class="ctl full"><span>Student</span><select id="bpStudent">${stuOpts}</select></div>
     </div>
-    <button class="btn btn-primary btn-block" id="bpLogBtn" style="margin-bottom:14px">+ Log session</button>
+    <button class="btn btn-primary btn-block" id="bpLogBtn" style="margin-bottom:10px">+ Log session</button>
+    <div class="search" style="margin-bottom:10px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="bpSearch" placeholder="Search by name or material…">
+    </div>
     <div id="bpList"><div class="hist-empty">Loading…</div></div>`;
   $('bpClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; renderBaalPeh(); };
   $('bpStudent').onchange=e=>{ h.studentId=e.target.value; loadBaalPehList(); };
   $('bpLogBtn').onclick=()=>openBpSheet();
+  $('bpSearch').oninput=e=>{
+    const q=e.target.value.trim().toLowerCase();
+    $('bpList').querySelectorAll('.bp-row').forEach(row=>{
+      const txt=(row.textContent||'').toLowerCase();
+      row.style.display=(!q||txt.includes(q)||row.textContent.includes(e.target.value.trim()))?'':'none';
+    });
+  };
   await loadBaalPehList();
 }
 
