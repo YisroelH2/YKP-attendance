@@ -202,6 +202,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .hist-row.sel .hist-check{background:var(--accent);border-color:var(--accent)}
 .hist-check svg{width:15px;height:15px}
 .shul-presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+#shulNameSeg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+#shulNameSeg .seg-btn{height:42px;border-radius:var(--r-md);font-weight:700;font-size:13px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink-soft)}
+#shulNameSeg .seg-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .shul-chip{font-size:12px;padding:7px 10px;border-radius:999px;background:var(--surface-2);border:1.5px solid var(--line);color:var(--ink-soft);text-align:left}
 .shul-chip:active{transform:scale(.96)}
 .shul-opt{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);margin-top:12px;cursor:pointer}
@@ -479,8 +482,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 /* full-screen marking */
 .zalfs{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column}
-#zRoomFs{flex:1;max-height:none;margin:0;padding:max(env(safe-area-inset-top),8px) 8px 0}
-.zalfs-bottom{display:flex;gap:8px;align-items:center;padding:8px 10px max(env(safe-area-inset-bottom),8px);background:transparent;border-top:none;position:relative;z-index:2}
+#zRoomFs{flex:1;max-height:none;margin:0;padding:max(env(safe-area-inset-top),8px) 8px calc(64px + max(env(safe-area-inset-bottom),8px))}
+.zalfs-bottom{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;align-items:center;padding:8px 10px max(env(safe-area-inset-bottom),8px);background:transparent;border-top:none;z-index:5;pointer-events:none}
+.zalfs-bottom>*{pointer-events:auto}
 .zalfs-bottom .tabs{flex:1;margin:0}
 .zalfs-bottom .tab{background:rgba(255,255,255,.62);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border:1px solid rgba(215,220,240,.72);box-shadow:0 8px 28px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.9);color:var(--ink)}
 .zalfs-bottom .tab.active{box-shadow:0 8px 28px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.1),inset 0 1px 0 rgba(255,255,255,.95)}
@@ -2238,6 +2242,7 @@ function renderHistList(rows){
     if(r.status==='late' && h.statuses.has('late')) return !h.lateMins || (r.late_minutes||0)>=h.lateMins;
     return h.statuses.has(r.status)||(h.flagged&&r.flagged);
   });
+  h._filtered=filt;
 
   const list=$('histList');
   if(!filt.length){ list.innerHTML=`<div class="hist-empty">No attendance records match these filters.</div>`; return; }
@@ -2312,6 +2317,7 @@ async function renderHistory(){
     <div class="summary" id="hSummary"></div>
     <div class="hist-actions">
       <button class="btn btn-soft btn-sm" id="hSelToggle">${h.selMode?'Cancel selection':'✓ Select for list'}</button>
+      ${h.selMode?`<button class="btn btn-soft btn-sm" id="hSelAll">Select all shown</button>`:''}
       ${h.selMode?`<button class="btn btn-primary btn-sm" id="hExportList">Export list (${h.sel.size})</button>`:''}
     </div>
     <div class="zal-hint" style="margin:-4px 0 8px">${h.selMode?'Tap records to add them to the list':'Tap a record to edit it'}</div>
@@ -2321,6 +2327,15 @@ async function renderHistory(){
   $('hStudent').onchange=e=>{ h.studentId=e.target.value; h.limit=50; refreshHistList(); };
   $('hPeriod').onchange=e=>{ h.period=e.target.value; h.limit=50; renderHistory(); };
   $('hSelToggle').onclick=()=>{ h.selMode=!h.selMode; if(!h.selMode)h.sel.clear(); renderHistory(); };
+  if($('hSelAll')) $('hSelAll').onclick=()=>{
+    const all=(h._filtered||[]);
+    const keys=all.map(r=>r.student_id+'|'+r.session_id+'|'+r.date);
+    const allSelected=keys.length>0 && keys.every(k=>h.sel.has(k));
+    if(allSelected){ keys.forEach(k=>h.sel.delete(k)); } else { keys.forEach(k=>h.sel.add(k)); }
+    renderHistList(histRows||[]);
+    const btn=$('hExportList'); if(btn)btn.textContent=`Export list (${h.sel.size})`;
+    $('hSelAll').textContent=allSelected?'Select all shown':'Unselect all';
+  };
   if($('hExportList')) $('hExportList').onclick=()=>openShulListSheet();
   $('hStatusTabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
     const s=t.dataset.s;
@@ -2803,64 +2818,91 @@ function openShulListSheet(){
         <textarea id="shulHdr" class="inp" rows="2" style="resize:none">${esc(SHUL_PRESETS[0])}</textarea>
       </div>
       <div class="shul-presets">${SHUL_PRESETS.map((p,i)=>`<button class="shul-chip" data-i="${i}" type="button">${esc(p.length>34?p.slice(0,32)+'…':p)}</button>`).join('')}</div>
+      <div class="field" style="margin-top:12px"><label>Names shown</label>
+        <div class="seg" id="shulNameSeg">
+          <button class="seg-btn active" data-v="heb" type="button">Hebrew</button>
+          <button class="seg-btn" data-v="eng" type="button">English</button>
+          <button class="seg-btn" data-v="both" type="button">Both</button>
+        </div>
+      </div>
       <label class="shul-opt"><input type="checkbox" id="shulShowReason"> Show reason (late / absent) next to each name</label>
       <button class="btn btn-primary btn-block" id="shulGen" style="margin-top:14px">Generate list PDF</button>`,
     onMount:()=>{
+      let nameFmt='heb';
       document.querySelectorAll('.shul-chip').forEach(b=>b.onclick=()=>{ $('shulHdr').value=SHUL_PRESETS[+b.dataset.i]; });
+      $('shulNameSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{ nameFmt=b.dataset.v; $('shulNameSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b)); });
       $('shulGen').onclick=()=>{
         const hdr=$('shulHdr').value.trim()||SHUL_PRESETS[0];
         const showReason=$('shulShowReason').checked;
         closeCustomSheet();
-        generateShulList(people,hdr,showReason);
+        generateShulList(people,hdr,showReason,nameFmt);
       };
     }
   });
 }
-function generateShulList(people,heading,showReason){
+async function generateShulList(people,heading,showReason,nameFmt){
   if(!people.length){toast('No one selected',true);return;}
+  nameFmt=nameFmt||'heb';
   toast('Generating list…');
   const h=state.history;
-  // build reason lookup from selected records (status per student)
+  const rtl=(nameFmt==='heb'); // Hebrew-only → lay out right-to-left
+  // reason lookup
   const reasonByStu={};
   if(showReason){
-    const sesById={}; state.sessions.forEach(s=>sesById[s.id]=s);
     (histRows||[]).forEach(r=>{
       const key=r.student_id+'|'+r.session_id+'|'+r.date;
       if(h.sel.has(key)){
         const lbl=(STATUS_LABEL[r.status]||r.status)+(r.status==='late'&&r.late_minutes?` +${r.late_minutes}m`:'')+(r.flagged?' • attention':'');
-        reasonByStu[r.student_id]=reasonByStu[r.student_id]?reasonByStu[r.student_id]:lbl;
+        if(!reasonByStu[r.student_id]) reasonByStu[r.student_id]=lbl;
       }
     });
   }
-  const today=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  const rows=people.map((s,i)=>{
+  const engDate=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  let hebDate='';
+  try{ hebDate=await fetchHebDate(todayStr()); }catch{}
+
+  const nameCell=(s)=>{
     const heb=esc(s.hebrew_name||'');
     const eng=esc(s.english_name||'');
-    const reason=showReason&&reasonByStu[s.id]?`<td class="sl-reason">${esc(reasonByStu[s.id])}</td>`:(showReason?'<td class="sl-reason"></td>':'');
-    return `<tr><td class="sl-num">${i+1}</td><td class="sl-name"><span class="sl-heb">${heb}</span>${eng?`<span class="sl-eng">${eng}</span>`:''}</td>${reason}<td class="sl-check"></td></tr>`;
-  }).join('');
+    if(nameFmt==='heb') return `<span class="sl-heb" dir="rtl">${heb||eng}</span>`;
+    if(nameFmt==='eng') return `<span class="sl-eng-main">${eng||heb}</span>`;
+    return `<span class="sl-heb" dir="rtl">${heb}</span>${eng?`<span class="sl-eng"> ${eng}</span>`:''}`;
+  };
+  const reasonCell=(s)=> showReason&&reasonByStu[s.id]?`<span class="sl-reason">${esc(reasonByStu[s.id])}</span>`:'';
+
+  // Split into two balanced columns. For RTL (Hebrew), fill right column first so numbering reads naturally right-to-left.
+  const n=people.length;
+  const half=Math.ceil(n/2);
+  const colA=people.slice(0,half);     // 1..half
+  const colB=people.slice(half);       // half+1..n
+  const rowFor=(s,idx)=>`<div class="sl-row"><span class="sl-num">${idx}</span><span class="sl-name">${nameCell(s)}</span>${reasonCell(s)}</div>`;
+  const leftCol=colA.map((s,i)=>rowFor(s,i+1)).join('');
+  const rightCol=colB.map((s,i)=>rowFor(s,half+i+1)).join('');
+  // In RTL mode, the first column (1..half) goes on the RIGHT.
+  const colsHtml=rtl
+    ? `<div class="sl-col">${rightCol}</div><div class="sl-col">${leftCol}</div>`
+    : `<div class="sl-col">${leftCol}</div><div class="sl-col">${rightCol}</div>`;
+
   const css=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a2e}
-.sl-page{padding:36px 40px;max-width:760px;margin:0 auto}
-.sl-top{display:flex;align-items:center;gap:16px;border-bottom:3px solid #2b5299;padding-bottom:14px;margin-bottom:8px}
+.sl-page{padding:36px 40px;max-width:780px;margin:0 auto}
+.sl-top{display:flex;align-items:center;gap:16px;border-bottom:3px solid #2b5299;padding-bottom:14px;margin-bottom:10px}
 .sl-logo{height:64px;object-fit:contain}
 .sl-inst{font-size:13px;color:#555}.sl-iname{font-size:16px;font-weight:bold;color:#1a1a2e}
-.sl-date{font-size:12px;color:#888;text-align:right;margin-bottom:18px}
-.sl-head{font-size:26px;font-weight:bold;text-align:center;line-height:1.3;margin:22px 0 26px;color:#1a2747}
-.sl-tbl{width:100%;border-collapse:collapse;font-size:17px}
-.sl-tbl td{padding:11px 8px;border-bottom:1.5px solid #d4dae6;vertical-align:middle}
-.sl-num{width:36px;text-align:center;color:#9aa;font-size:14px}
-.sl-name{font-weight:600}
-.sl-heb{font-size:19px}.sl-eng{font-size:12px;color:#888;margin-left:8px;font-weight:400}
-.sl-reason{font-size:12px;color:#c0392b;width:130px;text-align:right;white-space:nowrap}
-.sl-check{width:34px;border:none}.sl-check::after{content:"";display:inline-block;width:20px;height:20px;border:2px solid #b8c0d0;border-radius:5px}
-.sl-foot{margin-top:30px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #e5e5e5;padding-top:10px}
+.sl-dates{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#777;margin-bottom:20px}
+.sl-dates .heb{direction:rtl;font-weight:600;color:#555}
+.sl-head{font-size:25px;font-weight:bold;text-align:center;line-height:1.3;margin:18px 0 28px;color:#1a2747}
+.sl-cols{display:flex;gap:34px}.sl-col{flex:1}
+.sl-row{display:flex;align-items:baseline;gap:10px;padding:9px 4px;border-bottom:1.5px solid #d4dae6}
+.sl-num{width:24px;flex:none;text-align:center;color:#9aa;font-size:13px;font-weight:600}
+.sl-name{flex:1;font-weight:600;font-size:17px}
+.sl-heb{font-size:19px}.sl-eng{font-size:12px;color:#888;font-weight:400}.sl-eng-main{font-size:16px}
+.sl-reason{font-size:11px;color:#c0392b;white-space:nowrap}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sl-page{padding:24px 30px}}`;
-  const body=`<div class="sl-page">
-    <div class="sl-top"><img class="sl-logo" src="${LOGO_RC}" alt="YKP"><div class="sl-inst"><div class="sl-iname">Yeshivas Kayitz Program</div><div>Attendance Office</div></div></div>
-    <div class="sl-date">${today}</div>
+  const body=`<div class="sl-page"${rtl?' dir="rtl"':''}>
+    <div class="sl-top"${rtl?' dir="ltr"':''}><img class="sl-logo" src="${LOGO_RC}" alt="YKP"><div class="sl-inst"><div class="sl-iname">Yeshivas Kayitz Program</div><div>Attendance Office</div></div></div>
+    <div class="sl-dates"${rtl?' dir="ltr"':''}><span class="eng">${engDate}</span><span class="heb">${esc(hebDate)}</span></div>
     <div class="sl-head">${esc(heading)}</div>
-    <table class="sl-tbl">${rows}</table>
-    <div class="sl-foot">Please report promptly · ${people.length} ${people.length===1?'name':'names'} listed</div>
+    <div class="sl-cols">${colsHtml}</div>
   </div>`;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
