@@ -1542,11 +1542,29 @@ function renderStudents(selMode, sel){
 
 let photoFor=null;
 function pickPhoto(id){ photoFor=id; $('photoInput').value=''; $('photoInput').click(); }
+// Shrink a chosen image to a small JPEG before upload (keeps Supabase storage tiny).
+async function compressImage(file, maxDim=600, quality=0.82){
+  try{
+    const dataURL=await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); });
+    const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=dataURL; });
+    let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    if(!w||!h) return file;
+    if(w>h && w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; }
+    else if(h>=w && h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; }
+    const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',quality));
+    // Only use the compressed version if it actually came out smaller
+    return (blob && blob.size && blob.size<file.size) ? blob : file;
+  }catch(_){ return file; }  // any failure → fall back to the original file
+}
 $('photoInput').addEventListener('change', async e=>{
   const file=e.target.files[0]; if(!file||!photoFor)return;
-  const id=photoFor; toast('Uploading photo…');
+  const id=photoFor; toast('Optimising photo…');
+  const blob=await compressImage(file);
+  toast('Uploading photo…');
   const path=`${id}.jpg`;
-  const up=await sb.storage.from('photos').upload(path,file,{upsert:true,contentType:file.type||'image/jpeg'});
+  const up=await sb.storage.from('photos').upload(path,blob,{upsert:true,contentType:'image/jpeg'});
   if(up.error){toast('Upload failed: '+up.error.message,true);return;}
   await sb.from('students').update({photo_path:path}).eq('id',id);
   const stu=state.students.find(s=>s.id===id); if(stu)stu.photo_path=path;
