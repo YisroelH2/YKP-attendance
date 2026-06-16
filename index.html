@@ -369,6 +369,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .toggle .tlabel{font-weight:600;font-size:14px}
 .toggle .tsub{font-size:12px;color:var(--ink-faint)}
 .switch{width:46px;height:28px;border-radius:99px;background:#d4d8e6;position:relative;transition:.18s;flex:none}
+.notif-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
 .switch.on{background:var(--absent)}
 .switch i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .switch.on i{left:21px}
@@ -843,6 +844,68 @@ function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast 
 /* =========================================================
    2. BOOT
    ========================================================= */
+/* ===================== NOTIFICATIONS ===================== */
+const NOTIF_KEY='ykp_notifs_on';
+const NOTIF_LEAD_KEY='ykp_notif_lead';
+function notifLead(){ const v=parseInt(localStorage.getItem(NOTIF_LEAD_KEY)); return (v===5||v===10||v===15)?v:5; }
+let _notifTimer=null, _notified={}, _notifiedDay=null;
+function notifsEnabled(){ return localStorage.getItem(NOTIF_KEY)==='1'; }
+
+async function setNotifs(on){
+  if(on){
+    if(!('Notification' in window)){ toast('This device doesn’t support notifications',true); return false; }
+    let perm=Notification.permission;
+    if(perm==='default'){ try{ perm=await Notification.requestPermission(); }catch(_){ perm=Notification.permission; } }
+    if(perm!=='granted'){ toast('Blocked — allow notifications for this site in your browser settings',true); return false; }
+    localStorage.setItem(NOTIF_KEY,'1');
+    startNotifLoop();
+    toast('Reminders on');
+    return true;
+  }
+  localStorage.setItem(NOTIF_KEY,'0');
+  if(_notifTimer){ clearInterval(_notifTimer); _notifTimer=null; }
+  toast('Reminders off');
+  return false;
+}
+
+function startNotifLoop(){
+  if(_notifTimer){ clearInterval(_notifTimer); _notifTimer=null; }
+  if(!notifsEnabled()) return;
+  _checkSoonSessions();
+  _notifTimer=setInterval(_checkSoonSessions, 30000); // re-check every 30s while open
+}
+
+async function _showNotif(title, body, tag){
+  const opts={ body, tag, icon:'icon-192.png', badge:'icon-192.png', vibrate:[80,40,80], renotify:false };
+  try{
+    if('serviceWorker' in navigator){
+      const reg=await navigator.serviceWorker.ready;
+      if(reg && reg.showNotification){ reg.showNotification(title, opts); return; }
+    }
+  }catch(_){}
+  try{ new Notification(title, opts); }catch(_){}
+}
+
+function _checkSoonSessions(){
+  if(!notifsEnabled() || !('Notification' in window) || Notification.permission!=='granted') return;
+  const day=todayStr();
+  if(day!==_notifiedDay){ _notified={}; _notifiedDay=day; } // reset the "already-notified" set each day
+  const now=new Date();
+  (state.sessions||[]).forEach(s=>{
+    if(!s.start_time || _notified[s.id]) return;
+    const [h,m]=s.start_time.split(':').map(Number);
+    if(isNaN(h)) return;
+    const start=new Date(); start.setHours(h, m||0, 0, 0);
+    const minsUntil=(start.getTime()-now.getTime())/60000;
+    if(minsUntil<=notifLead() && minsUntil>0){
+      _notified[s.id]=true; // fire once per session per day
+      const mins=Math.max(1,Math.round(minsUntil));
+      const kind=s.type==='zal'?'Zal':'Class';
+      _showNotif(`${kind} starting soon`, `${s.name} starts in ${mins} min · ${fmtTime12(s.start_time)}`, 'ses-'+s.id+'-'+day);
+    }
+  });
+}
+
 function boot(){
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
   updateOfflineBar();
@@ -913,6 +976,7 @@ async function enterApp(){
   $('app').classList.remove('hidden');
   syncQueue(); // drain anything left from prior session
   await loadAll();
+  if(notifsEnabled()) startNotifLoop();
   if(!state.schedule) state.schedule={date:todayStr()};
   // Handle tap-from-widget navigation
   const _wNav=localStorage.getItem('widget_nav');
@@ -1614,6 +1678,23 @@ function renderSetup(){
       <div id="clsList"></div>
     </div>
 
+    <div class="card">
+      <div class="cardhead"><h2>Notifications</h2></div>
+      <p class="muted">Get a reminder on this device before each session starts. Works while the app is open or running in the background.</p>
+      <label class="notif-row">
+        <span>Class-starting reminders</span>
+        <div class="switch${notifsEnabled()?' on':''}" id="notifToggle"><i></i></div>
+      </label>
+      <div id="notifLeadWrap" style="margin-top:12px${notifsEnabled()?'':';display:none'}">
+        <span class="muted" style="display:block;margin-bottom:7px">Remind me this long before:</span>
+        <div class="rc-seg" id="notifLeadSeg">
+          <button class="seg-btn${notifLead()===5?' active':''}" data-v="5" type="button">5 min</button>
+          <button class="seg-btn${notifLead()===10?' active':''}" data-v="10" type="button">10 min</button>
+          <button class="seg-btn${notifLead()===15?' active':''}" data-v="15" type="button">15 min</button>
+        </div>
+      </div>
+    </div>
+
     <button class="btn btn-ghost btn-block" id="setupSignout">Sign out</button>
     <p class="app-foot">YKP Attendance · <a href="#" id="setupPrivacy">Privacy Policy</a><br>© 2026 Yisroel Haskelevich</p>`;
 
@@ -1622,6 +1703,18 @@ function renderSetup(){
   $('addSession').onclick=()=>editSession(null);
   $('addClass').onclick=()=>editClass(null);
   $('setupSignout').onclick=async()=>{await sb.auth.signOut();location.reload();};
+  $('notifToggle').onclick=async()=>{
+    const turningOn=!$('notifToggle').classList.contains('on');
+    const nowOn=await setNotifs(turningOn);
+    $('notifToggle').classList.toggle('on', nowOn);
+    if($('notifLeadWrap')) $('notifLeadWrap').style.display = nowOn ? '' : 'none';
+  };
+  if($('notifLeadSeg')) $('notifLeadSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
+    localStorage.setItem(NOTIF_LEAD_KEY, b.dataset.v);
+    $('notifLeadSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b));
+    if(notifsEnabled()) startNotifLoop();
+    toast('Reminder set to '+b.dataset.v+' min before');
+  });
   $('setupPrivacy').onclick=e=>{e.preventDefault();showPolicy();};
 
 
