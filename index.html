@@ -1541,7 +1541,20 @@ function renderStudents(selMode, sel){
 }
 
 let photoFor=null;
-function pickPhoto(id){ photoFor=id; $('photoInput').value=''; $('photoInput').click(); }
+function pickPhoto(id){
+  photoFor=id;
+  openCustomSheet({id:'__photopick__',title:'Add photo',html:`
+    <div class="row2" style="gap:10px">
+      <button class="btn btn-soft" id="ppCam" style="flex:1;height:58px;font-size:15px">📷 Take photo</button>
+      <button class="btn btn-soft" id="ppGal" style="flex:1;height:58px;font-size:15px">🖼️ Gallery</button>
+    </div>`,
+    onMount(){
+      const inp=$('photoInput');
+      $('ppCam').onclick=()=>{ closeCustomSheet(); inp.value=''; inp.setAttribute('capture','environment'); inp.click(); };
+      $('ppGal').onclick=()=>{ closeCustomSheet(); inp.value=''; inp.removeAttribute('capture'); inp.click(); };
+    }
+  });
+}
 // Shrink a chosen image to a small JPEG before upload (keeps Supabase storage tiny).
 async function compressImage(file, maxDim=600, quality=0.82){
   try{
@@ -1724,7 +1737,7 @@ function fieldHTML(f){
   if(f.type==='color') return `<div class="field"><label>${esc(f.label)}</label>
     <div class="swrow" data-color-field data-key="${f.key}" data-value="${esc(f.value||PALETTE[0])}">
     ${PALETTE.map(c=>`<span class="sw-opt ${c===f.value?'on':''}" data-c="${c}" style="background:${c}"></span>`).join('')}</div></div>`;
-  const t=f.type==='time'?'time':f.type==='number'?'number':'text';
+  const t=f.type==='time'?'time':f.type==='number'?'number':f.type==='email'?'email':'text';
   return `<div class="field"><label>${esc(f.label)}</label>
     <input data-key="${f.key}" class="inp" type="${t}" dir="auto" value="${esc(f.value??'')}" ${f.placeholder?`placeholder="${esc(f.placeholder)}"`:''}></div>`;
 }
@@ -1747,9 +1760,10 @@ function editStudent(id){
       {key:'english_name',label:'English name',type:'text',value:s?s.english_name:''},
       {key:'class_id',label:'Class',type:'select',value:s?(s.class_id||''):'',options:classOpts},
       {key:'bunk',label:'Bunk',type:'text',value:s?s.bunk:''},
+      {key:'parent_email',label:'Parent email (for report cards)',type:'email',value:s?(s.parent_email||''):'',placeholder:'parent@example.com'},
     ],
     onSave:async v=>{
-      const rec={hebrew_name:(v.hebrew_name||'').trim(),english_name:(v.english_name||'').trim()||null,class_id:v.class_id||null,bunk:(v.bunk||'').trim()||null};
+      const rec={hebrew_name:(v.hebrew_name||'').trim(),english_name:(v.english_name||'').trim()||null,class_id:v.class_id||null,bunk:(v.bunk||'').trim()||null,parent_email:(v.parent_email||'').trim()||null};
       if(!rec.hebrew_name){toast('Hebrew name required',true);return;}
       const r = s ? await sb.from('students').update(rec).eq('id',s.id)
                   : await sb.from('students').insert({...rec,active:true});
