@@ -369,6 +369,10 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .toggle .tlabel{font-weight:600;font-size:14px}
 .toggle .tsub{font-size:12px;color:var(--ink-faint)}
 .switch{width:46px;height:28px;border-radius:99px;background:#d4d8e6;position:relative;transition:.18s;flex:none}
+.btn-google{background:#fff;border:1.5px solid #dadce0;color:#3c4043;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:600}
+.btn-google:active{background:#f7f8fa}
+.or-divider{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--ink-faint);font-size:12px}
+.or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:var(--line)}
 .notif-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
 .switch.on{background:var(--absent)}
 .switch i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
@@ -547,6 +551,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .ses-cal-block:active{opacity:.8}
 .ses-cal-block-name{font-weight:700;font-size:12.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ses-cal-block-time{font-size:10px;color:rgba(255,255,255,.75)}
+.ses-cal-block-days{font-size:9.5px;color:rgba(255,255,255,.7);font-weight:700;letter-spacing:.04em;margin-top:1px}
+.dayrow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day-opt{height:42px;border-radius:11px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink-soft);font-weight:800;font-size:14px;transition:.12s}
+.day-opt.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.day-opt:active{transform:scale(.92)}
 
 /* ── Session live info card (Mark tab) ── */
 .ses-live{background:linear-gradient(135deg,var(--accent) 0%,#3730a3 100%);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:12px;color:#fff}
@@ -581,6 +590,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
     <label class="lbl" for="pw">Password</label>
     <input id="pw" class="inp" type="password" autocomplete="current-password" placeholder="••••••••" />
     <button id="loginBtn" class="btn btn-primary btn-block">Sign in</button>
+    <div class="or-divider"><span>or</span></div>
+    <button id="googleBtn" class="btn btn-google btn-block" type="button">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.41 5.41 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
     <p class="gate-foot">By signing in you agree to the <a href="#" id="loginPrivacy">Privacy&nbsp;Policy</a>.<br>© 2026 Yisroel Haskelevich</p>
   </div>
 </div>
@@ -892,7 +906,7 @@ function _checkSoonSessions(){
   if(day!==_notifiedDay){ _notified={}; _notifiedDay=day; } // reset the "already-notified" set each day
   const now=new Date();
   (state.sessions||[]).forEach(s=>{
-    if(!s.start_time || _notified[s.id]) return;
+    if(!s.start_time || _notified[s.id] || !sessionOnDay(s,day)) return;
     const [h,m]=s.start_time.split(':').map(Number);
     if(isNaN(h)) return;
     const start=new Date(); start.setHours(h, m||0, 0, 0);
@@ -926,6 +940,7 @@ function boot(){
 
 function wireEvents(){
   $('loginBtn').onclick = doLogin;
+  $('googleBtn').onclick = signInWithGoogle;
   $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
   $('signout').onclick = async()=>{ await sb.auth.signOut(); location.reload(); };
   document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
@@ -958,6 +973,14 @@ function wireEvents(){
   $('fsZIn').onclick = ()=>zCell(12);
   $('fsZOut').onclick = ()=>zCell(-12);
   $('fsZFitW').onclick = zFitW;
+}
+
+async function signInWithGoogle(){
+  try{
+    const redirectTo=location.href.split('#')[0].split('?')[0];
+    const {error}=await sb.auth.signInWithOAuth({ provider:'google', options:{ redirectTo } });
+    if(error) toast(error.message||'Google sign-in failed',true);
+  }catch(e){ toast('Google sign-in failed',true); }
 }
 
 async function doLogin(){
@@ -1094,6 +1117,11 @@ function _calDateLabel(d){
   return DN[dt.getDay()]+', '+MN[dt.getMonth()]+' '+dt.getDate();
 }
 
+function sessionOnDay(s,dateStr){
+  if(!s.days || !s.days.length) return true;       // no days set = every day
+  const dow=new Date(dateStr+'T00:00:00').getDay(); // 0=Sun … 6=Sat
+  return s.days.includes(dow);
+}
 function renderSchedule(){
   const v=$('view-schedule');
   if(!state.schedule) state.schedule={date:todayStr()};
@@ -1108,7 +1136,7 @@ function renderSchedule(){
   }
 
   // Session blocks — side-by-side for overlapping events
-  const sorted=[...state.sessions].filter(s=>s.start_time).sort((a,b)=>a.start_time<b.start_time?-1:1);
+  const sorted=[...state.sessions].filter(s=>s.start_time && sessionOnDay(s,date)).sort((a,b)=>a.start_time<b.start_time?-1:1);
   let blocks='';
   if(!sorted.length){
     blocks=`<div class="cal-empty">No sessions yet.<br>Add them in <b>Setup</b> → Sessions.</div>`;
@@ -1818,6 +1846,12 @@ function openForm({title, fields, onSave, onDelete}){
       o.classList.add('on'); wrap.dataset.value=o.dataset.c;
     });
   });
+  $('formBody').querySelectorAll('[data-days-field]').forEach(wrap=>{
+    wrap.querySelectorAll('.day-opt').forEach(o=>o.onclick=()=>{
+      o.classList.toggle('on');
+      wrap.dataset.value=[...wrap.querySelectorAll('.day-opt.on')].map(x=>x.dataset.d).join(',');
+    });
+  });
   $('formDelete').style.display=onDelete?'block':'none';
   $('formDelete').onclick=onDelete?()=>{if(confirm('Delete this? This cannot be undone.')){onDelete();}}:null;
   $('formSave').onclick=()=>onSave(readForm());
@@ -1830,6 +1864,15 @@ function fieldHTML(f){
   if(f.type==='color') return `<div class="field"><label>${esc(f.label)}</label>
     <div class="swrow" data-color-field data-key="${f.key}" data-value="${esc(f.value||PALETTE[0])}">
     ${PALETTE.map(c=>`<span class="sw-opt ${c===f.value?'on':''}" data-c="${c}" style="background:${c}"></span>`).join('')}</div></div>`;
+  if(f.type==='days'){
+    const sel=Array.isArray(f.value)?f.value.map(Number):[];
+    const labels=['S','M','T','W','T','F','S'], full=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    return `<div class="field"><label>${esc(f.label)}</label>
+      <div class="dayrow" data-days-field data-key="${f.key}" data-value="${sel.join(',')}">
+        ${labels.map((l,i)=>`<button type="button" class="day-opt ${sel.includes(i)?'on':''}" data-d="${i}" title="${full[i]}">${l}</button>`).join('')}
+      </div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">Leave all off = happens every day</div></div>`;
+  }
   const t=f.type==='time'?'time':f.type==='number'?'number':f.type==='email'?'email':'text';
   return `<div class="field"><label>${esc(f.label)}</label>
     <input data-key="${f.key}" class="inp" type="${t}" dir="auto" value="${esc(f.value??'')}" ${f.placeholder?`placeholder="${esc(f.placeholder)}"`:''}></div>`;
@@ -1837,7 +1880,12 @@ function fieldHTML(f){
 function readForm(){
   const vals={};
   $('formBody').querySelectorAll('[data-key]').forEach(el=>{
-    vals[el.dataset.key]= el.hasAttribute('data-color-field') ? el.dataset.value : el.value;
+    if(el.hasAttribute('data-color-field')) vals[el.dataset.key]=el.dataset.value;
+    else if(el.hasAttribute('data-days-field')){
+      const raw=(el.dataset.value||'').trim();
+      vals[el.dataset.key]= raw ? raw.split(',').filter(x=>x!=='').map(Number) : null;
+    }
+    else vals[el.dataset.key]=el.value;
   });
   return vals;
 }
@@ -1922,9 +1970,11 @@ function _renderSesCal(container){
     const isZal=s.type==='zal';
     const bg=isZal?'linear-gradient(135deg,#1e1b4b,#312e81)':'linear-gradient(135deg,#4f46e5,#6366f1)';
     const pct=100/numCols; const L=(col*pct).toFixed(1); const W=(pct-1.5).toFixed(1);
+    const _dayLbl=(s.days&&s.days.length)?['Su','Mo','Tu','We','Th','Fr','Sa'].filter((_,i)=>s.days.includes(i)).join(' '):'Every day';
     blocks+=`<div class="ses-cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg}">
       <div class="ses-cal-block-name">${esc(s.name)}</div>
       ${ht>36?`<div class="ses-cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
+      ${ht>52?`<div class="ses-cal-block-days">${_dayLbl}</div>`:''}
     </div>`;
   });
   container.innerHTML=`<div class="ses-cal-wrap" style="height:${gridH}px">${hours}<div class="cal-lane">${blocks}</div></div>`;
@@ -1941,10 +1991,11 @@ function editSession(id){
       {key:'name',label:'Session name',type:'text',value:s?s.name:''},
       {key:'start_time',label:'Start time',type:'time',value:s?(s.start_time||'').slice(0,5):''},
       {key:'end_time',label:'End time',type:'time',value:s?(s.end_time||'').slice(0,5):''},
+      {key:'days',label:'Days of the week',type:'days',value:s&&s.days?s.days:[]},
       {key:'type',label:'Session type',type:'select',value:s?(s.type||'class'):'class',options:[{value:'class',label:'In-class — marked on the Mark tab'},{value:'zal',label:'Zal — marked on the Zal tab'}]},
     ],
     onSave:async v=>{
-      const rec={name:(v.name||'').trim(),start_time:v.start_time||null,end_time:v.end_time||null,type:v.type||'class'};
+      const rec={name:(v.name||'').trim(),start_time:v.start_time||null,end_time:v.end_time||null,type:v.type||'class',days:(v.days&&v.days.length)?v.days:null};
       if(!rec.name){toast('Session name required',true);return;}
       const r = s ? await sb.from('sessions').update(rec).eq('id',s.id)
                   : await sb.from('sessions').insert({...rec,sort_order:state.sessions.length+1});
@@ -2771,6 +2822,15 @@ function closeCustomSheet(){
 }
 
 /* ===================== REPORT CARD SHEET ===================== */
+function emailReportToParent(stu){
+  const email=(stu.parent_email||'').trim();
+  if(!email){ toast('No parent email on file — add one in the student’s profile',true); return; }
+  const name=stu.english_name||stu.hebrew_name||'your son';
+  const subject=`Report Card — ${(stu.hebrew_name||stu.english_name||'').trim()}`;
+  const body=`Dear Parent,\n\nPlease find attached the report card for ${name} from Yeshivas Kayitz Program.\n\nIf you have any questions, feel free to reach out.\n\nThank you,\nYKP`;
+  location.href=`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function openRCSheet(single){
   const isSingle=single&&single.id;
   const curMonth=todayStr().slice(0,7);
@@ -2791,7 +2851,9 @@ function openRCSheet(single){
       <div class="field" id="rcWeekWrap" style="display:none"><label>Week containing</label>
         <input type="date" id="rcSheetWeek" class="inp" value="${todayStr()}" max="${todayStr()}">
       </div>
-      <button class="btn btn-primary btn-block" id="rcSheetGen" style="margin-top:14px">Generate PDF</button>`,
+      <button class="btn btn-primary btn-block" id="rcSheetGen" style="margin-top:14px">Generate PDF</button>
+      ${isSingle?`<button class="btn btn-soft btn-block" id="rcEmailParent" style="margin-top:8px">📧 Email to parent</button>
+        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">${single.parent_email?('Opens an email to '+esc(single.parent_email)+'. Attach the PDF you generated, then send.'):'No parent email yet — add one in this student’s profile to use this.'}</div>`:''}`,
     onMount:()=>{
       let ptype='month';
       $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
@@ -2800,6 +2862,7 @@ function openRCSheet(single){
         $('rcMonthWrap').style.display=ptype==='month'?'':'none';
         $('rcWeekWrap').style.display=ptype==='week'?'':'none';
       });
+      if($('rcEmailParent')) $('rcEmailParent').onclick=()=>emailReportToParent(single);
       $('rcSheetGen').onclick=async()=>{
         let from,to;
         if(ptype==='month'){
