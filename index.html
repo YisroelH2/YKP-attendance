@@ -147,9 +147,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 /* ---------- status tabs (the "brush") ---------- */
 .tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:10px}
-.mark-toprow{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-.mark-toprow #markAll{flex:1;height:40px}
-.mark-toprow .delaychip{flex-shrink:0}
+.mark-toprow{display:flex;gap:7px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.mark-toprow #markAll{flex:1 1 110px;height:38px}
+.mark-toprow .delaychip,.mark-toprow .layoutchip{flex:0 1 auto;height:38px;padding:0 11px;font-size:12.5px;white-space:nowrap}
 .layoutchip{flex-shrink:0;height:40px;padding:0 12px;border-radius:var(--r-md);background:var(--surface-2);border:1.5px solid var(--line);color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap}
 .layoutchip:active{transform:scale(.96)}
 .layout-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,#EEF2FF,#F3E8FF);border:1px solid #C7D2FE;border-radius:var(--r-md);padding:9px 12px;margin-bottom:10px;font-size:13px;color:var(--ink)}
@@ -456,6 +456,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zal-bar .zal-editbtn:active{transform:scale(.97)}
 /* full-screen liquid-glass zoom cluster */
 .fs-zoom{position:absolute;right:14px;bottom:calc(60px + max(env(safe-area-inset-bottom),8px) + 12px);display:flex;flex-direction:column;gap:3px;z-index:2}
+.fs-latebadge{position:absolute;top:calc(max(env(safe-area-inset-top),8px) + 8px);left:50%;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:99px;background:rgba(255,255,255,.55);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border:1px solid rgba(215,220,240,.7);box-shadow:0 8px 28px rgba(0,0,0,.16),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.9);font-weight:800;font-size:14px;color:var(--ink);pointer-events:none}
+.fs-latebadge b{color:var(--late);font-size:17px;font-weight:900}
 .fs-zbtn{width:50px;height:50px;border-radius:16px;background:rgba(255,255,255,.68);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border:1px solid rgba(215,220,240,.72);box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.92);color:var(--accent);font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:transform .12s}
 .fs-zbtn:active{transform:scale(.87)}
 .fs-zbtn-divider{height:1px;margin:1px 6px;background:rgba(160,170,210,.35)}
@@ -561,8 +563,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .ses-live{background:linear-gradient(135deg,var(--accent) 0%,#3730a3 100%);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:12px;color:#fff}
 .ses-live-meta{font-size:11px;font-weight:600;opacity:.78;margin-bottom:3px;letter-spacing:.02em}
 .ses-live-name{font-size:20px;font-weight:800;line-height:1.15;margin-bottom:4px}
-.ses-live-ago{font-size:13px;font-weight:700;opacity:.9}
-.ses-live-ago span{background:rgba(255,255,255,.25);border-radius:99px;padding:1px 8px}
+.ses-live-ago{font-size:13px;font-weight:700;opacity:1;display:flex;align-items:center;gap:6px}
+.ses-live-ago span{background:#FFB020;color:#1a1a2e;border-radius:99px;padding:3px 11px;font-weight:900;font-size:15px;letter-spacing:.01em;box-shadow:0 2px 10px rgba(255,176,32,.45)}
 </style>
 </head>
 <body>
@@ -726,6 +728,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 <!-- full-screen marking overlay -->
 <div id="zalFs" class="zalfs hidden">
+  <div class="fs-latebadge hidden" id="fsLateBadge"></div>
   <div class="zroom" id="zRoomFs"></div>
   <!-- floating liquid-glass zoom cluster -->
   <div class="fs-zoom">
@@ -836,6 +839,7 @@ function initials(name){const t=(name||'').trim().split(/\s+/);return ((t[0]?.[0
 function colorFor(id){let h=0;for(const c of String(id))h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
 function esc(s){return String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
 function lateFor(sessionId=state.sessionId){
+  if(state.noLateMin) return 0;   // override: minutes-late marking disabled for this session
   const ses=state.sessions.find(s=>s.id===sessionId);
   if(!ses||state.date!==todayStr())return 0;
   const [h,m]=(ses.start_time||'0:0').split(':');
@@ -983,6 +987,17 @@ async function signInWithGoogle(){
   }catch(e){ toast('Google sign-in failed',true); }
 }
 
+async function toggleNoLateMin(){
+  if(!state.sessionId){toast('Pick a session first',true);return;}
+  state.noLateMin=!state.noLateMin;
+  const btn=$('noMinBtn'); if(btn)btn.classList.toggle('active',state.noLateMin);
+  toast(state.noLateMin?'Late minutes off for this session':'Late minutes on');
+  const {error}=await sb.from('session_overrides').upsert(
+    {session_id:state.sessionId,date:state.date,no_late_min:state.noLateMin},{onConflict:'session_id,date'});
+  if(error)toast('Could not save override',true);
+  renderGrid();
+}
+
 async function doLogin(){
   const email=$('email').value.trim(), password=$('pw').value;
   if(!email||!password){toast('Enter email and password',true);return;}
@@ -1056,10 +1071,10 @@ async function loadMarks(sessionId=state.sessionId){
     if(error) throw error;
     (data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
     try{ localStorage.setItem('ykp_marks_v1_'+sessionId+'_'+state.date, JSON.stringify(state.marks)); }catch(_){}
-    state.delayMinutes=0;
-    const ov=await sb.from('session_overrides').select('delay_minutes')
+    state.delayMinutes=0; state.noLateMin=false;
+    const ov=await sb.from('session_overrides').select('delay_minutes,no_late_min')
       .eq('session_id',sessionId).eq('date',state.date).maybeSingle();
-    if(ov.data) state.delayMinutes=ov.data.delay_minutes||0;
+    if(ov.data){ state.delayMinutes=ov.data.delay_minutes||0; state.noLateMin=!!ov.data.no_late_min; }
   }catch(e){
     // offline fallback — merge cache + pending queue
     try{
@@ -1321,17 +1336,18 @@ async function renderMark(){
   }
   await loadMarks();
   v.innerHTML = `
-    <div class="controls">
-      <div class="ctl full"><span>Class</span>
+    <div class="controls" style="grid-template-columns:1.5fr 1fr;margin-bottom:10px">
+      <div class="ctl"><span>Class</span>
         <select id="selClass">${state.classes.map(c=>`<option value="${c.id}" ${c.id===state.classId?'selected':''}>${esc(c.name)}${c.teacher?' · '+esc(c.teacher):''}</option>`).join('')}
         ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${state.classId==='__none__'?'selected':''}>(No class)</option>`:''}</select></div>
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
     <div class="mark-toprow">
-      <button class="btn btn-soft btn-sm" id="markAll">Mark all “${STATUS_LABEL[state.activeStatus]}”</button>
+      <button class="btn btn-soft btn-sm" id="markAll">Mark all</button>
       <button id="toZalLayout" class="layoutchip" type="button" title="Mark this session in Zal seating layout">⇄ Zal</button>
       <button id="delayBtn" class="delaychip${state.delayMinutes?' active':''}" type="button">Delay${state.delayMinutes?` +${state.delayMinutes}m`:''}</button>
+      <button id="noMinBtn" class="delaychip${state.noLateMin?' active':''}" type="button" title="Don't auto-fill minutes when marking Late">No mins</button>
     </div>
     <div id="sesLiveCard"></div>
     <div class="summary" id="summary"></div>
@@ -1349,10 +1365,10 @@ async function renderMark(){
   $('tabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
     state.activeStatus=t.dataset.s;
     $('tabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
-    $('markAll').textContent=`Mark all “${STATUS_LABEL[state.activeStatus]}”`;
   });
   $('markAll').onclick=markAll;
   $('delayBtn').onclick=openDelaySheet;
+  $('noMinBtn').onclick=toggleNoLateMin;
   $('toZalLayout').onclick=async()=>{
     if(!state.sessionId){toast('Pick a session first',true);return;}
     if(!zalData.loaded){ await loadZal(); zalData.loaded=true; }
@@ -2333,6 +2349,17 @@ function openPicker(title, cb){
 function closePicker(){ $('pickSheet').classList.remove('show'); $('pickBg').classList.remove('show'); setTimeout(()=>$('pickBg').classList.add('hidden'),240); }
 
 /* ---- full-screen marking ---- */
+function _updateFsLateBadge(){
+  const el=$('fsLateBadge'); if(!el)return;
+  const mins=lateFor(state.zalSessionId);
+  if(state.zal.full && mins>0){
+    el.innerHTML=`⏱ <span>currently</span> <b>${mins} min</b> late`;
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+let _fsLateTimer=null;
 function enterFull(){
   state.zal.full=true;
   $('fsTabs').innerHTML=['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('');
@@ -2340,11 +2367,15 @@ function enterFull(){
   $('zalFs').classList.remove('hidden');
   document.body.style.overflow='hidden';
   renderZalGrid();
+  _updateFsLateBadge();
+  if(_fsLateTimer)clearInterval(_fsLateTimer);
+  _fsLateTimer=setInterval(_updateFsLateBadge,30000);
 }
 function exitFull(){
   state.zal.full=false;
   $('zalFs').classList.add('hidden');
   document.body.style.overflow='';
+  if(_fsLateTimer){clearInterval(_fsLateTimer);_fsLateTimer=null;}
   renderZalGrid();
 }
 
