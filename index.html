@@ -444,7 +444,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zarr-pill.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 10px rgba(79,70,229,.3)}
 .zarr-pill:active{transform:scale(.94)}
 /* nicer session selector card */
-.zsess-row{display:flex;gap:8px;align-items:stretch;margin-bottom:10px}
+.zsess-row{display:flex;gap:8px;align-items:stretch;margin-bottom:10px;flex-wrap:wrap}
 .zsess-card{flex:1;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-1);padding:7px 12px 5px;display:flex;flex-direction:column;gap:1px;min-width:0}
 .zsess-lbl{font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.45px;text-transform:uppercase}
 .zsess-sel{border:none;background:transparent;font-size:14.5px;font-weight:600;color:var(--ink);padding:0;-webkit-appearance:none;appearance:none;width:100%;cursor:pointer}
@@ -987,15 +987,16 @@ async function signInWithGoogle(){
   }catch(e){ toast('Google sign-in failed',true); }
 }
 
-async function toggleNoLateMin(){
-  if(!state.sessionId){toast('Pick a session first',true);return;}
+async function toggleNoLateMin(sessionId, btnId, rerender){
+  sessionId = sessionId || state.sessionId;
+  if(!sessionId){toast('Pick a session first',true);return;}
   state.noLateMin=!state.noLateMin;
-  const btn=$('noMinBtn'); if(btn)btn.classList.toggle('active',state.noLateMin);
+  const btn=$(btnId||'noMinBtn'); if(btn)btn.classList.toggle('active',state.noLateMin);
   toast(state.noLateMin?'Late minutes off for this session':'Late minutes on');
   const {error}=await sb.from('session_overrides').upsert(
-    {session_id:state.sessionId,date:state.date,no_late_min:state.noLateMin},{onConflict:'session_id,date'});
+    {session_id:sessionId,date:state.date,no_late_min:state.noLateMin},{onConflict:'session_id,date'});
   if(error)toast('Could not save override',true);
-  renderGrid();
+  (rerender||renderGrid)();
 }
 
 async function doLogin(){
@@ -1368,7 +1369,7 @@ async function renderMark(){
   });
   $('markAll').onclick=markAll;
   $('delayBtn').onclick=openDelaySheet;
-  $('noMinBtn').onclick=toggleNoLateMin;
+  $('noMinBtn').onclick=()=>toggleNoLateMin();
   $('toZalLayout').onclick=async()=>{
     if(!state.sessionId){toast('Pick a session first',true);return;}
     if(!zalData.loaded){ await loadZal(); zalData.loaded=true; }
@@ -2106,7 +2107,8 @@ async function renderZal(){
         <div id="zSesLiveCard"></div>
         <div class="zsess-row">
           <button class="btn btn-soft btn-sm" id="zMarkAllOnTime" style="flex:1;height:50px">✓ Mark all on time</button>
-          <input id="zDate" type="date" class="inp" style="height:50px;width:150px" value="${state.date}" max="${todayStr()}">
+          <button id="zNoMinBtn" class="delaychip${state.noLateMin?' active':''}" type="button" title="Don't auto-fill minutes when marking Late" style="height:50px;flex-shrink:0">No mins</button>
+          <input id="zDate" type="date" class="inp" style="height:50px;width:130px" value="${state.date}" max="${todayStr()}">
         </div>
         <div class="tabs" id="ztabs">${['on_time','late','absent','excused'].map(s=>`<button class="tab ${s===state.activeStatus?'active':''}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join('')}</div>`
       : `<div class="zedit">
@@ -2159,6 +2161,7 @@ async function renderZal(){
       $('zMarkAllOnTime').textContent=allOn?'✕ Unmark all on time':'✓ Mark all on time';
       $('zMarkAllOnTime').onclick=async()=>{ await zMarkAllOnTime(); renderZal(); };
     }
+    if($('zNoMinBtn')) $('zNoMinBtn').onclick=()=>toggleNoLateMin(state.zalSessionId,'zNoMinBtn',renderZalGrid);
   } else {
     $('rMinus').onclick=()=>setGrid(-1,0); $('rPlus').onclick=()=>setGrid(1,0);
     $('cMinus').onclick=()=>setGrid(0,-1); $('cPlus').onclick=()=>setGrid(0,1);
