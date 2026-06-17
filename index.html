@@ -1800,8 +1800,8 @@ function renderSetup(){
         <label class="btn btn-ghost btn-sm" style="cursor:pointer">Choose CSV file
           <input id="csvFile" type="file" accept=".csv,text/csv" class="hidden"></label>
       </div>
-      <textarea id="csvPaste" placeholder="hebrew_name,english_name,class,teacher,bunk
-מנחם מענדל,Menachem Mendel,שיעור א,הרב כהן,3"></textarea>
+      <textarea id="csvPaste" placeholder="hebrew_name,english_name,class,teacher,bunk,parent_email
+מנחם מענדל,Menachem Mendel,שיעור א,הרב כהן,3,parent@example.com"></textarea>
       <button class="btn btn-primary btn-block" id="importBtn" style="margin-top:12px">Import students</button>
     </div>
 
@@ -1888,6 +1888,7 @@ async function runImport(){
     const ci=col(['class','shiur','class_name']);
     const ti=col(['teacher','rebbi','rabbi']);
     const bi=col(['bunk','counselor','bunk_counselor']);
+    const pi=col(['parent_email','parent_e-mail','parent_mail','parent','email']);
     if(hi<0){toast('No "hebrew_name" column found in header row',true);$('importBtn').textContent='Import students';return;}
     const data=rows.slice(1).filter(r=>r.join('').trim()!=='');
 
@@ -1910,7 +1911,8 @@ async function runImport(){
       const key=hn+'|'+(cls?cls.id:'');
       if(seen.has(key)){skipped++;return;} seen.add(key);
       toInsert.push({hebrew_name:hn, english_name:ei>=0?((r[ei]||'').trim()||null):null,
-        class_id:cls?cls.id:null, bunk:bi>=0?((r[bi]||'').trim()||null):null, sort_order:i});
+        class_id:cls?cls.id:null, bunk:bi>=0?((r[bi]||'').trim()||null):null,
+        parent_email:pi>=0?((r[pi]||'').trim()||null):null, sort_order:i});
     });
     if(toInsert.length){const {error}=await sb.from('students').insert(toInsert); if(error)throw error;}
     await loadAll();
