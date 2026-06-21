@@ -45,6 +45,9 @@
   --nav-h:68px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* Stop taps from grabbing text on app UI; keep selection where it's actually typed */
+body{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable="true"]{-webkit-user-select:text;-moz-user-select:text;user-select:text}
 html,body{margin:0;height:100%}
 body{
   font-family:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -481,7 +484,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
 .zseat .zlate{position:absolute;top:2px;right:2px;background:var(--late);color:#fff;font-size:8.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,.25)}
-.zseat.empty{border-style:dashed;color:var(--ink-faint);background:var(--surface-2);font-weight:700}
+.zseat.empty{border-style:dashed;border-color:#b3bace;border-width:2px;color:#9aa2b8;background:#fff;font-weight:700}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
 .zseat.s-on_time .zav,.zseat.s-late .zav,.zseat.s-absent .zav,.zseat.s-excused .zav{box-shadow:0 0 0 2px rgba(0,0,0,.14)}
@@ -503,7 +506,6 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zalfs-bottom .tab.active{box-shadow:0 8px 28px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.1),inset 0 1px 0 rgba(255,255,255,.95)}
 .zalfs-exit{width:48px;height:44px;border-radius:14px;background:rgba(255,255,255,.62);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border:1px solid rgba(215,220,240,.72);box-shadow:0 8px 28px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.92);font-size:18px;font-weight:700;color:var(--ink);flex:none}
 .zseat,.zcell{box-sizing:border-box}
-.zseat.empty{opacity:.65}
 
 /* consent + privacy */
 .gate-foot{margin-top:16px;text-align:center;font-size:12px;color:var(--ink-faint);line-height:1.6}
@@ -942,8 +944,30 @@ function _checkSoonSessions(){
   });
 }
 
+// Tell password managers (Bitwarden/LastPass/1Password) to leave every field alone
+// except the real login (#email / #pw) — stops random "save password?" popups mid-app.
+function _tagInput(el){
+  if(!el || el.id==='email' || el.id==='pw' || el.type==='password') return;
+  el.setAttribute('autocomplete','off');
+  el.setAttribute('autocorrect','off');
+  el.setAttribute('data-bwignore','');
+  el.setAttribute('data-lpignore','true');
+  el.setAttribute('data-1p-ignore','');
+  el.setAttribute('data-form-type','other');
+}
+function _initInputGuard(){
+  document.querySelectorAll('input,textarea').forEach(_tagInput);
+  try{
+    new MutationObserver(muts=>muts.forEach(m=>m.addedNodes.forEach(n=>{
+      if(n.nodeType!==1)return;
+      if(n.tagName==='INPUT'||n.tagName==='TEXTAREA') _tagInput(n);
+      else if(n.querySelectorAll) n.querySelectorAll('input,textarea').forEach(_tagInput);
+    }))).observe(document.body,{childList:true,subtree:true});
+  }catch(_){}
+}
 function boot(){
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+  _initInputGuard();
   updateOfflineBar();
   if(LOGO && !LOGO.startsWith('__')){
     document.querySelectorAll('.logoimg').forEach(i=>i.src=LOGO);
@@ -1987,7 +2011,7 @@ function fieldHTML(f){
   }
   const t=f.type==='time'?'time':f.type==='number'?'number':f.type==='email'?'email':'text';
   return `<div class="field"><label>${esc(f.label)}</label>
-    <input data-key="${f.key}" class="inp" type="${t}" dir="auto" value="${esc(f.value??'')}" ${f.placeholder?`placeholder="${esc(f.placeholder)}"`:''}></div>`;
+    <input data-key="${f.key}" class="inp" type="${t}" dir="auto" ${f.multiple?'multiple':''} value="${esc(f.value??'')}" ${f.placeholder?`placeholder="${esc(f.placeholder)}"`:''}></div>`;
 }
 function readForm(){
   const vals={};
@@ -2013,7 +2037,7 @@ function editStudent(id){
       {key:'english_name',label:'English name',type:'text',value:s?s.english_name:''},
       {key:'class_id',label:'Class',type:'select',value:s?(s.class_id||''):'',options:classOpts},
       {key:'bunk',label:'Bunk',type:'text',value:s?s.bunk:''},
-      {key:'parent_email',label:'Parent email (for report cards)',type:'email',value:s?(s.parent_email||''):'',placeholder:'parent@example.com'},
+      {key:'parent_email',label:'Parent email(s) — separate multiple with commas',type:'email',multiple:true,value:s?(s.parent_email||''):'',placeholder:'mom@example.com, dad@example.com'},
     ],
     onSave:async v=>{
       const rec={hebrew_name:(v.hebrew_name||'').trim(),english_name:(v.english_name||'').trim()||null,class_id:v.class_id||null,bunk:(v.bunk||'').trim()||null,parent_email:(v.parent_email||'').trim()||null};
@@ -2981,8 +3005,8 @@ function openRCSheet(single){
         <input type="date" id="rcSheetWeek" class="inp" value="${todayStr()}" max="${todayStr()}">
       </div>
       <button class="btn btn-primary btn-block" id="rcSheetGen" style="margin-top:14px">Generate PDF</button>
-      ${isSingle?`<button class="btn btn-soft btn-block" id="rcEmailParent" style="margin-top:8px">📧 Email to parent</button>
-        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">${single.parent_email?('Opens an email to '+esc(single.parent_email)+'. Attach the PDF you generated, then send.'):'No parent email yet — add one in this student’s profile to use this.'}</div>`:''}`,
+      ${isSingle?`<button class="btn btn-soft btn-block" id="rcShareParent" style="margin-top:8px">📤 Send report card to parent</button>
+        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">${single.parent_email?('One tap — opens your share sheet with the card attached, ready to send to '+esc(single.parent_email)+' (or via WhatsApp).'):'Tip: add a parent email in this student’s profile so you know where to send it.'}</div>`:''}`,
     onMount:()=>{
       let ptype='month';
       $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
@@ -2991,16 +3015,20 @@ function openRCSheet(single){
         $('rcMonthWrap').style.display=ptype==='month'?'':'none';
         $('rcWeekWrap').style.display=ptype==='week'?'':'none';
       });
-      if($('rcEmailParent')) $('rcEmailParent').onclick=()=>emailReportToParent(single);
-      $('rcSheetGen').onclick=async()=>{
+      if($('rcShareParent')) $('rcShareParent').onclick=async()=>{
+        const p=computePeriod(); if(!p)return;
+        closeCustomSheet();
+        await shareReportToParent(single,p.from,p.to);
+      };
+      function computePeriod(){
         let from,to;
         if(ptype==='month'){
-          const month=$('rcSheetMonth').value; if(!month){toast('Choose a month',true);return;}
+          const month=$('rcSheetMonth').value; if(!month){toast('Choose a month',true);return null;}
           from=month+'-01';
           const [y,m]=month.split('-').map(Number);
           to=`${month}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
         } else if(ptype==='week'){
-          const d=$('rcSheetWeek').value; if(!d){toast('Choose a date',true);return;}
+          const d=$('rcSheetWeek').value; if(!d){toast('Choose a date',true);return null;}
           const dow=new Date(d+'T00:00:00').getDay();
           from=addDays(d,-dow);     // Sunday of that week
           to=addDays(from,6);       // Saturday
@@ -3008,6 +3036,11 @@ function openRCSheet(single){
           from='2000-01-01'; to=todayStr();
         }
         if(to>todayStr()) to=todayStr();   // never report past today
+        return {from,to};
+      }
+      $('rcSheetGen').onclick=async()=>{
+        const p=computePeriod(); if(!p)return;
+        const from=p.from, to=p.to;
         let ids;
         if(isSingle){ ids=[single.id]; }
         else {
@@ -3142,24 +3175,7 @@ function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk){
     ${testHTML}
   </div>`;
 }
-async function generateReportCards(studentIds,from,to){
-  if(!studentIds.length){toast('No students',true);return;}
-  toast('Generating report cards…');
-  const ytdFrom=getYtdStart(to);
-  const [r1,r2,r3]=await Promise.all([
-    sb.from('attendance').select('*').in('student_id',studentIds).gte('date',from).lte('date',to),
-    sb.from('attendance').select('*').in('student_id',studentIds).gte('date',ytdFrom).lte('date',to),
-    sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
-  ]);
-  const mAtt=r1.data||[], yAtt=r2.data||[], tests=r3.data||[];
-  const testIds=tests.map(t=>t.id);
-  let scores=[];
-  if(testIds.length){const r4=await sb.from('ykp_test_scores').select('*').in('test_id',testIds).in('student_id',studentIds);scores=r4.data||[];}
-  const cards=studentIds.map((sid,i)=>{
-    const s=state.students.find(x=>x.id===sid);if(!s)return'';
-    return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0);
-  }).join('');
-  const css=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;background:#fff}
+const RC_CSS=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;background:#fff}
 .rc-page{padding:18px 20px;max-width:720px;margin:0 auto}.brk{page-break-before:always}
 .rc-bh{text-align:right;font-size:12px;margin-bottom:5px}
 .rc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
@@ -3178,6 +3194,88 @@ async function generateReportCards(studentIds,from,to){
 .rl{text-align:right!important;direction:rtl}.rsub{font-size:10px;color:#777;font-style:italic}
 .rc-tbl tr:nth-child(even) td{background:#f1f5fa}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
+let _h2cLoading=null;
+function _loadHtml2canvas(){
+  if(window.html2canvas) return Promise.resolve();
+  if(_h2cLoading) return _h2cLoading;
+  _h2cLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=()=>res(); s.onerror=()=>rej(new Error('Could not load image tool (need internet)'));
+    document.head.appendChild(s);
+  });
+  return _h2cLoading;
+}
+function _parentEmails(stu){ return (stu.parent_email||'').split(/[;,]/).map(e=>e.trim()).filter(Boolean); }
+// One-tap: render this student's card to an image and hand it to the phone's share sheet
+async function shareReportToParent(stu,from,to){
+  toast('Preparing report card…');
+  const ids=[stu.id], ytdFrom=getYtdStart(to);
+  let host=null;
+  try{
+    const [r1,r2,r3]=await Promise.all([
+      sb.from('attendance').select('*').in('student_id',ids).gte('date',from).lte('date',to),
+      sb.from('attendance').select('*').in('student_id',ids).gte('date',ytdFrom).lte('date',to),
+      sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
+    ]);
+    const mAtt=r1.data||[], yAtt=r2.data||[], tests=r3.data||[];
+    const testIds=tests.map(t=>t.id);
+    let scores=[];
+    if(testIds.length){const r4=await sb.from('ykp_test_scores').select('*').in('test_id',testIds).in('student_id',ids);scores=r4.data||[];}
+    const cardHtml=buildRCPage(stu,state.sessions,mAtt,yAtt,tests,scores,from,to,false);
+    host=document.createElement('div');
+    host.style.cssText='position:fixed;left:-99999px;top:0;width:720px;background:#fff;z-index:-1';
+    host.innerHTML='<style>'+RC_CSS+'</style>'+cardHtml;
+    document.body.appendChild(host);
+    await _loadHtml2canvas();
+    const target=host.querySelector('.rc-page')||host;
+    const canvas=await window.html2canvas(target,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
+    const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
+    document.body.removeChild(host); host=null;
+    if(!blob){toast('Could not create image',true);return;}
+    const nm=(stu.english_name||stu.hebrew_name||'student').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
+    const file=new File([blob],'ReportCard-'+nm+'.png',{type:'image/png'});
+    const who=stu.english_name||stu.hebrew_name||'';
+    const text='Report card for '+who+' — Yeshivas Kayitz Program.';
+    const emails=_parentEmails(stu);
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:'Report Card',text}); }
+      catch(e){ /* user cancelled the share sheet */ }
+      return;
+    }
+    // Fallback (desktop / no file-share): download the image, then open a pre-addressed email
+    const u=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=u; a.download=file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+    if(emails.length){
+      const subject='Report Card — '+((stu.hebrew_name||stu.english_name||'').trim());
+      const to=emails.map(encodeURIComponent).join(',');
+      location.href='mailto:'+to+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(text+'\n\n(The report-card image just downloaded — please attach it.)');
+    }
+    toast('Report card image downloaded — attach it to your message');
+  }catch(err){
+    if(host&&host.parentNode)document.body.removeChild(host);
+    toast('Could not prepare report card: '+(err.message||err),true);
+  }
+}
+async function generateReportCards(studentIds,from,to){
+  if(!studentIds.length){toast('No students',true);return;}
+  toast('Generating report cards…');
+  const ytdFrom=getYtdStart(to);
+  const [r1,r2,r3]=await Promise.all([
+    sb.from('attendance').select('*').in('student_id',studentIds).gte('date',from).lte('date',to),
+    sb.from('attendance').select('*').in('student_id',studentIds).gte('date',ytdFrom).lte('date',to),
+    sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
+  ]);
+  const mAtt=r1.data||[], yAtt=r2.data||[], tests=r3.data||[];
+  const testIds=tests.map(t=>t.id);
+  let scores=[];
+  if(testIds.length){const r4=await sb.from('ykp_test_scores').select('*').in('test_id',testIds).in('student_id',studentIds);scores=r4.data||[];}
+  const cards=studentIds.map((sid,i)=>{
+    const s=state.students.find(x=>x.id===sid);if(!s)return'';
+    return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0);
+  }).join('');
+  const css=RC_CSS;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
