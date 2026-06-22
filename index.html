@@ -486,6 +486,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
 .zseat .zlate{position:absolute;top:2px;right:2px;background:var(--late);color:#fff;font-size:8.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .zseat.empty{border-style:dashed;border-color:#b3bace;border-width:2px;color:#9aa2b8;background:#fff;font-weight:700}
+.zseat.empty.staff{background:#f0f1f5;border-color:#9aa2b8;color:#7a829a;font-weight:800;letter-spacing:.03em;font-size:10px !important}
+.zlabel-cell{display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(79,70,229,.13);border:2px solid rgba(79,70,229,.35);color:#312e81;font-weight:900;font-size:11px;text-align:center;letter-spacing:.04em;line-height:1.2;padding:3px}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
 .zseat.s-on_time .zav,.zseat.s-late .zav,.zseat.s-absent .zav,.zseat.s-excused .zav{box-shadow:0 0 0 2px rgba(0,0,0,.14)}
@@ -2431,6 +2433,11 @@ function cellHTML(t,r,c,cell){
     const add = state.zal.mode==='edit' && state.zal.tool==='tables';
     return `<div class="zcell gap ${add?'addable':''}" data-r="${r}" data-c="${c}">${add?'+':''}</div>`;
   }
+  // Landmark cell — no seats, just a label block
+  if(t.label){
+    const CH=seatH(cell)*2+16;
+    return `<div class="zcell ztable" data-tid="${t.id}"><div class="zlabel-cell" style="height:${CH}px;width:${cell}px">${esc(t.label)}</div></div>`;
+  }
   const s0=zalData.seats.find(s=>s.table_id===t.id&&s.slot===0);
   const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
   const rm = state.zal.mode==='edit' && state.zal.tool==='tables';
@@ -2439,7 +2446,12 @@ function cellHTML(t,r,c,cell){
 function seatCell(seat,cell){
   const h=seatH(cell), av=Math.round(cell*0.42);
   const stu = seat&&seat.student_id ? state.students.find(s=>s.id===seat.student_id) : null;
-  if(!stu) return `<div class="zseat empty" data-seat="${seat?seat.id:''}" style="height:${h}px;width:${cell}px;font-size:${Math.round(cell*0.28)}px">+</div>`;
+  if(!stu){
+    const isStaff=seat&&seat.is_staff;
+    const lbl=seat&&seat.label?esc(seat.label):(isStaff?'Staff':'+');
+    const cls=isStaff?'zseat empty staff':'zseat empty';
+    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="height:${h}px;width:${cell}px;font-size:${Math.round(cell*0.22)}px">${lbl}</div>`;
+  }
   const m=state.marks[stu.id];
   const dot = (m&&m.flagged) ? '<div class="zdot"></div>' : '';
   const avHTML = state.photoUrls[stu.id]
