@@ -12,7 +12,9 @@
 <title>YKP Attendance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Load font asynchronously so it never blocks first render -->
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap"></noscript>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* =========================================================
@@ -810,6 +812,7 @@ const LOGO_RC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAAEACAYAAACd2
 /* ========================================================= */
 
 let sb = null;
+let _navBtns; // cached once in wireEvents(), reused in switchView()
 const $ = id => document.getElementById(id);
 const PALETTE = ['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1'];
 const STATUS_LABEL = {on_time:'On time', late:'Late', absent:'Absent', excused:'Excused'};
@@ -853,7 +856,9 @@ function showPolicy(){
 function closePolicy(){ $('privacySheet').classList.remove('show'); $('privacyBg').classList.remove('show'); setTimeout(()=>$('privacyBg').classList.add('hidden'),240); }
 
 /* ---------- helpers ---------- */
-function todayStr(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
+// todayStr is called on every render and inside loops — cache it per calendar day.
+let _todayCache=null,_todayCacheKey=null;
+function todayStr(){const d=new Date(),k=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();if(k!==_todayCacheKey){_todayCacheKey=k;const p=n=>String(n).padStart(2,'0');_todayCache=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}return _todayCache;}
 function addDays(dateStr,n){const d=new Date(dateStr+'T00:00:00');d.setDate(d.getDate()+n);const p=x=>String(x).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
 function initials(name){const t=(name||'').trim().split(/\s+/);return ((t[0]?.[0]||'')+(t[1]?.[0]||'')).toUpperCase()||'•';}
 function colorFor(id){let h=0;for(const c of String(id))h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
@@ -989,7 +994,9 @@ function wireEvents(){
   $('googleBtn').onclick = signInWithGoogle;
   $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
   $('signout').onclick = async()=>{ await sb.auth.signOut(); location.reload(); };
-  document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+  // Cache navbtns once — switchView re-uses the same reference instead of re-querying.
+  _navBtns=document.querySelectorAll('.navbtn');
+  _navBtns.forEach(b=>b.onclick=()=>switchView(b.dataset.view));
   // sheet
   $('sheetBg').onclick = closeSheet;
   $('sheetSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{setSheetStatus(b.dataset.s);autoSaveSheet();});
@@ -1139,7 +1146,8 @@ function switchView(v){
   state.view=v;
   // Leaving the Zal-override flow? Clear the flag (but keep it when bouncing between mark<->zal during override).
   if(v!=='zal' && v!=='mark') state.zal.fromClassSession=null;
-  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  // _navBtns is cached once at init — no DOM query here.
+  _navBtns.forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   ['schedule','mark','zal','history','tests','students','setup'].forEach(n=>{const el=$('view-'+n);if(el)el.classList.toggle('hidden',n!==v);});
   const titles={schedule:'YKP Attendance',mark:'Mark attendance',zal:'The Zal',history:'History',tests:'Tests',students:'Students',setup:'Setup'};
   $('barTitle').textContent=titles[v]||'';
@@ -1724,15 +1732,22 @@ function renderStudents(selMode, sel){
     if(!html) html=`<div class="empty"><p>No match.</p></div>`;
     if(hasMore) html+=`<button class="btn btn-soft btn-block" id="stuMore" style="margin:8px 0 4px">Show more (${list.length-stuLimit} more)</button>`;
     $('stuList').innerHTML=html;
-    $('stuList').querySelectorAll('.lrow').forEach(r=>{
-      if(selMode){ r.onclick=()=>{ const id=r.dataset.id; sel.has(id)?sel.delete(id):sel.add(id); renderStudents(true,sel); }; }
-      else { r.onclick=()=>editStudent(r.dataset.id); const cam=r.querySelector('.cam'); if(cam)cam.onclick=e=>{e.stopPropagation();pickPhoto(r.dataset.id);}; const rc=r.querySelector('.rcbtn'); if(rc)rc.onclick=e=>{e.stopPropagation(); const st=state.students.find(x=>x.id===r.dataset.id); if(st)openRCSheet(st);}; }
-    });
+    // Event delegation: one listener handles all rows instead of N separate handlers.
+    $('stuList').onclick=e=>{
+      const r=e.target.closest('.lrow'); if(!r) return;
+      const id=r.dataset.id;
+      if(selMode){ sel.has(id)?sel.delete(id):sel.add(id); renderStudents(true,sel); }
+      else if(e.target.closest('.cam')){ e.stopPropagation(); pickPhoto(id); }
+      else if(e.target.closest('.rcbtn')){ e.stopPropagation(); const st=state.students.find(x=>x.id===id); if(st)openRCSheet(st); }
+      else { editStudent(id); }
+    };
     if($('stuMore')) $('stuMore').onclick=()=>{ stuLimit+=50; draw(q); };
     if(selMode && $('selCount')) $('selCount').textContent=`${sel.size} selected`;
   };
   draw(state.stuFilters.q||'');
-  $('stuSearch').oninput=e=>{ state.stuFilters.q=e.target.value.trim(); stuLimit=50; draw(e.target.value.trim()); };
+  // Debounce: wait 200ms after last keystroke before re-rendering the list.
+  let _stuSearchTimer=null;
+  $('stuSearch').oninput=e=>{ const q=e.target.value.trim(); state.stuFilters.q=q; stuLimit=50; clearTimeout(_stuSearchTimer); _stuSearchTimer=setTimeout(()=>draw(q),200); };
   if($('stuFilterClass')) $('stuFilterClass').onchange=e=>{ filterClass=e.target.value; state.stuFilters.classId=filterClass; stuLimit=50; draw($('stuSearch').value.trim()); };
   if($('stuFilterBunk')) $('stuFilterBunk').onchange=e=>{ filterBunk=e.target.value; state.stuFilters.bunkId=filterBunk; stuLimit=50; draw($('stuSearch').value.trim()); };
   if(!selMode && $('addStudent')) $('addStudent').onclick=()=>editStudent(null);
