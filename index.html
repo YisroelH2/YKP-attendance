@@ -813,6 +813,7 @@ const LOGO_RC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAAEACAYAAACd2
 
 let sb = null;
 let _navBtns; // cached once in wireEvents(), reused in switchView()
+let _todayCache=null,_todayCacheKey=null; // memoised per calendar day; must be before state init
 const $ = id => document.getElementById(id);
 const PALETTE = ['#4f46e5','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1'];
 const STATUS_LABEL = {on_time:'On time', late:'Late', absent:'Absent', excused:'Excused'};
@@ -856,8 +857,6 @@ function showPolicy(){
 function closePolicy(){ $('privacySheet').classList.remove('show'); $('privacyBg').classList.remove('show'); setTimeout(()=>$('privacyBg').classList.add('hidden'),240); }
 
 /* ---------- helpers ---------- */
-// todayStr is called on every render and inside loops — cache it per calendar day.
-let _todayCache=null,_todayCacheKey=null;
 function todayStr(){const d=new Date(),k=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();if(k!==_todayCacheKey){_todayCacheKey=k;const p=n=>String(n).padStart(2,'0');_todayCache=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}return _todayCache;}
 function addDays(dateStr,n){const d=new Date(dateStr+'T00:00:00');d.setDate(d.getDate()+n);const p=x=>String(x).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
 function initials(name){const t=(name||'').trim().split(/\s+/);return ((t[0]?.[0]||'')+(t[1]?.[0]||'')).toUpperCase()||'•';}
