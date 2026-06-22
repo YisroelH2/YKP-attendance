@@ -1015,19 +1015,20 @@ async function enterApp(){
    3. DATA
    ========================================================= */
 async function loadAll(){
+  // Show cached data immediately so the app feels instant on open
+  const c=offlineCache();
+  if(c){ state.classes=c.classes||[]; state.sessions=c.sessions||[]; state.students=c.students||[]; }
   try{
-    const [cl,se,st]=await Promise.all([
+    const [cl,se,st]=await _q(Promise.all([
       sb.from('classes').select('*').order('sort_order'),
       sb.from('sessions').select('*').order('sort_order'),
       sb.from('students').select('*').eq('active',true).order('sort_order'),
-    ]);
+    ]));
     if(cl.error||se.error||st.error) throw new Error('load failed');
     state.classes=cl.data||[]; state.sessions=se.data||[]; state.students=st.data||[];
     try{ localStorage.setItem('ykp_cache_v1',JSON.stringify({classes:state.classes,sessions:state.sessions,students:state.students,at:Date.now()})); }catch(_){}
   }catch(e){
-    const c=offlineCache();
-    if(c){ state.classes=c.classes||[]; state.sessions=c.sessions||[]; state.students=c.students||[]; }
-    else { state.classes=[]; state.sessions=[]; state.students=[]; }
+    if(!c){ state.classes=[]; state.sessions=[]; state.students=[]; }
     updateOfflineBar();
   }
   const csv=state.sessions.filter(s=>(s.type||'class')==='class');
@@ -1035,16 +1036,23 @@ async function loadAll(){
   if(!state.sessionId || !csv.find(s=>s.id===state.sessionId)) state.sessionId=csv[0]?.id||null;
   if(!state.zalSessionId || !zsv.find(s=>s.id===state.zalSessionId)) state.zalSessionId=zsv[0]?.id||null;
   if(!state.classId && state.classes[0]) state.classId=state.classes[0].id;
-  await loadPhotos();
+  loadPhotos().catch(()=>{}); // background — never block startup
 }
+const _photoCache={urls:{},at:0};
 async function loadPhotos(){
   const withPhoto=state.students.filter(s=>s.photo_path);
   if(!withPhoto.length)return;
+  const now=Date.now();
+  // Signed URLs last 1 hour — reuse for 50 min before refreshing
+  if(now-_photoCache.at < 50*60*1000 && Object.keys(_photoCache.urls).length){
+    state.photoUrls={..._photoCache.urls}; return;
+  }
   const paths=withPhoto.map(s=>s.photo_path);
   const {data}=await sb.storage.from('photos').createSignedUrls(paths,3600);
   if(!data)return;
   const byPath={}; data.forEach(d=>{if(d.signedUrl)byPath[d.path]=d.signedUrl;});
   withPhoto.forEach(s=>{const u=byPath[s.photo_path]; if(u)state.photoUrls[s.id]=u;});
+  _photoCache.urls={...state.photoUrls}; _photoCache.at=now;
 }
 async function loadMarks(sessionId=state.sessionId){
   state.marks={};
@@ -2231,21 +2239,42 @@ const FRONT_KIND = {aron:'Aron Kodesh', bimah:'Bimah', door:'Front Door'};
 const SIDE_LABEL = {top:'Top', bottom:'Bottom', left:'Left', right:'Right'};
 let pickerCb = null;
 
-async function loadZal(){
-  const a = await sb.from('arrangements').select('*').order('created_at');
-  zalData.arrangements = a.data || [];
-  if(!state.zal.arrangementId && zalData.arrangements[0]) state.zal.arrangementId = zalData.arrangements[0].id;
-  await loadZalLayout();
+function _cacheZal(){ try{ localStorage.setItem('ykp_zal_v1', JSON.stringify({arrangements:zalData.arrangements,tables:zalData.tables,seats:zalData.seats,arrangementId:state.zal.arrangementId})); }catch(_){} }
+function _restoreZalCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem('ykp_zal_v1')||'null');
+    if(c){
+      zalData.arrangements=c.arrangements||[]; zalData.tables=c.tables||[]; zalData.seats=c.seats||[];
+      if(!state.zal.arrangementId) state.zal.arrangementId=c.arrangementId||(zalData.arrangements[0]&&zalData.arrangements[0].id)||null;
+    }
+  }catch(_){}
+  updateOfflineBar();
 }
-async function loadZalLayout(){
+
+async function loadZal(){
+  try{
+    const a = await _q(sb.from('arrangements').select('*').order('created_at'));
+    if(a.error) throw a.error;
+    zalData.arrangements = a.data || [];
+    if(!state.zal.arrangementId && zalData.arrangements[0]) state.zal.arrangementId = zalData.arrangements[0].id;
+    await loadZalLayout(true);
+    _cacheZal();
+  }catch(e){
+    _restoreZalCache();   // offline: show the last-saved seating layout
+  }
+}
+async function loadZalLayout(throwOnError){
   zalData.tables=[]; zalData.seats=[];
   if(!state.zal.arrangementId) return;
-  const t = await sb.from('zal_tables').select('*').eq('arrangement_id', state.zal.arrangementId);
+  const t = await _q(sb.from('zal_tables').select('*').eq('arrangement_id', state.zal.arrangementId));
+  if(t.error){ if(throwOnError) throw t.error; _restoreZalCache(); return; }
   zalData.tables = t.data || [];
   if(zalData.tables.length){
-    const s = await sb.from('seats').select('*').in('table_id', zalData.tables.map(x=>x.id));
+    const s = await _q(sb.from('seats').select('*').in('table_id', zalData.tables.map(x=>x.id)));
+    if(s.error){ if(throwOnError) throw s.error; _restoreZalCache(); return; }
     zalData.seats = s.data || [];
   }
+  _cacheZal();
 }
 function curArr(){ return zalData.arrangements.find(a=>a.id===state.zal.arrangementId); }
 
@@ -2486,6 +2515,18 @@ async function assignSeat(seatId, studentId){
   closePicker(); renderZalGrid();
   for(const [id,sid] of writes) await sb.from('seats').update({student_id:sid}).eq('id',id);
 }
+// Repaint ONE seat in place (fast) instead of rebuilding the whole hall on every tap
+function paintSeat(studentId){
+  const wrap=zRoomEl(); if(!wrap)return;
+  const old=wrap.querySelector('.zseat[data-student="'+studentId+'"]'); if(!old)return;
+  const seat=zalData.seats.find(s=>s.student_id===studentId);
+  const tmp=document.createElement('div'); tmp.innerHTML=seatCell(seat,state.zal.cell);
+  const fresh=tmp.firstElementChild; if(!fresh)return;
+  old.replaceWith(fresh);
+  if(state.zal.mode!=='edit' && fresh.dataset.student) bindMarkSeat(fresh);
+}
+function renderZalSummary(){ /* Zal has no summary bar — placeholder for future use */ }
+
 async function zMarkAllOnTime(){
   const seated=zalData.seats.filter(s=>s.student_id);
   const ids=[...new Set(seated.map(s=>s.student_id))];
@@ -2495,13 +2536,13 @@ async function zMarkAllOnTime(){
     // unmark all (clear)
     if(!confirm(`Clear on-time marks for all ${ids.length} seated boys?`))return;
     ids.forEach(id=>{ if(state.marks[id]&&state.marks[id].status==='on_time') delete state.marks[id]; });
-    renderZalGrid();
+    ids.forEach(id=>paintSeat(id));
     for(const id of ids) await deleteAtt({student_id:id,session_id:state.zalSessionId,date:state.date},null);
     toast('Cleared on-time marks');
   } else {
     const recs=ids.map(id=>{const cur=state.marks[id];return {student_id:id,session_id:state.zalSessionId,date:state.date,status:'on_time',late_minutes:null,note:cur?cur.note:null,flagged:cur?!!cur.flagged:false,marked_by:state.user.id,marked_at:new Date().toISOString()};});
     ids.forEach(id=>{state.marks[id]={status:'on_time',late_minutes:null,note:state.marks[id]?.note||null,flagged:state.marks[id]?.flagged||false};});
-    renderZalGrid();
+    ids.forEach(id=>paintSeat(id));
     await writeAtt(recs,async()=>{await loadMarks(state.zalSessionId);renderZalGrid();},true);
     toast(`Marked ${ids.length} on time`);
   }
@@ -2510,13 +2551,15 @@ async function zMarkAllOnTime(){
 async function zalMark(studentId){
   const cur=state.marks[studentId];
   if(cur && cur.status===state.activeStatus){
-    delete state.marks[studentId]; renderZalGrid();
+    delete state.marks[studentId]; paintSeat(studentId);
+    renderZalSummary();
     await deleteAtt({student_id:studentId,session_id:state.zalSessionId,date:state.date},async()=>{await loadMarks(state.zalSessionId);renderZalGrid();});
     return;
   }
   const late=state.activeStatus==='late'?lateFor(state.zalSessionId):null;
   state.marks[studentId]={status:state.activeStatus,late_minutes:late,note:cur?cur.note:null,flagged:cur?cur.flagged:false};
-  renderZalGrid();
+  paintSeat(studentId);
+  renderZalSummary();
   await writeAtt({student_id:studentId,session_id:state.zalSessionId,date:state.date,status:state.activeStatus,late_minutes:late,note:state.marks[studentId].note,flagged:state.marks[studentId].flagged,marked_by:state.user.id,marked_at:new Date().toISOString()},async()=>{await loadMarks(state.zalSessionId);renderZalGrid();});
 }
 
@@ -3467,6 +3510,10 @@ async function generateShulList(people,heading,showReason,nameFmt){
   const w=window.open(url,'_blank');
   if(!w)toast('Allow pop-ups to generate the PDF',true);
 }
+
+// Race any Supabase query against a timeout so a flaky/dead connection falls back to
+// cache fast instead of hanging the whole UI (the #1 cause of "the app feels frozen").
+function _q(builder, ms=6000){ return Promise.race([builder, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]); }
 
 boot();
 
