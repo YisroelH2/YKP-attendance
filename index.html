@@ -486,7 +486,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
 .zseat .zlate{position:absolute;top:2px;right:2px;background:var(--late);color:#fff;font-size:8.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .zseat.empty{border-style:dashed;border-color:#b3bace;border-width:2px;color:#9aa2b8;background:#fff;font-weight:700}
-.zseat.empty.staff{background:#f0f1f5;border-color:#9aa2b8;color:#7a829a;font-weight:800;letter-spacing:.03em;font-size:10px !important}
+.zseat.empty.staff{background:#f0f1f5;border-color:#9aa2b8;color:#7a829a;font-weight:800;letter-spacing:.03em}
 .zlabel-cell{display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(79,70,229,.13);border:2px solid rgba(79,70,229,.35);color:#312e81;font-weight:900;font-size:11px;text-align:center;letter-spacing:.04em;line-height:1.2;padding:3px}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
@@ -557,7 +557,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-hour-line{position:absolute;left:50px;right:0;height:1px;background:var(--line);pointer-events:none}
 .cal-hour-lbl{position:absolute;left:0;width:46px;font-size:10px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:5px;transform:translateY(-50%);line-height:1;pointer-events:none}
 .cal-lane{position:absolute;left:50px;right:0;top:0;bottom:0}
-.cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:7px 10px 5px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:6px 10px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .cal-mini-wrap{position:absolute;pointer-events:none;display:flex;align-items:center;gap:6px;min-height:14px}
 .cal-mini-bar{border-radius:4px;width:5px;flex-shrink:0;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .cal-mini-lbl{display:flex;align-items:center;gap:5px;padding:1px 2px;cursor:pointer;pointer-events:auto;white-space:nowrap;overflow:hidden;min-width:0;flex:1}
@@ -1247,20 +1247,26 @@ function renderSchedule(){
     evs.forEach(({s,top,ht,col,numCols})=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
+      const tall=ht>56;
       const pct=(100/numCols);
       const L=(col*pct).toFixed(1);
       const W=(pct-1.5).toFixed(1);
-      const bh=Math.max(ht,30); // actual rendered height
-      // show time when block is tall enough for name + time (≥46px)
-      const showTime=bh>=46;
-      // show badge only when there's room for name + time + badge (≥66px)
-      const showBadge=bh>=66;
-      const pad=bh<38?'3px 8px 2px':'7px 10px 5px';
-      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${L}%;width:${W}%;background:${bg};padding:${pad}">
-        <div class="cal-block-name">${esc(s.name)}</div>
-        ${showTime?`<div class="cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
-        ${showBadge?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
-      </div>`;
+      if(ht<40){
+        // Too short for text inside — show colored bar + label to the side
+        blocks+=`<div class="cal-mini-wrap" data-id="${s.id}" style="top:${top}px;left:${L}%;width:${W}%;height:${Math.max(ht,14)}px">
+          <div class="cal-mini-bar" data-id="${s.id}" style="height:100%;background:${bg}"></div>
+          <div class="cal-mini-lbl" data-id="${s.id}">
+            <span class="cal-mini-name">${esc(s.name)}</span>
+            <span class="cal-mini-time">${fmtTime12(s.start_time)}</span>
+          </div>
+        </div>`;
+      } else {
+        blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg};padding:${tall?'6px 10px':'4px 9px'}">
+          <div class="cal-block-name">${esc(s.name)}</div>
+          ${tall?`<div class="cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
+          ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
+        </div>`;
+      }
     });
   }
 
@@ -1297,7 +1303,7 @@ function renderSchedule(){
   const _db=document.querySelector('.cal-date-block'); if(_db) _db.onclick=()=>{ if(state.schedule.date!==todayStr()){ state.schedule.date=todayStr(); renderSchedule(); } };
   fetchHebDate(date).then(h=>{ const el=$('calHebDate'); if(el && h) el.textContent=h; });
 
-  v.querySelectorAll('.cal-block').forEach(el=>{
+  v.querySelectorAll('.cal-block,.cal-mini-bar,.cal-mini-lbl,.cal-mini-wrap').forEach(el=>{
     el.onclick=()=>{
       const ses=state.sessions.find(s=>s.id===el.dataset.id);
       if(!ses)return;
@@ -1786,124 +1792,8 @@ $('photoInput').addEventListener('change', async e=>{
   const id=photoFor; toast('Optimising photo…');
   const res=await uploadPhotoForStudent(id, file);
   if(!res.ok){ toast('Upload failed: '+res.error, true); return; }
-  toast('Photo added');
-  // Refresh in-form photo display if student edit form is open
-  _refreshFormPhoto(id);
-  if(state.view==='students')renderStudents();
+  toast('Photo added'); if(state.view==='students')renderStudents();
 });
-
-function _refreshFormPhoto(id){
-  const el=$('stuFormPhoto'); if(!el)return;
-  const url=state.photoUrls[id]; if(!url)return;
-  if(el.tagName==='IMG'){ el.src=url+'&t='+Date.now(); }
-  else {
-    const img=document.createElement('img');
-    img.id='stuFormPhoto'; img.src=url;
-    img.style.cssText='width:160px;height:160px;border-radius:22px;object-fit:cover;box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer';
-    img.onclick=()=>openPhotoEditor(id);
-    el.parentNode.replaceChild(img,el);
-    const editBtn=$('stuEditPhotoBtn');
-    if(!editBtn){
-      const b=document.createElement('button');
-      b.id='stuEditPhotoBtn'; b.className='btn btn-ghost btn-sm'; b.type='button';
-      b.textContent='✏️ Edit photo'; b.onclick=()=>openPhotoEditor(id);
-      const changeBtn=$('stuChangePhotoBtn'); if(changeBtn)changeBtn.before(b);
-    }
-  }
-}
-
-async function openPhotoEditor(id){
-  const stu=state.students.find(s=>s.id===id);
-  if(!stu||!stu.photo_path){ toast('No photo to edit',true); return; }
-  toast('Loading photo…');
-  const {data:blob,error}=await sb.storage.from('photos').download(stu.photo_path);
-  if(!blob||error){ toast('Could not load photo',true); return; }
-  const objectUrl=URL.createObjectURL(blob);
-  let rotation=0, zoom=1.0;
-  const CSIZE=360;
-  openCustomSheet({id:'__photoeditor__',title:'Edit photo',html:`
-    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:4px">
-      <canvas id="peCanvas" width="${CSIZE}" height="${CSIZE}"
-        style="border-radius:16px;width:min(100%,${CSIZE}px);height:auto;box-shadow:0 4px 20px rgba(0,0,0,.18)"></canvas>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-        <button class="btn btn-ghost btn-sm" id="peRotate" type="button">↺ Rotate 90°</button>
-        <button class="btn btn-ghost btn-sm" id="peZoomIn" type="button">🔍 Zoom in</button>
-        <button class="btn btn-ghost btn-sm" id="peZoomOut" type="button">🔍 Zoom out</button>
-      </div>
-      <div style="font-size:12px;color:var(--ink-faint);text-align:center" id="peZoomLabel">Zoom: 1.0× · drag to reposition</div>
-      <div class="row2" style="width:100%;margin-top:4px">
-        <button class="btn btn-ghost" id="peCancel" style="flex:1" type="button">Cancel</button>
-        <button class="btn btn-primary" id="peSave" style="flex:1" type="button">Save</button>
-      </div>
-    </div>`,
-    onMount(){
-      const canvas=$('peCanvas');
-      const ctx=canvas.getContext('2d');
-      canvas.style.cssText+='cursor:grab;touch-action:none;user-select:none';
-      const img=new Image();
-      img.onload=()=>draw();
-      img.onerror=()=>{ toast('Could not display photo',true); closeCustomSheet(); URL.revokeObjectURL(objectUrl); };
-      img.src=objectUrl;
-      let panX=0, panY=0;
-      function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
-      function draw(){
-        ctx.clearRect(0,0,CSIZE,CSIZE);
-        ctx.save();
-        ctx.translate(CSIZE/2,CSIZE/2);
-        ctx.rotate(rotation*Math.PI/180);
-        const sw=img.naturalWidth, sh=img.naturalHeight;
-        const minDim=Math.min(sw,sh);
-        const cropSize=minDim/zoom;
-        const maxPX=(sw-cropSize)/2, maxPY=(sh-cropSize)/2;
-        panX=clamp(panX,-maxPX,maxPX); panY=clamp(panY,-maxPY,maxPY);
-        const sx=(sw-cropSize)/2+panX, sy=(sh-cropSize)/2+panY;
-        ctx.drawImage(img,sx,sy,cropSize,cropSize,-CSIZE/2,-CSIZE/2,CSIZE,CSIZE);
-        ctx.restore();
-        if($('peZoomLabel'))$('peZoomLabel').textContent='Zoom: '+zoom.toFixed(2)+'×';
-      }
-      // Drag-to-pan: pointer events work for both touch and mouse
-      let dragging=false, lastX=0, lastY=0;
-      canvas.addEventListener('pointerdown',e=>{
-        dragging=true; lastX=e.clientX; lastY=e.clientY;
-        try{canvas.setPointerCapture(e.pointerId);}catch(_){}
-        canvas.style.cursor='grabbing'; e.preventDefault();
-      },{passive:false});
-      canvas.addEventListener('pointermove',e=>{
-        if(!dragging)return; e.preventDefault();
-        const dx=e.clientX-lastX, dy=e.clientY-lastY;
-        lastX=e.clientX; lastY=e.clientY;
-        // Scale CSS pixels → canvas pixels → source image pixels
-        const cssW=canvas.getBoundingClientRect().width||CSIZE;
-        const scale=(img.naturalWidth?Math.min(img.naturalWidth,img.naturalHeight)/zoom:1)/cssW;
-        // Un-rotate drag vector from screen space back to source image space
-        const r=-rotation*Math.PI/180; // negative = un-rotate
-        panX-=(dx*Math.cos(r)-dy*Math.sin(r))*scale;
-        panY-=(dx*Math.sin(r)+dy*Math.cos(r))*scale;
-        draw();
-      },{passive:false});
-      const stopDrag=()=>{dragging=false;canvas.style.cursor='grab';};
-      canvas.addEventListener('pointerup',stopDrag);
-      canvas.addEventListener('pointercancel',stopDrag);
-      $('peRotate').onclick=()=>{ rotation=(rotation+90)%360; draw(); };
-      $('peZoomIn').onclick=()=>{ zoom=Math.min(4,parseFloat((zoom*1.3).toFixed(2))); draw(); };
-      $('peZoomOut').onclick=()=>{ zoom=Math.max(1,parseFloat((zoom/1.3).toFixed(2))); if(zoom===1){panX=0;panY=0;} draw(); };
-      $('peCancel').onclick=()=>{ closeCustomSheet(); URL.revokeObjectURL(objectUrl); };
-      $('peSave').onclick=()=>{
-        $('peSave').disabled=true; $('peSave').textContent='Saving…';
-        canvas.toBlob(async b=>{
-          if(!b){ toast('Failed to process photo',true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
-          const res=await uploadPhotoForStudent(id,b);
-          URL.revokeObjectURL(objectUrl);
-          if(!res.ok){ toast('Upload failed: '+res.error,true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
-          closeCustomSheet();
-          toast('Photo updated');
-          _refreshFormPhoto(id);
-          if(state.view==='students')renderStudents();
-        },'image/jpeg',0.88);
-      };
-    }
-  });
-}
 
 /* ---------- BULK PHOTO IMPORT ----------
    Reads a chosen folder of per-student subfolders (each named after the
@@ -2250,31 +2140,6 @@ function editStudent(id){
     },
     onDelete: s?async()=>{await sb.from('students').delete().eq('id',s.id);closeForm();await loadAll();renderStudents();toast('Student deleted');}:null,
   });
-  // Inject photo section at top of formBody when editing an existing student
-  if(s){
-    const photoUrl=state.photoUrls[s.id];
-    const ini=esc(initials(s.english_name||s.hebrew_name));
-    const fbkStyle=`width:160px;height:160px;border-radius:22px;background:${colorFor(s.id)};display:flex;align-items:center;justify-content:center;font-size:54px;font-weight:900;color:#fff`;
-    let photoEl;
-    if(photoUrl){
-      photoEl=`<img id="stuFormPhoto" src="${photoUrl}"
-        style="width:160px;height:160px;border-radius:22px;object-fit:cover;box-shadow:0 4px 20px rgba(0,0,0,.18);cursor:pointer"
-        onclick="openPhotoEditor('${s.id}')"
-        onerror="this.outerHTML='<div id=\\'stuFormPhoto\\' style=\\'${fbkStyle}\\'>${ini}</div>'">`;
-    } else {
-      photoEl=`<div id="stuFormPhoto" style="${fbkStyle}">${ini}</div>`;
-    }
-    const existing=$('formBody').innerHTML;
-    $('formBody').innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:18px;padding-top:4px">
-      ${photoEl}
-      <div style="display:flex;gap:8px">
-        ${photoUrl?`<button class="btn btn-ghost btn-sm" id="stuEditPhotoBtn" type="button">✏️ Edit photo</button>`:''}
-        <button class="btn btn-ghost btn-sm" id="stuChangePhotoBtn" type="button">${photoUrl?'📷 Change':'📷 Add photo'}</button>
-      </div>
-    </div>`+existing;
-    if($('stuEditPhotoBtn')) $('stuEditPhotoBtn').onclick=()=>openPhotoEditor(s.id);
-    if($('stuChangePhotoBtn')) $('stuChangePhotoBtn').onclick=()=>{ photoFor=s.id; const inp=$('photoInput'); inp.value=''; inp.removeAttribute('capture'); inp.click(); };
-  }
 }
 async function reorderClass(fromIdx,toIdx){
   const cls=state.classes;
@@ -2454,7 +2319,7 @@ async function renderZal(){
   const hint = state.zal.mode==='mark'
     ? 'Tap a seat to mark · drag to scroll · use Zoom for bigger seats'
     : (state.zal.tool==='seat'
-       ? 'Tap a seat to seat a student. Pick a student who is already seated to move them over.'
+       ? 'Tap a seat to seat a boy. Pick a boy who is already seated to move him over.'
        : 'Tap an empty cell to add a table · tap a table (or its ×) to remove it for a gap');
   const multi = zalData.arrangements.length>1;
   const arrSlider = `<div class="zarr-wrap">
@@ -2488,7 +2353,7 @@ async function renderZal(){
             <button class="btn btn-ghost btn-sm" id="zKind">${esc(FRONT_KIND[a.front_kind||'aron'])}</button>
           </div>
           <div class="zedit-row"><span>Tap action</span>
-            <div class="zal-modes"><button data-t="seat" class="${state.zal.tool==='seat'?'on':''}">Seat students</button><button data-t="tables" class="${state.zal.tool==='tables'?'on':''}">Add / remove tables</button></div>
+            <div class="zal-modes"><button data-t="seat" class="${state.zal.tool==='seat'?'on':''}">Seat boys</button><button data-t="tables" class="${state.zal.tool==='tables'?'on':''}">Add / remove tables</button></div>
           </div>
           <div class="zedit-row"><button class="btn btn-ghost btn-sm" id="zRename">Rename</button><button class="btn btn-ghost btn-sm" id="zDel">Delete arrangement</button></div>
         </div>`}
@@ -2601,13 +2466,6 @@ function cellHTML(t,r,c,cell){
   const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
   const rm = state.zal.mode==='edit' && state.zal.tool==='tables';
   const h=seatH(cell), CH=h*2+16;
-  // Single-seat table (no slot 1)
-  if(!s1){
-    return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
-      style="height:${CH}px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-      ${seatCell(s0,cell)}
-      ${rm?'<div class="zx">×</div>':''}</div>`;
-  }
   // Use CSS Grid with pixel-exact row heights — eliminates all flex redistribution
   return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
     style="height:${CH}px;display:grid;grid-template-rows:${h}px 16px ${h}px;overflow:hidden">
@@ -2621,13 +2479,12 @@ function seatCell(seat,cell){
   const stu = seat&&seat.student_id ? state.students.find(s=>s.id===seat.student_id) : null;
   if(!stu){
     const isStaff=seat&&seat.is_staff;
-    const lbl=isStaff?'Staff':'+';
     const cls=isStaff?'zseat empty staff':'zseat empty';
-    // Render avatar-sized circle + label — same proportions as a filled seat
-    const icon=isStaff
-      ? `<div style="width:${av}px;height:${av}px;border-radius:50%;background:rgba(154,162,184,.18);display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.34)}px;color:#9aa2b8">👤</div>`
-      : `<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
-    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${icon}<div style="font-size:${nm}px;margin-top:2px;color:${isStaff?'#7a829a':'#b3bace'};font-weight:700">${lbl}</div></div>`;
+    if(isStaff){
+      return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box"><div class="cell-name">Staff</div></div>`;
+    }
+    const icon=`<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
+    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${icon}<div style="font-size:${nm}px;margin-top:2px;color:#b3bace;font-weight:700">+</div></div>`;
   }
   const m=state.marks[stu.id];
   const dot = (m&&m.flagged) ? '<div class="zdot"></div>' : '';
@@ -2676,50 +2533,9 @@ async function fillGrid(){
   await loadZalLayout(); renderZalGrid();
 }
 async function addTableCell(r,c){
-  // Show a picker: Single seat, Paired seats (default), 2×2 block
-  openCustomSheet({id:'__tablepicker__',title:'Add table',html:`
-    <p style="color:var(--ink-soft);font-size:13.5px;margin:0 0 14px">Choose the seat arrangement to place at this cell:</p>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <button class="btn btn-soft" id="tpPaired" type="button" style="height:54px;font-size:14px;text-align:left;padding:0 16px">
-        <b>Paired seats</b><span style="color:var(--ink-soft);font-size:12px;display:block">2 seats in one table (standard)</span>
-      </button>
-      <button class="btn btn-soft" id="tpSingle" type="button" style="height:54px;font-size:14px;text-align:left;padding:0 16px">
-        <b>Single seat</b><span style="color:var(--ink-soft);font-size:12px;display:block">1 seat at this cell</span>
-      </button>
-      <button class="btn btn-soft" id="tp2x2" type="button" style="height:54px;font-size:14px;text-align:left;padding:0 16px">
-        <b>2×2 block</b><span style="color:var(--ink-soft);font-size:12px;display:block">4 paired tables filling a 2×2 area</span>
-      </button>
-    </div>
-    <button class="btn btn-ghost btn-block" id="tpCancel" type="button" style="margin-top:14px">Cancel</button>`,
-    onMount(){
-      $('tpPaired').onclick=()=>{ closeCustomSheet(); _doAddTableCell(r,c,'paired'); };
-      $('tpSingle').onclick=()=>{ closeCustomSheet(); _doAddTableCell(r,c,'single'); };
-      $('tp2x2').onclick=()=>{ closeCustomSheet(); _doAddTableCell(r,c,'2x2'); };
-      $('tpCancel').onclick=closeCustomSheet;
-    }
-  });
-}
-async function _doAddTableCell(r,c,type){
-  if(type==='2x2'){
-    const a=curArr();
-    if(!a){return;}
-    const rows=a.grid_rows||5, cols=a.grid_cols||10;
-    if(r+1>=rows||c+1>=cols){ toast('Not enough space for 2×2 block',true); return; }
-    const cells=[[r,c],[r,c+1],[r+1,c],[r+1,c+1]];
-    const have=new Set(zalData.tables.map(t=>t.grid_row+'_'+t.grid_col));
-    const toAdd=cells.filter(([rr,cc])=>!have.has(rr+'_'+cc));
-    if(!toAdd.length){ toast('All 4 cells already have tables',true); return; }
-    const {data,error}=await sb.from('zal_tables').insert(toAdd.map(([rr,cc])=>({arrangement_id:state.zal.arrangementId,grid_row:rr,grid_col:cc}))).select();
-    if(error){toast('Failed: '+error.message,true);return;}
-    const seats=[]; (data||[]).forEach(t=>{seats.push({table_id:t.id,slot:0});seats.push({table_id:t.id,slot:1});});
-    if(seats.length) await sb.from('seats').insert(seats);
-  } else {
-    const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,grid_row:r,grid_col:c}).select().single();
-    if(error){toast('Failed: '+error.message,true);return;}
-    const seats=[{table_id:data.id,slot:0}];
-    if(type==='paired') seats.push({table_id:data.id,slot:1});
-    await sb.from('seats').insert(seats);
-  }
+  const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,grid_row:r,grid_col:c}).select().single();
+  if(error){toast('Failed: '+error.message,true);return;}
+  await sb.from('seats').insert([{table_id:data.id,slot:0},{table_id:data.id,slot:1}]);
   await loadZalLayout(); renderZalGrid();
 }
 async function deleteTableCell(tid){ await sb.from('zal_tables').delete().eq('id',tid); await loadZalLayout(); renderZalGrid(); }
