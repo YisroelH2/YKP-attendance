@@ -1564,12 +1564,15 @@ function openSheet(id, opts){
   // Show photo/avatar prominently in the sheet
   const avEl=$('sheetAv');
   const photoUrl=state.photoUrls[id];
+  const ini=esc(initials(s.english_name||s.hebrew_name));
+  const fbkStyle=`width:88px;height:88px;border-radius:18px;background:${colorFor(id)};display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#fff`;
   if(photoUrl){
     avEl.style.display='flex';
-    avEl.innerHTML=`<img src="${photoUrl}" style="width:88px;height:88px;border-radius:18px;object-fit:cover;box-shadow:0 4px 16px rgba(0,0,0,.18)">`;
+    avEl.innerHTML=`<img src="${photoUrl}" style="width:88px;height:88px;border-radius:18px;object-fit:cover;box-shadow:0 4px 16px rgba(0,0,0,.18)"
+      onerror="this.outerHTML='<div style=\\'${fbkStyle}\\'>${ini}</div>'">`; 
   } else {
     avEl.style.display='flex';
-    avEl.innerHTML=`<div style="width:88px;height:88px;border-radius:18px;background:${colorFor(id)};display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#fff">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
+    avEl.innerHTML=`<div style="${fbkStyle}">${ini}</div>`;
   }
   $('sheetNote').value=m.note||'';
   $('sheetLate').value=m.late_minutes||'';
@@ -2486,9 +2489,12 @@ function seatCell(seat,cell){
   }
   const m=state.marks[stu.id];
   const dot = (m&&m.flagged) ? '<div class="zdot"></div>' : '';
+  const _ini=esc(initials(stu.english_name||stu.hebrew_name));
+  const _fbk=`<div class="zav" style="width:${av}px;height:${av}px;background:${colorFor(stu.id)};font-size:${Math.round(av*0.42)}px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900">${_ini}</div>`;
   const avHTML = state.photoUrls[stu.id]
-    ? `<img class="zav" style="width:${av}px;height:${av}px" src="${state.photoUrls[stu.id]}">`
-    : `<div class="zav" style="width:${av}px;height:${av}px;background:${colorFor(stu.id)};font-size:${Math.round(av*0.42)}px">${esc(initials(stu.english_name||stu.hebrew_name))}</div>`;
+    ? `<img class="zav" style="width:${av}px;height:${av}px" src="${state.photoUrls[stu.id]}"
+        onerror="this.replaceWith((function(){var d=document.createElement('div');d.className='zav';d.style.cssText='width:${av}px;height:${av}px;background:${colorFor(stu.id)};font-size:${Math.round(av*0.42)}px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900';d.textContent='${_ini}';return d;})())">`
+    : _fbk;
   const lateTag=m&&m.status==='late'&&m.late_minutes?`<div class="zlate">${m.late_minutes}m</div>`:'';
   return `<div class="zseat ${m?'s-'+m.status:''}" data-seat="${seat.id}" data-student="${stu.id}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${dot}${avHTML}<div class="znm" style="font-size:${Math.max(9,Math.round(cell*0.135))}px;max-width:${cell-6}px">${esc(stu.hebrew_name)}</div>${lateTag}</div>`;
 }
