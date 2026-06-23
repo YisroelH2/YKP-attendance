@@ -557,7 +557,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-hour-line{position:absolute;left:50px;right:0;height:1px;background:var(--line);pointer-events:none}
 .cal-hour-lbl{position:absolute;left:0;width:46px;font-size:10px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:5px;transform:translateY(-50%);line-height:1;pointer-events:none}
 .cal-lane{position:absolute;left:50px;right:0;top:0;bottom:0}
-.cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:6px 10px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:7px 10px 5px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .cal-mini-wrap{position:absolute;pointer-events:none;display:flex;align-items:center;gap:6px;min-height:14px}
 .cal-mini-bar{border-radius:4px;width:5px;flex-shrink:0;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .cal-mini-lbl{display:flex;align-items:center;gap:5px;padding:1px 2px;cursor:pointer;pointer-events:auto;white-space:nowrap;overflow:hidden;min-width:0;flex:1}
@@ -1247,26 +1247,20 @@ function renderSchedule(){
     evs.forEach(({s,top,ht,col,numCols})=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
-      const tall=ht>56;
       const pct=(100/numCols);
       const L=(col*pct).toFixed(1);
       const W=(pct-1.5).toFixed(1);
-      if(ht<40){
-        // Too short for text inside — show colored bar + label to the side
-        blocks+=`<div class="cal-mini-wrap" data-id="${s.id}" style="top:${top}px;left:${L}%;width:${W}%;height:${Math.max(ht,14)}px">
-          <div class="cal-mini-bar" data-id="${s.id}" style="height:100%;background:${bg}"></div>
-          <div class="cal-mini-lbl" data-id="${s.id}">
-            <span class="cal-mini-name">${esc(s.name)}</span>
-            <span class="cal-mini-time">${fmtTime12(s.start_time)}</span>
-          </div>
-        </div>`;
-      } else {
-        blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${ht}px;left:${L}%;width:${W}%;background:${bg};padding:${tall?'6px 10px':'4px 9px'}">
-          <div class="cal-block-name">${esc(s.name)}</div>
-          ${tall?`<div class="cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
-          ${tall?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
-        </div>`;
-      }
+      const bh=Math.max(ht,30); // actual rendered height
+      // show time when block is tall enough for name + time (≥46px)
+      const showTime=bh>=46;
+      // show badge only when there's room for name + time + badge (≥66px)
+      const showBadge=bh>=66;
+      const pad=bh<38?'3px 8px 2px':'7px 10px 5px';
+      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${L}%;width:${W}%;background:${bg};padding:${pad}">
+        <div class="cal-block-name">${esc(s.name)}</div>
+        ${showTime?`<div class="cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
+        ${showBadge?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
+      </div>`;
     });
   }
 
@@ -1303,7 +1297,7 @@ function renderSchedule(){
   const _db=document.querySelector('.cal-date-block'); if(_db) _db.onclick=()=>{ if(state.schedule.date!==todayStr()){ state.schedule.date=todayStr(); renderSchedule(); } };
   fetchHebDate(date).then(h=>{ const el=$('calHebDate'); if(el && h) el.textContent=h; });
 
-  v.querySelectorAll('.cal-block,.cal-mini-bar,.cal-mini-lbl,.cal-mini-wrap').forEach(el=>{
+  v.querySelectorAll('.cal-block').forEach(el=>{
     el.onclick=()=>{
       const ses=state.sessions.find(s=>s.id===el.dataset.id);
       if(!ses)return;
