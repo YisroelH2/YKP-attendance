@@ -740,11 +740,17 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 <div id="pickSheet" class="sheet">
   <div class="grab"></div>
   <h3 id="pickTitle">Choose student</h3>
-  <div class="search">
+  <!-- tab row — shown only in zal seating mode -->
+  <div id="pickTabRow" style="display:none;margin-bottom:12px;background:var(--bg-card);border-radius:12px;padding:3px;gap:3px" class="row2">
+    <button id="pickTabStudents" type="button" style="flex:1;border-radius:9px;padding:8px 0;font-size:14px;font-weight:600;border:none;cursor:pointer">Students</button>
+    <button id="pickTabStaff" type="button" style="flex:1;border-radius:9px;padding:8px 0;font-size:14px;font-weight:600;border:none;cursor:pointer">Staff</button>
+  </div>
+  <div class="search" id="pickSearchWrap">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
     <input id="pickSearch" placeholder="Search…">
   </div>
   <button class="btn btn-ghost btn-block" id="pickEmpty" style="margin-bottom:10px">Leave seat empty</button>
+  <div id="pickStaffPanel" style="display:none;text-align:center;padding:24px 0 8px"></div>
   <div class="list" id="pickList" style="max-height:46vh;overflow:auto"></div>
 </div>
 
@@ -2790,7 +2796,7 @@ function onZalSeatTap(el){
     if(!sid){ toast('Empty seat',false); return; }
     zalMark(sid);
   } else if(seatId){
-    openPicker('Seat a student', sid=>assignSeat(seatId, sid));
+    openZalPicker(seatId);
   }
 }
 async function assignSeat(seatId, studentId){
@@ -2852,6 +2858,68 @@ async function zalMark(studentId){
   await writeAtt({student_id:studentId,session_id:state.zalSessionId,date:state.date,status:state.activeStatus,late_minutes:late,note:state.marks[studentId].note,flagged:state.marks[studentId].flagged,marked_by:state.user.id,marked_at:new Date().toISOString()},async()=>{await loadMarks(state.zalSessionId);renderZalGrid();});
 }
 
+/* ---- zal-specific picker (Students + Staff tabs) ---- */
+function _pickTabStyle(btn,active){
+  btn.style.background=active?'var(--accent)':'transparent';
+  btn.style.color=active?'#fff':'var(--ink-soft)';
+}
+function openZalPicker(seatId){
+  const seat=zalData.seats.find(s=>s.id===seatId);
+  $('pickTitle').textContent='Seat a student';
+  $('pickTabRow').style.display='flex';
+  let tab='students';
+  const tabS=$('pickTabStudents'), tabF=$('pickTabStaff');
+
+  const showStudentsTab=()=>{
+    tab='students';
+    _pickTabStyle(tabS,true); _pickTabStyle(tabF,false);
+    $('pickSearchWrap').style.display=''; $('pickEmpty').style.display='';
+    $('pickStaffPanel').style.display='none';
+    drawStudentList($('pickSearch').value.trim());
+  };
+  const showStaffTab=()=>{
+    tab='staff';
+    _pickTabStyle(tabS,false); _pickTabStyle(tabF,true);
+    $('pickSearchWrap').style.display='none'; $('pickEmpty').style.display='none';
+    $('pickList').innerHTML='';
+    const isStaff=seat&&seat.is_staff;
+    $('pickStaffPanel').style.display='';
+    $('pickStaffPanel').innerHTML=`
+      <div style="font-size:48px;margin-bottom:10px">👤</div>
+      <p style="color:var(--ink-soft);margin:0 0 18px;font-size:14px">${isStaff?'This seat is currently marked as a staff seat.':'Reserve this seat for a staff member.'}</p>
+      ${isStaff
+        ?`<button class="btn btn-ghost btn-block" id="pickUnstaff">Remove staff designation</button>`
+        :`<button class="btn btn-primary btn-block" id="pickMakeStaff">Mark as Staff seat</button>`}
+    `;
+    if($('pickMakeStaff')) $('pickMakeStaff').onclick=()=>assignStaffSeat(seatId,true);
+    if($('pickUnstaff'))   $('pickUnstaff').onclick=()=>assignStaffSeat(seatId,false);
+  };
+
+  const drawStudentList=q=>{
+    const list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
+    $('pickList').innerHTML=list.map(s=>{
+      const cls=state.classes.find(c=>c.id===s.class_id);
+      const av=state.photoUrls[s.id]?`<img class="avatar" src="${state.photoUrls[s.id]}">`:`<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
+      return `<div class="lrow" data-id="${s.id}">${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${cls?esc(cls.name):''}</div></div></div>`;
+    }).join('')||`<div class="empty"><p>No match.</p></div>`;
+    $('pickList').querySelectorAll('.lrow').forEach(r=>r.onclick=()=>assignSeat(seatId,r.dataset.id));
+  };
+
+  tabS.onclick=showStudentsTab;
+  tabF.onclick=showStaffTab;
+  $('pickEmpty').onclick=()=>assignSeat(seatId,null);
+  $('pickSearch').value=''; $('pickSearch').oninput=e=>{ if(tab==='students') drawStudentList(e.target.value.trim()); };
+  showStudentsTab();
+  $('pickBg').classList.remove('hidden');
+  requestAnimationFrame(()=>{ $('pickBg').classList.add('show'); $('pickSheet').classList.add('show'); });
+}
+async function assignStaffSeat(seatId, makeStaff){
+  const seat=zalData.seats.find(s=>s.id===seatId); if(!seat)return;
+  seat.is_staff=makeStaff; if(makeStaff) seat.student_id=null;
+  closePicker(); renderZalGrid();
+  await sb.from('seats').update({is_staff:makeStaff,student_id:makeStaff?null:seat.student_id}).eq('id',seatId);
+}
+
 /* ---- generic student picker ---- */
 function openPicker(title, cb){
   pickerCb=cb; $('pickTitle').textContent=title;
@@ -2867,7 +2935,7 @@ function openPicker(title, cb){
   draw(''); $('pickSearch').value=''; $('pickSearch').oninput=e=>draw(e.target.value.trim());
   $('pickBg').classList.remove('hidden'); requestAnimationFrame(()=>{$('pickBg').classList.add('show');$('pickSheet').classList.add('show');});
 }
-function closePicker(){ $('pickSheet').classList.remove('show'); $('pickBg').classList.remove('show'); setTimeout(()=>$('pickBg').classList.add('hidden'),240); }
+function closePicker(){ $('pickSheet').classList.remove('show'); $('pickBg').classList.remove('show'); setTimeout(()=>{ $('pickBg').classList.add('hidden'); $('pickTabRow').style.display='none'; $('pickStaffPanel').style.display='none'; $('pickSearchWrap').style.display=''; $('pickEmpty').style.display=''; },240); }
 
 /* ---- full-screen marking ---- */
 function _updateFsLateBadge(){
