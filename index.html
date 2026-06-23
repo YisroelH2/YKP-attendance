@@ -2462,8 +2462,14 @@ function cellHTML(t,r,c,cell){
   const s0=zalData.seats.find(s=>s.table_id===t.id&&s.slot===0);
   const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
   const rm = state.zal.mode==='edit' && state.zal.tool==='tables';
-  const CH=seatH(cell)*2+16;
-  return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}" style="height:${CH}px">${seatCell(s0,cell)}<div class="tbar" style="width:${Math.round(cell*0.7)}px"></div>${seatCell(s1,cell)}${rm?'<div class="zx">×</div>':''}</div>`;
+  const h=seatH(cell), CH=h*2+16;
+  // Use CSS Grid with pixel-exact row heights — eliminates all flex redistribution
+  return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
+    style="height:${CH}px;display:grid;grid-template-rows:${h}px 16px ${h}px;overflow:hidden">
+    ${seatCell(s0,cell)}
+    <div class="tbar" style="width:${Math.round(cell*0.7)}px;margin:auto;align-self:center"></div>
+    ${seatCell(s1,cell)}
+    ${rm?'<div class="zx">×</div>':''}</div>`;
 }
 function seatCell(seat,cell){
   const h=seatH(cell), av=Math.round(cell*0.42), nm=Math.max(9,Math.round(cell*0.135));
@@ -2476,7 +2482,7 @@ function seatCell(seat,cell){
     const icon=isStaff
       ? `<div style="width:${av}px;height:${av}px;border-radius:50%;background:rgba(154,162,184,.18);display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.34)}px;color:#9aa2b8">👤</div>`
       : `<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
-    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="height:${h}px;width:${cell}px">${icon}<div style="font-size:${nm}px;margin-top:2px;color:${isStaff?'#7a829a':'#b3bace'};font-weight:700">${lbl}</div></div>`;
+    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${icon}<div style="font-size:${nm}px;margin-top:2px;color:${isStaff?'#7a829a':'#b3bace'};font-weight:700">${lbl}</div></div>`;
   }
   const m=state.marks[stu.id];
   const dot = (m&&m.flagged) ? '<div class="zdot"></div>' : '';
@@ -2484,7 +2490,7 @@ function seatCell(seat,cell){
     ? `<img class="zav" style="width:${av}px;height:${av}px" src="${state.photoUrls[stu.id]}">`
     : `<div class="zav" style="width:${av}px;height:${av}px;background:${colorFor(stu.id)};font-size:${Math.round(av*0.42)}px">${esc(initials(stu.english_name||stu.hebrew_name))}</div>`;
   const lateTag=m&&m.status==='late'&&m.late_minutes?`<div class="zlate">${m.late_minutes}m</div>`:'';
-  return `<div class="zseat ${m?'s-'+m.status:''}" data-seat="${seat.id}" data-student="${stu.id}" style="height:${h}px;width:${cell}px">${dot}${avHTML}<div class="znm" style="font-size:${Math.max(9,Math.round(cell*0.135))}px;max-width:${cell-6}px">${esc(stu.hebrew_name)}</div>${lateTag}</div>`;
+  return `<div class="zseat ${m?'s-'+m.status:''}" data-seat="${seat.id}" data-student="${stu.id}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${dot}${avHTML}<div class="znm" style="font-size:${Math.max(9,Math.round(cell*0.135))}px;max-width:${cell-6}px">${esc(stu.hebrew_name)}</div>${lateTag}</div>`;
 }
 
 function zCell(d){ state.zal.cell=Math.max(48,Math.min(150,state.zal.cell+d)); renderZalGrid(); }
