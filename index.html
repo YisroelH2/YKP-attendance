@@ -1836,7 +1836,7 @@ async function openPhotoEditor(id){
         <button class="btn btn-ghost btn-sm" id="peZoomIn" type="button">🔍 Zoom in</button>
         <button class="btn btn-ghost btn-sm" id="peZoomOut" type="button">🔍 Zoom out</button>
       </div>
-      <div style="font-size:12px;color:var(--ink-faint);text-align:center" id="peZoomLabel">Zoom: 1.0×</div>
+      <div style="font-size:12px;color:var(--ink-faint);text-align:center" id="peZoomLabel">Zoom: 1.0× · drag to reposition</div>
       <div class="row2" style="width:100%;margin-top:4px">
         <button class="btn btn-ghost" id="peCancel" style="flex:1" type="button">Cancel</button>
         <button class="btn btn-primary" id="peSave" style="flex:1" type="button">Save</button>
@@ -1845,10 +1845,13 @@ async function openPhotoEditor(id){
     onMount(){
       const canvas=$('peCanvas');
       const ctx=canvas.getContext('2d');
+      canvas.style.cssText+='cursor:grab;touch-action:none;user-select:none';
       const img=new Image();
       img.onload=()=>draw();
       img.onerror=()=>{ toast('Could not display photo',true); closeCustomSheet(); URL.revokeObjectURL(objectUrl); };
       img.src=objectUrl;
+      let panX=0, panY=0;
+      function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
       function draw(){
         ctx.clearRect(0,0,CSIZE,CSIZE);
         ctx.save();
@@ -1857,14 +1860,39 @@ async function openPhotoEditor(id){
         const sw=img.naturalWidth, sh=img.naturalHeight;
         const minDim=Math.min(sw,sh);
         const cropSize=minDim/zoom;
-        const sx=(sw-cropSize)/2, sy=(sh-cropSize)/2;
+        const maxPX=(sw-cropSize)/2, maxPY=(sh-cropSize)/2;
+        panX=clamp(panX,-maxPX,maxPX); panY=clamp(panY,-maxPY,maxPY);
+        const sx=(sw-cropSize)/2+panX, sy=(sh-cropSize)/2+panY;
         ctx.drawImage(img,sx,sy,cropSize,cropSize,-CSIZE/2,-CSIZE/2,CSIZE,CSIZE);
         ctx.restore();
         if($('peZoomLabel'))$('peZoomLabel').textContent='Zoom: '+zoom.toFixed(2)+'×';
       }
+      // Drag-to-pan: pointer events work for both touch and mouse
+      let dragging=false, lastX=0, lastY=0;
+      canvas.addEventListener('pointerdown',e=>{
+        dragging=true; lastX=e.clientX; lastY=e.clientY;
+        try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+        canvas.style.cursor='grabbing'; e.preventDefault();
+      },{passive:false});
+      canvas.addEventListener('pointermove',e=>{
+        if(!dragging)return; e.preventDefault();
+        const dx=e.clientX-lastX, dy=e.clientY-lastY;
+        lastX=e.clientX; lastY=e.clientY;
+        // Scale CSS pixels → canvas pixels → source image pixels
+        const cssW=canvas.getBoundingClientRect().width||CSIZE;
+        const scale=(img.naturalWidth?Math.min(img.naturalWidth,img.naturalHeight)/zoom:1)/cssW;
+        // Un-rotate drag vector from screen space back to source image space
+        const r=-rotation*Math.PI/180; // negative = un-rotate
+        panX-=(dx*Math.cos(r)-dy*Math.sin(r))*scale;
+        panY-=(dx*Math.sin(r)+dy*Math.cos(r))*scale;
+        draw();
+      },{passive:false});
+      const stopDrag=()=>{dragging=false;canvas.style.cursor='grab';};
+      canvas.addEventListener('pointerup',stopDrag);
+      canvas.addEventListener('pointercancel',stopDrag);
       $('peRotate').onclick=()=>{ rotation=(rotation+90)%360; draw(); };
       $('peZoomIn').onclick=()=>{ zoom=Math.min(4,parseFloat((zoom*1.3).toFixed(2))); draw(); };
-      $('peZoomOut').onclick=()=>{ zoom=Math.max(1,parseFloat((zoom/1.3).toFixed(2))); draw(); };
+      $('peZoomOut').onclick=()=>{ zoom=Math.max(1,parseFloat((zoom/1.3).toFixed(2))); if(zoom===1){panX=0;panY=0;} draw(); };
       $('peCancel').onclick=()=>{ closeCustomSheet(); URL.revokeObjectURL(objectUrl); };
       $('peSave').onclick=()=>{
         $('peSave').disabled=true; $('peSave').textContent='Saving…';
