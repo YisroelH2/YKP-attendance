@@ -2608,7 +2608,33 @@ function renderZalGrid(){
   const at={}; zalData.tables.forEach(t=>at[t.grid_row+'_'+t.grid_col]=t);
   let cells='';
   for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
-  const grid=`<div class="zgrid" style="grid-template-columns:repeat(${cols},${cell}px);grid-auto-rows:${CH}px;gap:${gap}px">${cells}</div>`;
+
+  // Soft group ovals — one behind every adjacent pair of real table cells (2×1 = 4 seats).
+  // Drawn as absolutely-positioned z-index:-1 divs so they sit behind grid items.
+  // Hidden in table-edit mode to keep the layout editor clean.
+  let groupOvals='';
+  const editingTables=state.zal.mode==='edit'&&state.zal.tool==='tables';
+  if(!editingTables){
+    const pad=Math.round(cell*0.07); // breathing room scales with zoom
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols-1;c+=2){
+        const t0=at[r+'_'+c], t1=at[r+'_'+(c+1)];
+        // Only draw oval when both neighbours are real seat-tables (not landmarks or gaps)
+        if(t0&&!t0.label&&t1&&!t1.label){
+          const L=c*(cell+gap)-pad;
+          const T=r*(CH+gap)-pad;
+          const W=2*cell+gap+pad*2;
+          const H=CH+pad*2;
+          // border-radius = half the height → pill/oval shape
+          groupOvals+=`<div style="position:absolute;left:${L}px;top:${T}px;width:${W}px;height:${H}px;
+            background:rgba(80,95,130,0.08);border-radius:${Math.round(H/2)}px;
+            pointer-events:none;z-index:-1"></div>`;
+        }
+      }
+    }
+  }
+
+  const grid=`<div class="zgrid" style="position:relative;grid-template-columns:repeat(${cols},${cell}px);grid-auto-rows:${CH}px;gap:${gap}px">${groupOvals}${cells}</div>`;
   const side=a.front_side||'top';
   const banner=`<div class="zbanner zb-${side}">${esc(FRONT_KIND[a.front_kind||'aron'])}</div>`;
   const order = (side==='top'||side==='left') ? banner+grid : grid+banner;
@@ -2671,18 +2697,19 @@ function cellHTML(t,r,c,cell){
       ${seatCell(s0,cell)}
       ${rm?'<div class="zx">×</div>':''}</div>`;
   }
-  // Both seats are staff → single unified full-height staff card
+  // Both seats are staff → single unified full-height staff card.
+  // Use background-as-border: outer element background (var(--line)) shows through
+  // 1.5px padding as the "border". No CSS border property = nothing to clip.
   if(s0&&s0.is_staff&&(!s1||s1.is_staff)){
     const fs=Math.max(10,Math.round(cell*0.155));
     const cur=state.zal.mode==='seat'?'pointer':'default';
-    // Inner card uses inset:1px so its 1.5px border always sits inside the
-    // overflow:hidden clip boundary of the outer .zcell.ztable — fixes the
-    // bottom-edge-disappears-when-zoomed-out problem.
     return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
-      data-seat="${s0.id}" style="height:${CH}px;width:${cell}px;position:relative;cursor:${cur}">
-      <div style="position:absolute;inset:1px;background:var(--surface);
-        border:1.5px solid var(--line);border-radius:9px;
-        display:flex;align-items:center;justify-content:center;pointer-events:none">
+      data-seat="${s0.id}"
+      style="height:${CH}px;width:${cell}px;position:relative;cursor:${cur};
+             background:var(--line);border-radius:10px;padding:1.5px;
+             display:flex;align-items:stretch">
+      <div style="flex:1;background:var(--surface);border-radius:8.5px;
+                  display:flex;align-items:center;justify-content:center;pointer-events:none">
         <span style="font-size:${fs}px;font-weight:700;color:var(--ink-soft);letter-spacing:.01em">Staff</span>
       </div>
       ${rm?'<div class="zx">×</div>':''}
