@@ -473,14 +473,14 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zbanner{background:#1e1b4b;color:#fff;font-weight:700;font-size:13px;padding:8px 14px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-2);white-space:nowrap}
 .zb-left,.zb-right{writing-mode:vertical-rl;text-orientation:mixed}
 .zgrid{display:grid;justify-content:start;align-items:stretch}
-.zcell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
-.zcell.gap{border:1.5px dashed transparent;border-radius:10px;color:var(--ink-faint);font-size:20px;font-weight:700}
+.zcell{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px}
+.zcell.gap{border:1.5px dashed transparent;border-radius:10px;color:var(--ink-faint);font-size:20px;font-weight:700;align-items:center;justify-content:center}
 .zcell.gap.addable{border-color:var(--line);background:rgba(255,255,255,.45);cursor:pointer}
-.zcell.ztable{position:relative}
+.zcell.ztable{position:relative;overflow:hidden}
 .zcell.ztable.removable{cursor:pointer}
 .zcell .tbar{height:10px;background:#b9c1d6;border-radius:5px}
 .zcell .zx{position:absolute;top:-6px;inset-inline-end:-6px;width:20px;height:20px;border-radius:50%;background:var(--absent);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-1)}
-.zseat{border-radius:10px;background:var(--surface);border:1.5px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;box-shadow:var(--sh-1);text-align:center;cursor:pointer;position:relative;overflow:hidden}
+.zseat{flex:none;min-height:0;min-width:0;border-radius:10px;background:var(--surface);border:1.5px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;box-shadow:var(--sh-1);text-align:center;cursor:pointer;position:relative;overflow:hidden}
 .zdot{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--attn);box-shadow:0 0 0 2px #fff;pointer-events:none}
 .zseat .zav{border-radius:7px;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;background:#cbd0e0;margin-bottom:2px;object-fit:cover}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
@@ -2417,16 +2417,38 @@ function renderZalGrid(){
   wrap.scrollLeft=sl; wrap.scrollTop=st;
 }
 function bindMarkSeat(el){
-  el.style.touchAction='none'; // only in mark mode; edit mode keeps default (pan-y)
+  el.style.touchAction='none';
   const sid=el.dataset.student; let timer, longFired, moved, sx, sy;
   el.addEventListener('pointerdown',e=>{
     e.stopPropagation();
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
     longFired=false; moved=false; sx=e.clientX; sy=e.clientY;
-    timer=setTimeout(()=>{ longFired=true; if(navigator.vibrate)navigator.vibrate(15); openSheet(sid,{session:state.zalSessionId,rerender:renderZalGrid}); },480);
+    timer=setTimeout(()=>{
+      longFired=true;
+      if(navigator.vibrate)navigator.vibrate(15);
+      // Show face overlay first, then open detail sheet
+      _showFaceOverlay(sid, ()=>openSheet(sid,{session:state.zalSessionId,rerender:renderZalGrid}));
+    },480);
   });
   el.addEventListener('pointermove',e=>{ if(!moved && Math.hypot(e.clientX-sx,e.clientY-sy)>12){moved=true; clearTimeout(timer);} });
   el.addEventListener('pointerup',()=>{ clearTimeout(timer); if(longFired||moved)return; zalMark(sid); });
+}
+
+function _showFaceOverlay(studentId, onDismiss){
+  const stu=state.students.find(s=>s.id===studentId); if(!stu)return;
+  const name=stu.english_name||stu.hebrew_name||'';
+  const photo=state.photoUrls[studentId];
+  const av=photo
+    ? `<img src="${photo}" style="width:140px;height:140px;border-radius:18px;object-fit:cover;box-shadow:0 8px 32px rgba(0,0,0,.25)">`
+    : `<div style="width:140px;height:140px;border-radius:18px;background:${colorFor(studentId)};display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:900;color:#fff;box-shadow:0 8px 32px rgba(0,0,0,.2)">${esc(initials(name))}</div>`;
+  const overlay=document.createElement('div');
+  overlay.id='faceOverlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)';
+  overlay.innerHTML=`${av}<div style="color:#fff;font-size:18px;font-weight:800;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.5);max-width:80vw" dir="auto">${esc(name)}</div><div style="color:rgba(255,255,255,.6);font-size:13px">Tap anywhere to continue</div>`;
+  overlay.onclick=()=>{ overlay.remove(); if(onDismiss)onDismiss(); };
+  document.body.appendChild(overlay);
+  // Auto-dismiss after 3s and open sheet
+  setTimeout(()=>{ if(document.getElementById('faceOverlay')===overlay){ overlay.remove(); if(onDismiss)onDismiss(); } },3000);
 }
 function cellHTML(t,r,c,cell){
   if(!t){
@@ -2441,7 +2463,8 @@ function cellHTML(t,r,c,cell){
   const s0=zalData.seats.find(s=>s.table_id===t.id&&s.slot===0);
   const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
   const rm = state.zal.mode==='edit' && state.zal.tool==='tables';
-  return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}">${seatCell(s0,cell)}<div class="tbar" style="width:${Math.round(cell*0.7)}px"></div>${seatCell(s1,cell)}${rm?'<div class="zx">×</div>':''}</div>`;
+  const CH=seatH(cell)*2+16;
+  return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}" style="height:${CH}px">${seatCell(s0,cell)}<div class="tbar" style="width:${Math.round(cell*0.7)}px"></div>${seatCell(s1,cell)}${rm?'<div class="zx">×</div>':''}</div>`;
 }
 function seatCell(seat,cell){
   const h=seatH(cell), av=Math.round(cell*0.42);
