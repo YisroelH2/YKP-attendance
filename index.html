@@ -1064,15 +1064,15 @@ async function loadMarks(sessionId=state.sessionId){
   state.marks={};
   if(!sessionId)return;
   try{
-    const {data,error}=await sb.from('attendance').select('*')
-      .eq('session_id',sessionId).eq('date',state.date);
-    if(error) throw error;
-    (data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
+    const [attRes,ovRes]=await Promise.all([
+      sb.from('attendance').select('*').eq('session_id',sessionId).eq('date',state.date),
+      sb.from('session_overrides').select('delay_minutes,no_late_min').eq('session_id',sessionId).eq('date',state.date).maybeSingle(),
+    ]);
+    if(attRes.error) throw attRes.error;
+    (attRes.data||[]).forEach(r=>{state.marks[r.student_id]={status:r.status,late_minutes:r.late_minutes,note:r.note,flagged:r.flagged};});
     try{ localStorage.setItem('ykp_marks_v1_'+sessionId+'_'+state.date, JSON.stringify(state.marks)); }catch(_){}
     state.delayMinutes=0; state.noLateMin=false;
-    const ov=await sb.from('session_overrides').select('delay_minutes,no_late_min')
-      .eq('session_id',sessionId).eq('date',state.date).maybeSingle();
-    if(ov.data){ state.delayMinutes=ov.data.delay_minutes||0; state.noLateMin=!!ov.data.no_late_min; }
+    if(ovRes.data){ state.delayMinutes=ovRes.data.delay_minutes||0; state.noLateMin=!!ovRes.data.no_late_min; }
   }catch(e){
     // offline fallback — merge cache + pending queue
     try{
@@ -1254,9 +1254,8 @@ function renderSchedule(){
       const L=(col*pct).toFixed(1);
       const W=(pct-1.5).toFixed(1);
       const bh=Math.max(ht,30); // actual rendered height
-      // show time when block is tall enough for name + time (≥46px)
-      const showTime=bh>=46;
-      // show badge only when there's room for name + time + badge (≥66px)
+
+      const showTime=true; // right-aligned on name row — no vertical cost
       const showBadge=bh>=66;
       const pad=bh<38?'3px 8px 2px':'7px 10px 5px';
       blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${L}%;width:${W}%;background:${bg};padding:${pad}">
@@ -2611,32 +2610,29 @@ function renderZalGrid(){
   let cells='';
   for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
 
-  // Soft group ovals — one behind every adjacent pair of real table cells (2×1 = 4 seats).
-  // Drawn as absolutely-positioned z-index:-1 divs so they sit behind grid items.
-  // Hidden in table-edit mode to keep the layout editor clean.
+  // Soft group ovals — outline-only ring around every adjacent pair of real table cells.
+  // Rendered after (on top of) the grid but with transparent fill so seats show through.
+  // The outline is visible in the gap areas and at the oval edges against the background.
   let groupOvals='';
   const editingTables=state.zal.mode==='edit'&&state.zal.tool==='tables';
   if(!editingTables){
-    const pad=Math.round(cell*0.07); // breathing room scales with zoom
+    const pad=Math.round(cell*0.07);
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols-1;c+=2){
         const t0=at[r+'_'+c], t1=at[r+'_'+(c+1)];
-        // Only draw oval when both neighbours are real seat-tables (not landmarks or gaps)
         if(t0&&!t0.label&&t1&&!t1.label){
           const L=c*(cell+gap)-pad;
           const T=r*(CH+gap)-pad;
           const W=2*cell+gap+pad*2;
           const H=CH+pad*2;
-          // border-radius = half the height → pill/oval shape
-          groupOvals+=`<div style="position:absolute;left:${L}px;top:${T}px;width:${W}px;height:${H}px;
-            background:rgba(80,95,130,0.08);border-radius:${Math.round(H/2)}px;
-            pointer-events:none;z-index:-1"></div>`;
+          groupOvals+=`<div style="position:absolute;left:${L}px;top:${T}px;width:${W}px;height:${H}px;border:1.5px solid rgba(80,95,140,0.22);border-radius:${Math.round(H/2)}px;pointer-events:none"></div>`;
         }
       }
     }
   }
 
-  const grid=`<div class="zgrid" style="position:relative;grid-template-columns:repeat(${cols},${cell}px);grid-auto-rows:${CH}px;gap:${gap}px">${groupOvals}${cells}</div>`;
+  const ovalLayer=groupOvals?`<div style="position:absolute;inset:0;overflow:visible;pointer-events:none">${groupOvals}</div>`:'';
+  const grid=`<div style="position:relative;display:inline-block"><div class="zgrid" style="grid-template-columns:repeat(${cols},${cell}px);grid-auto-rows:${CH}px;gap:${gap}px">${cells}</div>${ovalLayer}</div>`;
   const side=a.front_side||'top';
   const banner=`<div class="zbanner zb-${side}">${esc(FRONT_KIND[a.front_kind||'aron'])}</div>`;
   const order = (side==='top'||side==='left') ? banner+grid : grid+banner;
