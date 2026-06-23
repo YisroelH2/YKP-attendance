@@ -1792,8 +1792,96 @@ $('photoInput').addEventListener('change', async e=>{
   const id=photoFor; toast('Optimising photo…');
   const res=await uploadPhotoForStudent(id, file);
   if(!res.ok){ toast('Upload failed: '+res.error, true); return; }
-  toast('Photo added'); if(state.view==='students')renderStudents();
+  toast('Photo added');
+  // Refresh in-form photo display if student edit form is open
+  _refreshFormPhoto(id);
+  if(state.view==='students')renderStudents();
 });
+
+function _refreshFormPhoto(id){
+  const el=$('stuFormPhoto'); if(!el)return;
+  const url=state.photoUrls[id]; if(!url)return;
+  if(el.tagName==='IMG'){ el.src=url+'&t='+Date.now(); }
+  else {
+    const img=document.createElement('img');
+    img.id='stuFormPhoto'; img.src=url;
+    img.style.cssText='width:160px;height:160px;border-radius:22px;object-fit:cover;box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer';
+    img.onclick=()=>openPhotoEditor(id);
+    el.parentNode.replaceChild(img,el);
+    const editBtn=$('stuEditPhotoBtn');
+    if(!editBtn){
+      const b=document.createElement('button');
+      b.id='stuEditPhotoBtn'; b.className='btn btn-ghost btn-sm'; b.type='button';
+      b.textContent='✏️ Edit photo'; b.onclick=()=>openPhotoEditor(id);
+      const changeBtn=$('stuChangePhotoBtn'); if(changeBtn)changeBtn.before(b);
+    }
+  }
+}
+
+async function openPhotoEditor(id){
+  const stu=state.students.find(s=>s.id===id);
+  if(!stu||!stu.photo_path){ toast('No photo to edit',true); return; }
+  toast('Loading photo…');
+  const {data:blob,error}=await sb.storage.from('photos').download(stu.photo_path);
+  if(!blob||error){ toast('Could not load photo',true); return; }
+  const objectUrl=URL.createObjectURL(blob);
+  let rotation=0, zoom=1.0;
+  const CSIZE=360;
+  openCustomSheet({id:'__photoeditor__',title:'Edit photo',html:`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:4px">
+      <canvas id="peCanvas" width="${CSIZE}" height="${CSIZE}"
+        style="border-radius:16px;width:min(100%,${CSIZE}px);height:auto;box-shadow:0 4px 20px rgba(0,0,0,.18)"></canvas>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-ghost btn-sm" id="peRotate" type="button">↺ Rotate 90°</button>
+        <button class="btn btn-ghost btn-sm" id="peZoomIn" type="button">🔍 Zoom in</button>
+        <button class="btn btn-ghost btn-sm" id="peZoomOut" type="button">🔍 Zoom out</button>
+      </div>
+      <div style="font-size:12px;color:var(--ink-faint);text-align:center" id="peZoomLabel">Zoom: 1.0×</div>
+      <div class="row2" style="width:100%;margin-top:4px">
+        <button class="btn btn-ghost" id="peCancel" style="flex:1" type="button">Cancel</button>
+        <button class="btn btn-primary" id="peSave" style="flex:1" type="button">Save</button>
+      </div>
+    </div>`,
+    onMount(){
+      const canvas=$('peCanvas');
+      const ctx=canvas.getContext('2d');
+      const img=new Image();
+      img.onload=()=>draw();
+      img.onerror=()=>{ toast('Could not display photo',true); closeCustomSheet(); URL.revokeObjectURL(objectUrl); };
+      img.src=objectUrl;
+      function draw(){
+        ctx.clearRect(0,0,CSIZE,CSIZE);
+        ctx.save();
+        ctx.translate(CSIZE/2,CSIZE/2);
+        ctx.rotate(rotation*Math.PI/180);
+        const sw=img.naturalWidth, sh=img.naturalHeight;
+        const minDim=Math.min(sw,sh);
+        const cropSize=minDim/zoom;
+        const sx=(sw-cropSize)/2, sy=(sh-cropSize)/2;
+        ctx.drawImage(img,sx,sy,cropSize,cropSize,-CSIZE/2,-CSIZE/2,CSIZE,CSIZE);
+        ctx.restore();
+        if($('peZoomLabel'))$('peZoomLabel').textContent='Zoom: '+zoom.toFixed(2)+'×';
+      }
+      $('peRotate').onclick=()=>{ rotation=(rotation+90)%360; draw(); };
+      $('peZoomIn').onclick=()=>{ zoom=Math.min(4,parseFloat((zoom*1.3).toFixed(2))); draw(); };
+      $('peZoomOut').onclick=()=>{ zoom=Math.max(1,parseFloat((zoom/1.3).toFixed(2))); draw(); };
+      $('peCancel').onclick=()=>{ closeCustomSheet(); URL.revokeObjectURL(objectUrl); };
+      $('peSave').onclick=()=>{
+        $('peSave').disabled=true; $('peSave').textContent='Saving…';
+        canvas.toBlob(async b=>{
+          if(!b){ toast('Failed to process photo',true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
+          const res=await uploadPhotoForStudent(id,b);
+          URL.revokeObjectURL(objectUrl);
+          if(!res.ok){ toast('Upload failed: '+res.error,true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
+          closeCustomSheet();
+          toast('Photo updated');
+          _refreshFormPhoto(id);
+          if(state.view==='students')renderStudents();
+        },'image/jpeg',0.88);
+      };
+    }
+  });
+}
 
 /* ---------- BULK PHOTO IMPORT ----------
    Reads a chosen folder of per-student subfolders (each named after the
@@ -2140,6 +2228,31 @@ function editStudent(id){
     },
     onDelete: s?async()=>{await sb.from('students').delete().eq('id',s.id);closeForm();await loadAll();renderStudents();toast('Student deleted');}:null,
   });
+  // Inject photo section at top of formBody when editing an existing student
+  if(s){
+    const photoUrl=state.photoUrls[s.id];
+    const ini=esc(initials(s.english_name||s.hebrew_name));
+    const fbkStyle=`width:160px;height:160px;border-radius:22px;background:${colorFor(s.id)};display:flex;align-items:center;justify-content:center;font-size:54px;font-weight:900;color:#fff`;
+    let photoEl;
+    if(photoUrl){
+      photoEl=`<img id="stuFormPhoto" src="${photoUrl}"
+        style="width:160px;height:160px;border-radius:22px;object-fit:cover;box-shadow:0 4px 20px rgba(0,0,0,.18);cursor:pointer"
+        onclick="openPhotoEditor('${s.id}')"
+        onerror="this.outerHTML='<div id=\\'stuFormPhoto\\' style=\\'${fbkStyle}\\'>${ini}</div>'">`;
+    } else {
+      photoEl=`<div id="stuFormPhoto" style="${fbkStyle}">${ini}</div>`;
+    }
+    const existing=$('formBody').innerHTML;
+    $('formBody').innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:18px;padding-top:4px">
+      ${photoEl}
+      <div style="display:flex;gap:8px">
+        ${photoUrl?`<button class="btn btn-ghost btn-sm" id="stuEditPhotoBtn" type="button">✏️ Edit photo</button>`:''}
+        <button class="btn btn-ghost btn-sm" id="stuChangePhotoBtn" type="button">${photoUrl?'📷 Change':'📷 Add photo'}</button>
+      </div>
+    </div>`+existing;
+    if($('stuEditPhotoBtn')) $('stuEditPhotoBtn').onclick=()=>openPhotoEditor(s.id);
+    if($('stuChangePhotoBtn')) $('stuChangePhotoBtn').onclick=()=>{ photoFor=s.id; const inp=$('photoInput'); inp.value=''; inp.removeAttribute('capture'); inp.click(); };
+  }
 }
 async function reorderClass(fromIdx,toIdx){
   const cls=state.classes;
@@ -2319,7 +2432,7 @@ async function renderZal(){
   const hint = state.zal.mode==='mark'
     ? 'Tap a seat to mark · drag to scroll · use Zoom for bigger seats'
     : (state.zal.tool==='seat'
-       ? 'Tap a seat to seat a boy. Pick a boy who is already seated to move him over.'
+       ? 'Tap a seat to seat a student. Pick a student who is already seated to move them over.'
        : 'Tap an empty cell to add a table · tap a table (or its ×) to remove it for a gap');
   const multi = zalData.arrangements.length>1;
   const arrSlider = `<div class="zarr-wrap">
@@ -2353,7 +2466,7 @@ async function renderZal(){
             <button class="btn btn-ghost btn-sm" id="zKind">${esc(FRONT_KIND[a.front_kind||'aron'])}</button>
           </div>
           <div class="zedit-row"><span>Tap action</span>
-            <div class="zal-modes"><button data-t="seat" class="${state.zal.tool==='seat'?'on':''}">Seat boys</button><button data-t="tables" class="${state.zal.tool==='tables'?'on':''}">Add / remove tables</button></div>
+            <div class="zal-modes"><button data-t="seat" class="${state.zal.tool==='seat'?'on':''}">Seat students</button><button data-t="tables" class="${state.zal.tool==='tables'?'on':''}">Add / remove tables</button></div>
           </div>
           <div class="zedit-row"><button class="btn btn-ghost btn-sm" id="zRename">Rename</button><button class="btn btn-ghost btn-sm" id="zDel">Delete arrangement</button></div>
         </div>`}
@@ -2466,6 +2579,13 @@ function cellHTML(t,r,c,cell){
   const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
   const rm = state.zal.mode==='edit' && state.zal.tool==='tables';
   const h=seatH(cell), CH=h*2+16;
+  // Single-seat table (no slot 1)
+  if(!s1){
+    return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
+      style="height:${CH}px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+      ${seatCell(s0,cell)}
+      ${rm?'<div class="zx">×</div>':''}</div>`;
+  }
   // Use CSS Grid with pixel-exact row heights — eliminates all flex redistribution
   return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
     style="height:${CH}px;display:grid;grid-template-rows:${h}px 16px ${h}px;overflow:hidden">
@@ -2534,9 +2654,50 @@ async function fillGrid(){
   await loadZalLayout(); renderZalGrid();
 }
 async function addTableCell(r,c){
-  const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,grid_row:r,grid_col:c}).select().single();
-  if(error){toast('Failed: '+error.message,true);return;}
-  await sb.from('seats').insert([{table_id:data.id,slot:0},{table_id:data.id,slot:1}]);
+  // Show a picker: Single seat, Paired seats (default), 2×2 block
+  openCustomSheet({id:'__tablepicker__',title:'Add table',html:`
+    <p style="color:var(--ink-soft);font-size:13.5px;margin:0 0 14px">Choose the seat arrangement to place at this cell:</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-soft" id="tpPaired" type="button" style="height:54px;font-size:14px;text-align:left;padding:0 16px">
+        <b>Paired seats</b><span style="color:var(--ink-soft);font-size:12px;display:block">2 seats in one table (standard)</span>
+      </button>
+      <button class="btn btn-soft" id="tpSingle" type="button" style="height:54px;font-size:14px;text-align:left;padding:0 16px">
+        <b>Single seat</b><span style="color:var(--ink-soft);font-size:12px;display:block">1 seat at this cell</span>
+      </button>
+      <button class="btn btn-soft" id="tp2x2" type="button" style="height:54px;font-size:14px;text-align:left;padding:0 16px">
+        <b>2×2 block</b><span style="color:var(--ink-soft);font-size:12px;display:block">4 paired tables filling a 2×2 area</span>
+      </button>
+    </div>
+    <button class="btn btn-ghost btn-block" id="tpCancel" type="button" style="margin-top:14px">Cancel</button>`,
+    onMount(){
+      $('tpPaired').onclick=()=>{ closeCustomSheet(); _doAddTableCell(r,c,'paired'); };
+      $('tpSingle').onclick=()=>{ closeCustomSheet(); _doAddTableCell(r,c,'single'); };
+      $('tp2x2').onclick=()=>{ closeCustomSheet(); _doAddTableCell(r,c,'2x2'); };
+      $('tpCancel').onclick=closeCustomSheet;
+    }
+  });
+}
+async function _doAddTableCell(r,c,type){
+  if(type==='2x2'){
+    const a=curArr();
+    if(!a){return;}
+    const rows=a.grid_rows||5, cols=a.grid_cols||10;
+    if(r+1>=rows||c+1>=cols){ toast('Not enough space for 2×2 block',true); return; }
+    const cells=[[r,c],[r,c+1],[r+1,c],[r+1,c+1]];
+    const have=new Set(zalData.tables.map(t=>t.grid_row+'_'+t.grid_col));
+    const toAdd=cells.filter(([rr,cc])=>!have.has(rr+'_'+cc));
+    if(!toAdd.length){ toast('All 4 cells already have tables',true); return; }
+    const {data,error}=await sb.from('zal_tables').insert(toAdd.map(([rr,cc])=>({arrangement_id:state.zal.arrangementId,grid_row:rr,grid_col:cc}))).select();
+    if(error){toast('Failed: '+error.message,true);return;}
+    const seats=[]; (data||[]).forEach(t=>{seats.push({table_id:t.id,slot:0});seats.push({table_id:t.id,slot:1});});
+    if(seats.length) await sb.from('seats').insert(seats);
+  } else {
+    const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,grid_row:r,grid_col:c}).select().single();
+    if(error){toast('Failed: '+error.message,true);return;}
+    const seats=[{table_id:data.id,slot:0}];
+    if(type==='paired') seats.push({table_id:data.id,slot:1});
+    await sb.from('seats').insert(seats);
+  }
   await loadZalLayout(); renderZalGrid();
 }
 async function deleteTableCell(tid){ await sb.from('zal_tables').delete().eq('id',tid); await loadZalLayout(); renderZalGrid(); }
