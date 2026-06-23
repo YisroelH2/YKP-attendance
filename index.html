@@ -486,7 +486,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
 .zseat .zlate{position:absolute;top:2px;right:2px;background:var(--late);color:#fff;font-size:8.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .zseat.empty{border-style:dashed;border-color:#b3bace;border-width:2px;color:#9aa2b8;background:#fff;font-weight:700}
-.zseat.empty.staff{background:#f0f1f5;border-color:#9aa2b8;color:#7a829a;font-weight:800;letter-spacing:.03em}
+.zseat.empty.staff{background:#f0f1f5;border-color:#9aa2b8;color:#7a829a;font-weight:800;letter-spacing:.03em;font-size:10px !important}
 .zlabel-cell{display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(79,70,229,.13);border:2px solid rgba(79,70,229,.35);color:#312e81;font-weight:900;font-size:11px;text-align:center;letter-spacing:.04em;line-height:1.2;padding:3px}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
@@ -1795,7 +1795,7 @@ $('photoInput').addEventListener('change', async e=>{
 function _refreshFormPhoto(id){
   const el=$('stuFormPhoto'); if(!el)return;
   const url=state.photoUrls[id]; if(!url)return;
-  if(el.tagName==='IMG'){ el.src=url+'&t='+Date.now(); }
+  if(el.tagName==='IMG'){ el.src=url; }
   else {
     const img=document.createElement('img');
     img.id='stuFormPhoto'; img.src=url;
@@ -1830,7 +1830,7 @@ async function openPhotoEditor(id){
         <button class="btn btn-ghost btn-sm" id="peZoomIn" type="button">🔍 Zoom in</button>
         <button class="btn btn-ghost btn-sm" id="peZoomOut" type="button">🔍 Zoom out</button>
       </div>
-      <div style="font-size:12px;color:var(--ink-faint);text-align:center" id="peZoomLabel">Zoom: 1.0× · drag to reposition</div>
+      <div style="font-size:12px;color:var(--ink-faint);text-align:center" id="peZoomLabel">Drag to pan · pinch to zoom</div>
       <div class="row2" style="width:100%;margin-top:4px">
         <button class="btn btn-ghost" id="peCancel" style="flex:1" type="button">Cancel</button>
         <button class="btn btn-primary" id="peSave" style="flex:1" type="button">Save</button>
@@ -1859,31 +1859,72 @@ async function openPhotoEditor(id){
         const sx=(sw-cropSize)/2+panX, sy=(sh-cropSize)/2+panY;
         ctx.drawImage(img,sx,sy,cropSize,cropSize,-CSIZE/2,-CSIZE/2,CSIZE,CSIZE);
         ctx.restore();
-        if($('peZoomLabel'))$('peZoomLabel').textContent='Zoom: '+zoom.toFixed(2)+'×';
+        if($('peZoomLabel'))$('peZoomLabel').textContent=zoom<=1?'Drag to pan · pinch to zoom':'Zoom: '+zoom.toFixed(2)+'× · drag to pan';
       }
-      // Drag-to-pan: pointer events work for both touch and mouse
-      let dragging=false, lastX=0, lastY=0;
+      // Multi-touch gesture handling (works for both mouse and touch via pointer events)
+      const ptrs=new Map(); // pointerId → {x,y} in CSS pixels
+      let prevDist=0, prevMid=null;
+      const rad=()=>rotation*Math.PI/180;
+
       canvas.addEventListener('pointerdown',e=>{
-        dragging=true; lastX=e.clientX; lastY=e.clientY;
+        ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
         try{canvas.setPointerCapture(e.pointerId);}catch(_){}
-        canvas.style.cursor='grabbing'; e.preventDefault();
+        if(ptrs.size===2){
+          const [a,b]=[...ptrs.values()];
+          prevDist=Math.hypot(b.x-a.x,b.y-a.y);
+          prevMid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+        } else { prevDist=0; prevMid=null; }
+        canvas.style.cursor='grabbing';
+        e.preventDefault();
       },{passive:false});
+
       canvas.addEventListener('pointermove',e=>{
-        if(!dragging)return; e.preventDefault();
-        const dx=e.clientX-lastX, dy=e.clientY-lastY;
-        lastX=e.clientX; lastY=e.clientY;
-        // Scale CSS pixels → canvas pixels → source image pixels
+        if(!ptrs.has(e.pointerId)||!img.naturalWidth)return;
+        const prev={...ptrs.get(e.pointerId)};
+        ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        e.preventDefault();
         const cssW=canvas.getBoundingClientRect().width||CSIZE;
-        const scale=(img.naturalWidth?Math.min(img.naturalWidth,img.naturalHeight)/zoom:1)/cssW;
-        // Un-rotate drag vector from screen space back to source image space
-        const r=-rotation*Math.PI/180; // negative = un-rotate
-        panX-=(dx*Math.cos(r)-dy*Math.sin(r))*scale;
-        panY-=(dx*Math.sin(r)+dy*Math.cos(r))*scale;
-        draw();
+        const r=rad();
+        if(ptrs.size===1){
+          // Single finger / mouse: pan
+          const dx=e.clientX-prev.x, dy=e.clientY-prev.y;
+          const scale=Math.min(img.naturalWidth,img.naturalHeight)/zoom/cssW;
+          panX-=(dx*Math.cos(r)+dy*Math.sin(r))*scale;
+          panY-=(-dx*Math.sin(r)+dy*Math.cos(r))*scale;
+          draw();
+        } else if(ptrs.size>=2){
+          // Two fingers: pinch-to-zoom anchored to midpoint + midpoint pan
+          const [a,b]=[...ptrs.values()];
+          const newDist=Math.hypot(b.x-a.x,b.y-a.y);
+          const newMid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+          if(prevDist>0&&prevMid){
+            const sw=img.naturalWidth,sh=img.naturalHeight,minDim=Math.min(sw,sh);
+            const oldCrop=minDim/zoom;
+            zoom=clamp(zoom*(newDist/prevDist),1,4);
+            const newCrop=minDim/zoom;
+            // Keep source pixel under pinch midpoint fixed after zoom
+            const mx=newMid.x/cssW*CSIZE-CSIZE/2, my=newMid.y/cssW*CSIZE-CSIZE/2;
+            const dc=(oldCrop-newCrop)/CSIZE;
+            panX+=(mx*Math.cos(r)+my*Math.sin(r))*dc;
+            panY+=(-mx*Math.sin(r)+my*Math.cos(r))*dc;
+            // Pan from midpoint translation
+            const dmx=newMid.x-prevMid.x, dmy=newMid.y-prevMid.y;
+            const sc=newCrop/cssW;
+            panX-=(dmx*Math.cos(r)+dmy*Math.sin(r))*sc;
+            panY-=(-dmx*Math.sin(r)+dmy*Math.cos(r))*sc;
+          }
+          prevDist=newDist; prevMid=newMid;
+          draw();
+        }
       },{passive:false});
-      const stopDrag=()=>{dragging=false;canvas.style.cursor='grab';};
-      canvas.addEventListener('pointerup',stopDrag);
-      canvas.addEventListener('pointercancel',stopDrag);
+
+      const endPtr=e=>{
+        ptrs.delete(e.pointerId);
+        if(ptrs.size<2){prevDist=0;prevMid=null;}
+        if(ptrs.size===0)canvas.style.cursor='grab';
+      };
+      canvas.addEventListener('pointerup',endPtr);
+      canvas.addEventListener('pointercancel',endPtr);
       $('peRotate').onclick=()=>{ rotation=(rotation+90)%360; draw(); };
       $('peZoomIn').onclick=()=>{ zoom=Math.min(4,parseFloat((zoom*1.3).toFixed(2))); draw(); };
       $('peZoomOut').onclick=()=>{ zoom=Math.max(1,parseFloat((zoom/1.3).toFixed(2))); if(zoom===1){panX=0;panY=0;} draw(); };
@@ -1892,13 +1933,28 @@ async function openPhotoEditor(id){
         $('peSave').disabled=true; $('peSave').textContent='Saving…';
         canvas.toBlob(async b=>{
           if(!b){ toast('Failed to process photo',true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
-          const res=await uploadPhotoForStudent(id,b);
+          // Upload canvas blob directly — skip compressImage entirely.
+          // compressImage re-draws the JPEG through a new Image element which can
+          // re-apply EXIF auto-rotation and undo the user's edits.
+          const path=`${id}.jpg`;
+          const up=await sb.storage.from('photos').upload(path,b,{upsert:true,contentType:'image/jpeg'});
           URL.revokeObjectURL(objectUrl);
-          if(!res.ok){ toast('Upload failed: '+res.error,true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
+          if(up.error){ toast('Upload failed: '+up.error.message,true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
+          await sb.from('students').update({photo_path:path}).eq('id',id);
+          const stu2=state.students.find(s=>s.id===id); if(stu2)stu2.photo_path=path;
+          // Use a local blob URL immediately — bypasses CDN cache entirely so the
+          // correct edited photo shows right away without waiting for cache expiry.
+          const preview=URL.createObjectURL(b);
+          state.photoUrls[id]=preview;
           closeCustomSheet();
           toast('Photo updated');
           _refreshFormPhoto(id);
           if(state.view==='students')renderStudents();
+          // Swap in a real signed URL in the background (needed for persistence
+          // after page refresh; revoke the temp blob URL once we have it).
+          sb.storage.from('photos').createSignedUrl(path,3600).then(({data})=>{
+            if(data){ URL.revokeObjectURL(preview); state.photoUrls[id]=data.signedUrl; }
+          });
         },'image/jpeg',0.88);
       };
     }
@@ -2621,12 +2677,13 @@ function seatCell(seat,cell){
   const stu = seat&&seat.student_id ? state.students.find(s=>s.id===seat.student_id) : null;
   if(!stu){
     const isStaff=seat&&seat.is_staff;
+    const lbl=isStaff?'Staff':'+';
     const cls=isStaff?'zseat empty staff':'zseat empty';
-    if(isStaff){
-      return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box"><div class="cell-name">Staff</div></div>`;
-    }
-    const icon=`<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
-    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${icon}<div style="font-size:${nm}px;margin-top:2px;color:#b3bace;font-weight:700">+</div></div>`;
+    // Render avatar-sized circle + label — same proportions as a filled seat
+    const icon=isStaff
+      ? `<div style="width:${av}px;height:${av}px;border-radius:50%;background:rgba(154,162,184,.18);display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.34)}px;color:#9aa2b8">👤</div>`
+      : `<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
+    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${icon}<div style="font-size:${nm}px;margin-top:2px;color:${isStaff?'#7a829a':'#b3bace'};font-weight:700">${lbl}</div></div>`;
   }
   const m=state.marks[stu.id];
   const dot = (m&&m.flagged) ? '<div class="zdot"></div>' : '';
