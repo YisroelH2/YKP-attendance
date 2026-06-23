@@ -677,6 +677,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 <div id="sheetBg" class="sheet-bg hidden"></div>
 <div id="sheet" class="sheet">
   <div class="grab"></div>
+  <div id="sheetAv" style="display:none;justify-content:center;margin:0 0 10px"></div>
   <h3 id="sheetName" dir="auto"></h3>
   <p class="who-sub" id="sheetSub"></p>
   <div class="seg" id="sheetSeg">
@@ -1560,6 +1561,16 @@ function openSheet(id, opts){
   $('sheetName').textContent=s.hebrew_name;
   const cls=state.classes.find(c=>c.id===s.class_id);
   $('sheetSub').textContent=[s.english_name,cls?cls.name:null,s.bunk?'Bunk '+s.bunk:null].filter(Boolean).join(' · ');
+  // Show photo/avatar prominently in the sheet
+  const avEl=$('sheetAv');
+  const photoUrl=state.photoUrls[id];
+  if(photoUrl){
+    avEl.style.display='flex';
+    avEl.innerHTML=`<img src="${photoUrl}" style="width:88px;height:88px;border-radius:18px;object-fit:cover;box-shadow:0 4px 16px rgba(0,0,0,.18)">`;
+  } else {
+    avEl.style.display='flex';
+    avEl.innerHTML=`<div style="width:88px;height:88px;border-radius:18px;background:${colorFor(id)};display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#fff">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
+  }
   $('sheetNote').value=m.note||'';
   $('sheetLate').value=m.late_minutes||'';
   $('sheetFlag').classList.toggle('on',state.sheetFlag);
@@ -2435,20 +2446,8 @@ function bindMarkSeat(el){
 }
 
 function _showFaceOverlay(studentId, onDismiss){
-  const stu=state.students.find(s=>s.id===studentId); if(!stu)return;
-  const name=stu.english_name||stu.hebrew_name||'';
-  const photo=state.photoUrls[studentId];
-  const av=photo
-    ? `<img src="${photo}" style="width:140px;height:140px;border-radius:18px;object-fit:cover;box-shadow:0 8px 32px rgba(0,0,0,.25)">`
-    : `<div style="width:140px;height:140px;border-radius:18px;background:${colorFor(studentId)};display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:900;color:#fff;box-shadow:0 8px 32px rgba(0,0,0,.2)">${esc(initials(name))}</div>`;
-  const overlay=document.createElement('div');
-  overlay.id='faceOverlay';
-  overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)';
-  overlay.innerHTML=`${av}<div style="color:#fff;font-size:18px;font-weight:800;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.5);max-width:80vw" dir="auto">${esc(name)}</div><div style="color:rgba(255,255,255,.6);font-size:13px">Tap anywhere to continue</div>`;
-  overlay.onclick=()=>{ overlay.remove(); if(onDismiss)onDismiss(); };
-  document.body.appendChild(overlay);
-  // Auto-dismiss after 3s and open sheet
-  setTimeout(()=>{ if(document.getElementById('faceOverlay')===overlay){ overlay.remove(); if(onDismiss)onDismiss(); } },3000);
+  // Tap straight into the detail sheet — the sheet itself now shows the full photo
+  if(onDismiss) onDismiss();
 }
 function cellHTML(t,r,c,cell){
   if(!t){
@@ -2467,13 +2466,17 @@ function cellHTML(t,r,c,cell){
   return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}" style="height:${CH}px">${seatCell(s0,cell)}<div class="tbar" style="width:${Math.round(cell*0.7)}px"></div>${seatCell(s1,cell)}${rm?'<div class="zx">×</div>':''}</div>`;
 }
 function seatCell(seat,cell){
-  const h=seatH(cell), av=Math.round(cell*0.42);
+  const h=seatH(cell), av=Math.round(cell*0.42), nm=Math.max(9,Math.round(cell*0.135));
   const stu = seat&&seat.student_id ? state.students.find(s=>s.id===seat.student_id) : null;
   if(!stu){
     const isStaff=seat&&seat.is_staff;
-    const lbl=seat&&seat.label?esc(seat.label):(isStaff?'Staff':'+');
+    const lbl=isStaff?'Staff':'+';
     const cls=isStaff?'zseat empty staff':'zseat empty';
-    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="height:${h}px;width:${cell}px;font-size:${Math.round(cell*0.22)}px">${lbl}</div>`;
+    // Render avatar-sized circle + label — same proportions as a filled seat
+    const icon=isStaff
+      ? `<div style="width:${av}px;height:${av}px;border-radius:50%;background:rgba(154,162,184,.18);display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.34)}px;color:#9aa2b8">👤</div>`
+      : `<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
+    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="height:${h}px;width:${cell}px">${icon}<div style="font-size:${nm}px;margin-top:2px;color:${isStaff?'#7a829a':'#b3bace'};font-weight:700">${lbl}</div></div>`;
   }
   const m=state.marks[stu.id];
   const dot = (m&&m.flagged) ? '<div class="zdot"></div>' : '';
