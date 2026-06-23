@@ -2674,11 +2674,17 @@ function cellHTML(t,r,c,cell){
   // Both seats are staff → single unified full-height staff card
   if(s0&&s0.is_staff&&(!s1||s1.is_staff)){
     const fs=Math.max(10,Math.round(cell*0.155));
+    const cur=state.zal.mode==='seat'?'pointer':'default';
+    // Inner card uses inset:1px so its 1.5px border always sits inside the
+    // overflow:hidden clip boundary of the outer .zcell.ztable — fixes the
+    // bottom-edge-disappears-when-zoomed-out problem.
     return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
-      data-seat="${s0.id}" style="height:${CH}px;background:var(--surface);border:1.5px solid var(--line);
-      border-radius:10px;box-shadow:var(--sh-1);display:flex;align-items:center;justify-content:center;
-      cursor:${state.zal.mode==='seat'?'pointer':'default'}">
-      <span style="font-size:${fs}px;font-weight:700;color:var(--ink-soft);letter-spacing:.01em">Staff</span>
+      data-seat="${s0.id}" style="height:${CH}px;width:${cell}px;position:relative;cursor:${cur}">
+      <div style="position:absolute;inset:1px;background:var(--surface);
+        border:1.5px solid var(--line);border-radius:9px;
+        display:flex;align-items:center;justify-content:center;pointer-events:none">
+        <span style="font-size:${fs}px;font-weight:700;color:var(--ink-soft);letter-spacing:.01em">Staff</span>
+      </div>
       ${rm?'<div class="zx">×</div>':''}
     </div>`;
   }
