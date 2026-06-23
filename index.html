@@ -565,7 +565,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-mini-time{font-size:10px;font-weight:600;color:var(--ink-faint);flex-shrink:0}
 .cal-block:active{opacity:.82;transform:scale(.985)}
 .cal-block-name{font-weight:700;font-size:13.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cal-block-time{font-size:10.5px;color:rgba(255,255,255,.78);margin-top:1px}
+.cal-block-time{font-size:10px;color:rgba(255,255,255,.82);white-space:nowrap;line-height:1.3}
 .cal-block-badge{display:inline-flex;align-items:center;background:rgba(255,255,255,.22);border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700;color:#fff;margin-top:4px;align-self:flex-start}
 .cal-now{position:absolute;left:-50px;right:0;height:2px;background:#EA4335;z-index:2;pointer-events:none}
 .cal-now::before{content:'';position:absolute;left:0;top:-4px;width:10px;height:10px;border-radius:50%;background:#EA4335}
@@ -1260,8 +1260,10 @@ function renderSchedule(){
       const showBadge=bh>=66;
       const pad=bh<38?'3px 8px 2px':'7px 10px 5px';
       blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${L}%;width:${W}%;background:${bg};padding:${pad}">
-        <div class="cal-block-name">${esc(s.name)}</div>
-        ${showTime?`<div class="cal-block-time">${fmtTime12(s.start_time)} – ${fmtTime12(_sesEnd(s))}</div>`:''}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;min-width:0">
+          <div class="cal-block-name" style="flex:1;min-width:0">${esc(s.name)}</div>
+          ${showTime?`<div class="cal-block-time" style="flex-shrink:0;margin-top:1px;text-align:right">${fmtTime12(s.start_time)}<br>${fmtTime12(_sesEnd(s))}</div>`:''}
+        </div>
         ${showBadge?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
       </div>`;
     });
