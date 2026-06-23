@@ -2682,13 +2682,14 @@ function cellHTML(t,r,c,cell){
       ${rm?'<div class="zx">×</div>':''}
     </div>`;
   }
-  // Use CSS Grid with pixel-exact row heights — eliminates all flex redistribution
-  return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
-    style="height:${CH}px;display:grid;grid-template-rows:${h}px 16px ${h}px;overflow:hidden">
-    ${seatCell(s0,cell)}
-    <div class="tbar" style="width:${Math.round(cell*0.7)}px;margin:auto;align-self:center"></div>
-    ${seatCell(s1,cell)}
-    ${rm?'<div class="zx">×</div>':''}</div>`;
+  // Standard two-seat table: absolute positioning — immune to flex/grid conflicts
+  const tb=Math.round(cell*0.15);
+  return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}" style="height:${CH}px;width:${cell}px;position:relative">
+    <div style="position:absolute;top:0;left:0;right:0;height:${h}px;overflow:hidden">${seatCell(s0,cell)}</div>
+    <div style="position:absolute;top:${h+3}px;left:${tb}px;right:${tb}px;height:10px;background:#b9c1d6;border-radius:5px"></div>
+    <div style="position:absolute;top:${h+16}px;left:0;right:0;height:${h}px;overflow:hidden">${seatCell(s1,cell)}</div>
+    ${rm?'<div class="zx">×</div>':''}
+  </div>`;
 }
 function seatCell(seat,cell){
   const h=seatH(cell), av=Math.round(cell*0.42), nm=Math.max(9,Math.round(cell*0.135));
