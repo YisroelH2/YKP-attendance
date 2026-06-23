@@ -486,7 +486,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .zseat .znm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 3px}
 .zseat .zlate{position:absolute;top:2px;right:2px;background:var(--late);color:#fff;font-size:8.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .zseat.empty{border-style:dashed;border-color:#b3bace;border-width:2px;color:#9aa2b8;background:#fff;font-weight:700}
-.zseat.empty.staff{background:#f0f1f5;border-color:#9aa2b8;color:#7a829a;font-weight:800;letter-spacing:.03em;font-size:10px !important}
+.zseat.empty.staff{background:var(--surface);border-style:solid !important;border-color:var(--line) !important;border-width:1.5px !important;color:var(--ink-soft);font-weight:700;font-size:inherit !important;letter-spacing:0}
 .zlabel-cell{display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(79,70,229,.13);border:2px solid rgba(79,70,229,.35);color:#312e81;font-weight:900;font-size:11px;text-align:center;letter-spacing:.04em;line-height:1.2;padding:3px}
 .zseat.s-on_time,.zseat.s-late,.zseat.s-excused{color:#1a1a1a}
 .zseat.s-absent{color:#fff}
@@ -2618,6 +2618,10 @@ function renderZalGrid(){
     wrap.querySelectorAll('.zcell.gap.addable').forEach(el=>el.onclick=()=>addTableCell(+el.dataset.r,+el.dataset.c));
   } else if(state.zal.mode==='edit'){
     wrap.querySelectorAll('.zseat').forEach(el=>el.onclick=()=>onZalSeatTap(el));
+    // Unified staff cards (both-slots-staff) sit on .zcell[data-seat], not .zseat
+    wrap.querySelectorAll('.zcell.ztable[data-seat]').forEach(el=>el.onclick=e=>{
+      if(!e.target.classList.contains('zx')) onZalSeatTap(el);
+    });
   } else {
     // mark mode: tap = mark, long-press = details (only on occupied seats)
     wrap.querySelectorAll('.zseat[data-student]').forEach(el=>bindMarkSeat(el));
@@ -2667,6 +2671,17 @@ function cellHTML(t,r,c,cell){
       ${seatCell(s0,cell)}
       ${rm?'<div class="zx">×</div>':''}</div>`;
   }
+  // Both seats are staff → single unified full-height staff card
+  if(s0&&s0.is_staff&&(!s1||s1.is_staff)){
+    const fs=Math.max(10,Math.round(cell*0.155));
+    return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
+      data-seat="${s0.id}" style="height:${CH}px;background:var(--surface);border:1.5px solid var(--line);
+      border-radius:10px;box-shadow:var(--sh-1);display:flex;align-items:center;justify-content:center;
+      cursor:${state.zal.mode==='seat'?'pointer':'default'}">
+      <span style="font-size:${fs}px;font-weight:700;color:var(--ink-soft);letter-spacing:.01em">Staff</span>
+      ${rm?'<div class="zx">×</div>':''}
+    </div>`;
+  }
   // Use CSS Grid with pixel-exact row heights — eliminates all flex redistribution
   return `<div class="zcell ztable ${rm?'removable':''}" data-tid="${t.id}"
     style="height:${CH}px;display:grid;grid-template-rows:${h}px 16px ${h}px;overflow:hidden">
@@ -2680,13 +2695,16 @@ function seatCell(seat,cell){
   const stu = seat&&seat.student_id ? state.students.find(s=>s.id===seat.student_id) : null;
   if(!stu){
     const isStaff=seat&&seat.is_staff;
-    const lbl=isStaff?'Staff':'+';
     const cls=isStaff?'zseat empty staff':'zseat empty';
-    // Render avatar-sized circle + label — same proportions as a filled seat
-    const icon=isStaff
-      ? `<div style="width:${av}px;height:${av}px;border-radius:50%;background:rgba(154,162,184,.18);display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.34)}px;color:#9aa2b8">👤</div>`
-      : `<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
-    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${icon}<div style="font-size:${nm}px;margin-top:2px;color:${isStaff?'#7a829a':'#b3bace'};font-weight:700">${lbl}</div></div>`;
+    if(isStaff){
+      // Clean card: solid border (from CSS), centered label only
+      return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">
+        <span style="font-size:${nm}px;font-weight:700">Staff</span>
+      </div>`;
+    }
+    // Empty (+) seat
+    const icon=`<div style="width:${av}px;height:${av}px;border-radius:50%;border:2px dashed #b3bace;display:flex;align-items:center;justify-content:center;font-size:${Math.round(av*0.45)}px;color:#b3bace">+</div>`;
+    return `<div class="${cls}" data-seat="${seat?seat.id:''}" style="flex:0 0 ${h}px;height:${h}px;min-height:${h}px;max-height:${h}px;width:${cell}px;box-sizing:border-box">${icon}<div style="font-size:${nm}px;margin-top:2px;color:#b3bace;font-weight:700">+</div></div>`;
   }
   const m=state.marks[stu.id];
   const dot = (m&&m.flagged) ? '<div class="zdot"></div>' : '';
