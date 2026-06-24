@@ -351,6 +351,24 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    ========================================================= */
 .sheet-bg{position:fixed; inset:0; background:rgba(15,17,30,.45); z-index:65; opacity:0; transition:opacity .2s}
 .sheet-bg.show{opacity:1}
+/* ── Student History Matrix ─────────────────────────────── */
+.shu-panel{position:fixed;inset:0;z-index:700;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1)}
+.shu-panel.show{transform:translateY(0)}
+.shu-head{display:flex;align-items:center;gap:12px;padding:14px 16px 10px;border-bottom:1px solid var(--line);flex-shrink:0}
+.shu-av{width:52px;height:52px;border-radius:12px;object-fit:cover;flex-shrink:0}
+.shu-av-ini{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;flex-shrink:0}
+.shu-title{font-size:17px;font-weight:800;line-height:1.2}
+.shu-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.shu-close{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--line);border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);flex-shrink:0}
+.shu-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+.shm-wrap{overflow:auto;-webkit-overflow-scrolling:touch;height:100%}
+.shm-grid{display:grid;min-width:max-content}
+.shm-corner{position:sticky;left:0;top:0;z-index:3;background:var(--surface);padding:6px 8px;font-size:10px;font-weight:700;color:var(--ink-soft);border-bottom:2px solid var(--line);border-right:2px solid var(--line);display:flex;align-items:flex-end}
+.shm-date{position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:2px solid var(--line);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 0;min-height:48px;min-width:34px}
+.shm-name{position:sticky;left:0;z-index:1;background:var(--surface);padding:4px 8px;border-bottom:1px solid var(--line);border-right:2px solid var(--line);display:flex;flex-direction:column;justify-content:center;min-height:40px;min-width:110px;max-width:110px}
+.shm-name.alt{background:#f8f9fd}
+.shm-cell{border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;min-height:40px;min-width:34px}
+.shm-cell.alt{background:#f8f9fd}
 .sheet{position:fixed; left:0; right:0; bottom:0; z-index:66; background:var(--surface);
   border-radius:24px 24px 0 0; box-shadow:var(--sh-3); padding:8px 20px calc(22px + var(--safe-b));
   transform:translateY(100%); transition:transform .26s cubic-bezier(.2,.9,.3,1); max-width:760px; margin:0 auto}
@@ -1464,7 +1482,13 @@ function classStudents(){
 
 function renderGrid(){
   const grid=$('grid'); if(!grid)return;
-  const list=classStudents();
+  const _MORD={on_time:1,late:2,excused:3,absent:4};
+  const list=classStudents().slice().sort((a,b)=>{
+    const ma=state.marks[a.id],mb=state.marks[b.id];
+    if(!ma&&!mb) return (a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||'');
+    if(!ma)return -1; if(!mb)return 1;
+    return (_MORD[ma.status]||9)-(_MORD[mb.status]||9);
+  });
   grid.innerHTML = list.map(s=>cardHTML(s)).join('') ||
     `<div class="empty" style="grid-column:1/-1"><p>No students in this class.</p></div>`;
   attachGrid(grid);
@@ -1680,7 +1704,7 @@ function renderStudents(selMode, sel){
   let filterClass=state.stuFilters.classId||'', filterBunk=state.stuFilters.bunkId||'', stuLimit=50;
   let currentList=[];
   const draw=q=>{
-    let list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
+    let list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase())).slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
     if(filterClass==='__none__') list=list.filter(s=>!s.class_id);
     else if(filterClass) list=list.filter(s=>s.class_id===filterClass);
     if(filterBunk) list=list.filter(s=>s.bunk===filterBunk);
@@ -2617,7 +2641,7 @@ function renderZalGrid(){
   const CH=seatH(cell)*2+16;
   const at={}; zalData.tables.forEach(t=>at[t.grid_row+'_'+t.grid_col]=t);
   let cells='';
-  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
+  for(let r=0;r<rows;r++){ let c=0; while(c<cols){ const t=at[r+'_'+c]; cells+=cellHTML(t,r,c,cell); c+=(t&&t.col_span>1?t.col_span:1); } }
 
   let groupOvals='';
   const editingTables=state.zal.mode==='edit'&&state.zal.tool==='tables';
@@ -3106,7 +3130,7 @@ function renderHistList(rows){
     html+=`<div class="hist-row${h.selMode?' selectable':''}${isSel?' sel':''}" data-key="${key}">
       ${h.selMode?`<div class="hist-check">${isSel?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':''}</div>`:''}
       <div class="hist-main">
-        <div class="hist-name" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>
+        <div class="hist-name" dir="auto" onclick="event.stopPropagation();openStuHist('${r.student_id}')" style="cursor:pointer;text-decoration:underline dotted #aaa">${esc(s.hebrew_name||s.english_name)}</div>
         <div class="hist-sub">${[cls?cls.name:null,ses?ses.name:null].filter(Boolean).map(esc).join(' · ')}</div>
         ${r.note?`<div class="hist-note">${esc(r.note)}</div>`:''}
       </div>
@@ -3138,7 +3162,7 @@ async function renderHistory(){
   if(!state.history) state.history={period:'week',classId:'',studentId:'',statuses:new Set(),flagged:false,lateMins:0,limit:50,selMode:false,sel:new Set()};
   if(!state.history.sel) state.history.sel=new Set();
   const h=state.history;
-  const forClass = h.classId ? state.students.filter(s=>(s.class_id||'__none__')===h.classId) : state.students;
+  const forClass = (h.classId ? state.students.filter(s=>(s.class_id||'__none__')===h.classId) : state.students).slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
   v.innerHTML=`
     <div class="controls">
       <div class="ctl full"><span>Class</span>
@@ -3366,7 +3390,7 @@ async function renderGradeEntry(v){
 async function renderBaalPeh(){
   const wrap=$('testSubView');
   const h=testsState.bp||(testsState.bp={classId:'',studentId:''});
-  const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
+  const forClass=(h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students).slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
   const stuOpts=`<option value="">All students</option>${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
   wrap.innerHTML=`
     <div class="controls">
@@ -3789,7 +3813,18 @@ async function generateReportCards(studentIds,from,to){
     return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0);
   }).join('');
   const css=RC_CSS;
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script>
+<!-- Student History Panel -->
+<div id="shuBg" class="sheet-bg hidden" onclick="closeStuHist()"></div>
+<div id="shuPanel" class="shu-panel">
+  <div class="shu-head">
+    <div id="shuAv"></div>
+    <div><div id="shuTitle" class="shu-title"></div><div id="shuSub" class="shu-sub"></div></div>
+    <button class="shu-close" onclick="closeStuHist()">×</button>
+  </div>
+  <div class="shu-body" id="shuBody"></div>
+</div>
+</body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
@@ -3887,20 +3922,20 @@ async function generateShulList(people,heading,showReason,nameFmt){
     : `<div class="sl-col">${leftCol}</div><div class="sl-col">${rightCol}</div>`;
 
   const css=`*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,Helvetica,sans-serif;background:#d4deec;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:18px}
-.sl-page{background:#fff;max-width:780px;margin:0 auto;position:relative;border:9px solid #1e3a8a;border-radius:3px;overflow:hidden}
-.sl-page::after{content:'';position:absolute;inset:5px;border:1.5px solid #1e3a8a;border-radius:1px;pointer-events:none;z-index:2}
-.sl-inner{padding:22px 36px 148px;position:relative;z-index:1}
-.sl-bh{text-align:right;font-size:13px;font-weight:900;color:#1e3a8a;font-family:serif;margin-bottom:6px;letter-spacing:.5px}
-.sl-header{display:flex;align-items:center;gap:18px;margin-bottom:14px}
-.sl-logo{height:72px;width:72px;object-fit:contain;flex-shrink:0}
+body{font-family:Arial,Helvetica,sans-serif;background:#c5d6eb;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:28px;min-height:100vh}
+.sl-page{background:#fff;max-width:700px;margin:0 auto;border-radius:20px;position:relative;overflow:hidden;min-height:calc(100vh - 56px)}
+.sl-inner{padding:26px 44px 170px;position:relative;z-index:1}
+.sl-bh{text-align:right;font-size:13px;font-weight:800;color:#1e3a8a;font-family:serif;margin-bottom:10px;letter-spacing:.5px}
+.sl-header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.sl-logo{height:76px;width:76px;object-fit:contain;flex-shrink:0}
 .sl-orgwrap{flex:1}
-.sl-orgname{font-size:21px;font-weight:900;color:#1e3a8a;text-transform:uppercase;line-height:1.2;letter-spacing:.3px}
-.sl-orgsub{font-size:12px;font-weight:700;color:#374151;letter-spacing:.3px;margin-top:2px}
-.sl-divider{height:3px;background:#1e3a8a;margin:14px 0 18px;border-radius:2px}
-.sl-title-section{text-align:center;margin-bottom:24px}
-.sl-heading{font-size:24px;font-weight:900;color:#1e3a8a;font-style:italic;line-height:1.3;margin-bottom:8px}
-.sl-dateline{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.sl-orgname{font-size:22px;font-weight:900;color:#1e3a8a;text-transform:uppercase;line-height:1.2;letter-spacing:.2px}
+.sl-orgsub1{font-size:11.5px;font-weight:400;color:#1e3a8a;letter-spacing:.5px;margin-top:5px;text-transform:uppercase}
+.sl-orgsub2{font-size:11.5px;font-weight:900;color:#1e3a8a;letter-spacing:.5px;text-transform:uppercase}
+.sl-divider{height:2px;background:#1e3a8a;margin:14px 0 22px}
+.sl-title-section{text-align:center;margin-bottom:26px}
+.sl-heading{font-size:23px;font-weight:900;color:#1e3a8a;font-style:italic;line-height:1.3;margin-bottom:8px}
+.sl-dateline{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:3px}
 .sl-hebdate{font-size:13px;font-weight:600;color:#555;direction:rtl}
 .sl-cols{display:flex;gap:28px}.sl-col{flex:1}
 .sl-row{display:flex;align-items:baseline;gap:8px;padding:8px 4px;border-bottom:1.5px solid #d4dae6}
@@ -3908,17 +3943,22 @@ body{font-family:Arial,Helvetica,sans-serif;background:#d4deec;-webkit-print-col
 .sl-name{flex:1;font-weight:700;font-size:16px}
 .sl-heb{font-size:18px}.sl-eng{font-size:11px;color:#888;font-weight:400}.sl-eng-main{font-size:15px}
 .sl-reason{font-size:10px;color:#c0392b;white-space:nowrap}
-.sl-wm{position:absolute;bottom:0;left:0;right:0;height:138px;z-index:0;opacity:.14;pointer-events:none}
-@media print{body{background:#fff;padding:0}.sl-page{border:9px solid #1e3a8a;max-width:100%;min-height:100vh}}`;
-  const wm=`<svg class="sl-wm" viewBox="0 0 800 138" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><polygon points="0,138 70,75 150,100 260,28 370,72 460,18 560,58 650,32 740,52 800,30 800,138" fill="#1e3a8a"/><polygon points="0,138 40,110 120,120 200,90 310,115 400,80 500,105 600,88 700,108 800,90 800,138" fill="#1e3a8a" opacity=".5"/></svg>`;
+.sl-wm{position:absolute;bottom:0;left:0;right:0;height:155px;z-index:0;opacity:.18;pointer-events:none}
+@media print{body{background:#c5d6eb;padding:0}.sl-page{border-radius:0;max-width:100%;min-height:100vh}}`;
+  const wm=`<svg class="sl-wm" viewBox="0 0 700 155" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+    <path d="M-10,155 L80,70 L140,100 L230,30 L310,80 L390,15 L470,65 L550,35 L630,75 L710,40 L710,155Z" fill="#1e3a8a" opacity=".7"/>
+    <path d="M-10,155 L-10,125 L60,105 L150,125 L240,100 L330,118 L420,95 L510,115 L600,102 L700,120 L700,155Z" fill="#1e3a8a" opacity=".45"/>
+    <path d="M-10,155 L-10,140 L80,132 L200,142 L320,130 L440,140 L560,133 L700,142 L700,155Z" fill="#1e3a8a" opacity=".25"/>
+  </svg>`;
   const body=`<div class="sl-page">
     <div class="sl-inner"${rtl?' dir="rtl"':''}>
       <div class="sl-bh" dir="ltr">בּ״ה</div>
       <div class="sl-header" dir="ltr">
         <img class="sl-logo" src="${LOGO_RC}" alt="YKP">
         <div class="sl-orgwrap">
-          <div class="sl-orgname">Yeshivas Kayitz Program</div>
-          <div class="sl-orgsub">Mechina Program · 8th Grade Division 5786</div>
+          <div class="sl-orgname">Yeshivas Kayitz<br>Program</div>
+          <div class="sl-orgsub1">Mechina Program</div>
+          <div class="sl-orgsub2">8th Grade Division 5786</div>
         </div>
       </div>
       <div class="sl-divider"></div>
@@ -3944,6 +3984,64 @@ function _q(builder, ms=6000){ return Promise.race([builder, new Promise((_,rej)
 
 boot();
 
+
+/* ══ Student History Matrix ══════════════════════════════════════════════ */
+async function openStuHist(studentId){
+  const stu=state.students.find(s=>s.id===studentId); if(!stu)return;
+  $('shuBg').classList.remove('hidden');
+  requestAnimationFrame(()=>{ $('shuBg').classList.add('show'); $('shuPanel').classList.add('show'); });
+  const photo=state.photoUrls[studentId];
+  const ini=esc(initials(stu.english_name||stu.hebrew_name||'?'));
+  const col=colorFor(studentId);
+  const cls=state.classes.find(c=>c.id===stu.class_id);
+  if(photo){$('shuAv').innerHTML=`<img class="shu-av" src="${photo}" onerror="this.style.display='none'">`;
+  }else{$('shuAv').innerHTML=`<div class="shu-av-ini" style="background:${col}">${ini}</div>`;}
+  $('shuTitle').textContent=stu.hebrew_name||stu.english_name;
+  $('shuSub').textContent=[stu.english_name,cls?cls.name:null].filter(Boolean).join(' · ');
+  $('shuBody').innerHTML='<div style="padding:32px;text-align:center;color:var(--ink-faint)">Loading…</div>';
+  const res=await _q(sb.from('attendance').select('*').eq('student_id',studentId).order('date',{ascending:true}));
+  if(res.error){$('shuBody').innerHTML='<div style="padding:24px;color:red">Failed to load</div>';return;}
+  _renderShuMatrix(stu,res.data||[]);
+}
+function _renderShuMatrix(stu,recs){
+  if(!recs.length){$('shuBody').innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint);font-size:15px">No attendance records yet</div>';return;}
+  const dates=[...new Set(recs.map(r=>r.date))].sort();
+  const sessIds=new Set(recs.map(r=>r.session_id));
+  const sessions=state.sessions.filter(s=>sessIds.has(s.id));
+  const lk={}; recs.forEach(r=>{lk[r.session_id+'|'+r.date]=r;});
+  const STATUS_C={on_time:'#22c55e',late:'#f97316',absent:'#1a1a1a',excused:'#a78bfa'};
+  const dot=r=>{
+    if(!r)return '';
+    const c=STATUS_C[r.status]||'#ccc';
+    const inside=r.status==='late'&&r.late_minutes?`<span style="font-size:6.5px;color:#fff;font-weight:800;line-height:1">${r.late_minutes}</span>`:'';
+    return `<div style="width:20px;height:20px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center">${inside}</div>`;
+  };
+  const fmtD=d=>{
+    const dt=new Date(d+'T12:00:00');
+    const dow=['Su','M','Tu','W','Th','F','Sa'][dt.getDay()];
+    return `<span style="font-size:8px;color:var(--ink-faint);font-weight:600">${dow}</span>`+
+           `<span style="font-size:11px;font-weight:800">${dt.getDate()}</span>`+
+           `<span style="font-size:8px;color:var(--ink-faint)">${dt.toLocaleDateString('en',{month:'short'})}</span>`;
+  };
+  const cols=`110px repeat(${dates.length},34px)`;
+  let g=`<div class="shm-grid" style="grid-template-columns:${cols}">`;
+  g+=`<div class="shm-corner">Session</div>`;
+  dates.forEach(d=>{g+=`<div class="shm-date">${fmtD(d)}</div>`;});
+  sessions.forEach((s,i)=>{
+    const alt=i%2?'alt':'';
+    const present=dates.filter(d=>{const r=lk[s.id+'|'+d];return r&&r.status!=='absent';}).length;
+    const pct=dates.length?Math.round(present/dates.length*100):0;
+    const pc=pct>=80?'#22c55e':pct>=60?'#f97316':'#ef4444';
+    g+=`<div class="shm-name ${alt}"><div style="font-size:11px;font-weight:700;line-height:1.3">${esc(s.name)}</div><div style="font-size:9px;font-weight:700;color:${pc};margin-top:1px">${pct}%</div></div>`;
+    dates.forEach(d=>{g+=`<div class="shm-cell ${alt}">${dot(lk[s.id+'|'+d])}</div>`;});
+  });
+  g+=`</div>`;
+  $('shuBody').innerHTML=`<div class="shm-wrap">${g}</div>`;
+}
+function closeStuHist(){
+  $('shuPanel').classList.remove('show');$('shuBg').classList.remove('show');
+  setTimeout(()=>$('shuBg').classList.add('hidden'),260);
+}
 </script>
 </body>
 </html>
