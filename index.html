@@ -2687,7 +2687,11 @@ function cellHTML(t,r,c,cell){
   // Landmark cell — no seats, just a label block
   if(t.label){
     const CH=seatH(cell)*2+16;
-    return `<div class="zcell ztable" data-tid="${t.id}"><div class="zlabel-cell" style="height:${CH}px;width:${cell}px">${esc(t.label)}</div></div>`;
+    const span=t.col_span||1;
+    const g=Math.max(3,Math.round(cell*0.05));
+    const w=span>1 ? cell*span+g*(span-1) : cell;
+    const cs=span>1 ? `grid-column:span ${span};` : '';
+    return `<div class="zcell ztable" data-tid="${t.id}" style="${cs}"><div class="zlabel-cell" style="height:${CH}px;width:${w}px;font-size:${Math.max(10,Math.round(cell*0.14*span))}px">${esc(t.label)}</div></div>`;
   }
   const s0=zalData.seats.find(s=>s.table_id===t.id&&s.slot===0);
   const s1=zalData.seats.find(s=>s.table_id===t.id&&s.slot===1);
