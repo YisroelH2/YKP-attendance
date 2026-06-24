@@ -2604,14 +2604,14 @@ function renderZalGrid(){
   const wrap=zRoomEl(); if(!wrap)return;
   const sl=wrap.scrollLeft, st=wrap.scrollTop;
   const a=curArr(); if(!a){wrap.innerHTML='';return;}
-  const rows=a.grid_rows||5, cols=a.grid_cols||10, cell=state.zal.cell, gap=Math.round(cell*0.16);
-  const CH=seatH(cell)*2+16;                       // every cell is exactly this tall -> a perfectly even grid
+  const rows=a.grid_rows||5, cols=a.grid_cols||10, cell=state.zal.cell;
+  const colGap=Math.round(cell*0.16);              // horizontal gap between columns (unchanged)
+  const rowGap=Math.round(seatH(cell)/2);          // vertical gap between rows ≈ half a seat height
+  const CH=seatH(cell)*2+16;
   const at={}; zalData.tables.forEach(t=>at[t.grid_row+'_'+t.grid_col]=t);
   let cells='';
   for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
 
-  // Vertical divider bars between adjacent column pairs — same style as the horizontal
-  // tbar between seat slots. One bar centered in the gap between col c and col c+1.
   let groupOvals='';
   const editingTables=state.zal.mode==='edit'&&state.zal.tool==='tables';
   if(!editingTables){
@@ -2620,9 +2620,8 @@ function renderZalGrid(){
       for(let c=0;c<cols-1;c+=2){
         const t0=at[r+'_'+c], t1=at[r+'_'+(c+1)];
         if(t0&&!t0.label&&t1&&!t1.label){
-          // Center the bar inside the column gap
-          const barX=Math.round((c+1)*(cell+gap) - gap/2 - barW/2);
-          const barY=r*(CH+gap)+insetY;
+          const barX=Math.round((c+1)*(cell+colGap) - colGap/2 - barW/2);
+          const barY=r*(CH+rowGap)+insetY;
           const barH=CH-insetY*2;
           groupOvals+=`<div style="position:absolute;left:${barX}px;top:${barY}px;width:${barW}px;height:${barH}px;background:#b9c1d6;border-radius:5px;pointer-events:none"></div>`;
         }
@@ -2631,7 +2630,7 @@ function renderZalGrid(){
   }
 
   const ovalLayer=groupOvals?`<div style="position:absolute;inset:0;overflow:visible;pointer-events:none">${groupOvals}</div>`:'';
-  const grid=`<div style="position:relative;display:inline-block"><div class="zgrid" style="grid-template-columns:repeat(${cols},${cell}px);grid-auto-rows:${CH}px;gap:${gap}px">${cells}</div>${ovalLayer}</div>`;
+  const grid=`<div style="position:relative;display:inline-block"><div class="zgrid" style="grid-template-columns:repeat(${cols},${cell}px);grid-auto-rows:${CH}px;column-gap:${colGap}px;row-gap:${rowGap}px">${cells}</div>${ovalLayer}</div>`;
   const side=a.front_side||'top';
   const banner=`<div class="zbanner zb-${side}">${esc(FRONT_KIND[a.front_kind||'aron'])}</div>`;
   const order = (side==='top'||side==='left') ? banner+grid : grid+banner;
