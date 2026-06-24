@@ -351,7 +351,6 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    ========================================================= */
 .sheet-bg{position:fixed; inset:0; background:rgba(15,17,30,.45); z-index:65; opacity:0; transition:opacity .2s}
 .sheet-bg.show{opacity:1}
-/* ── Student History Matrix ─────────────────────────────── */
 .shu-panel{position:fixed;inset:0;z-index:700;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1)}
 .shu-panel.show{transform:translateY(0)}
 .shu-head{display:flex;align-items:center;gap:12px;padding:14px 16px 10px;border-bottom:1px solid var(--line);flex-shrink:0}
@@ -3814,7 +3813,6 @@ async function generateReportCards(studentIds,from,to){
   }).join('');
   const css=RC_CSS;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script>
-<!-- Student History Panel -->
 <div id="shuBg" class="sheet-bg hidden" onclick="closeStuHist()"></div>
 <div id="shuPanel" class="shu-panel">
   <div class="shu-head">
@@ -3823,8 +3821,7 @@ async function generateReportCards(studentIds,from,to){
     <button class="shu-close" onclick="closeStuHist()">×</button>
   </div>
   <div class="shu-body" id="shuBody"></div>
-</div>
-</body></html>`;
+</div></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
@@ -3922,16 +3919,16 @@ async function generateShulList(people,heading,showReason,nameFmt){
     : `<div class="sl-col">${leftCol}</div><div class="sl-col">${rightCol}</div>`;
 
   const css=`*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,Helvetica,sans-serif;background:#c5d6eb;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:28px;min-height:100vh}
-.sl-page{background:#fff;max-width:700px;margin:0 auto;border-radius:20px;position:relative;overflow:hidden;min-height:calc(100vh - 56px)}
-.sl-inner{padding:26px 44px 170px;position:relative;z-index:1}
-.sl-bh{text-align:right;font-size:13px;font-weight:800;color:#1e3a8a;font-family:serif;margin-bottom:10px;letter-spacing:.5px}
-.sl-header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
-.sl-logo{height:76px;width:76px;object-fit:contain;flex-shrink:0}
+body{font-family:Arial,Helvetica,sans-serif;background:#c5d6eb;-webkit-print-color-adjust:exact;print-color-adjust:exact;min-height:100vh;padding:24px}
+.sl-page{background:#fff;max-width:700px;margin:0 auto;border-radius:20px;position:relative;overflow:hidden;min-height:calc(100vh - 48px)}
+.sl-inner{padding:22px 44px 175px;position:relative;z-index:1}
+.sl-bh{text-align:right;font-size:13px;font-weight:900;color:#1e3a8a;font-family:serif;margin-bottom:8px;letter-spacing:.5px}
+.sl-header{display:flex;align-items:center;gap:18px;margin-bottom:14px}
+.sl-logo{height:80px;width:80px;object-fit:contain;flex-shrink:0}
 .sl-orgwrap{flex:1}
 .sl-orgname{font-size:22px;font-weight:900;color:#1e3a8a;text-transform:uppercase;line-height:1.2;letter-spacing:.2px}
-.sl-orgsub1{font-size:11.5px;font-weight:400;color:#1e3a8a;letter-spacing:.5px;margin-top:5px;text-transform:uppercase}
-.sl-orgsub2{font-size:11.5px;font-weight:900;color:#1e3a8a;letter-spacing:.5px;text-transform:uppercase}
+.sl-orgsub1{font-size:12px;font-weight:400;color:#1e3a8a;letter-spacing:.5px;margin-top:5px;text-transform:uppercase}
+.sl-orgsub2{font-size:12px;font-weight:900;color:#1e3a8a;letter-spacing:.5px;text-transform:uppercase}
 .sl-divider{height:2px;background:#1e3a8a;margin:14px 0 22px}
 .sl-title-section{text-align:center;margin-bottom:26px}
 .sl-heading{font-size:23px;font-weight:900;color:#1e3a8a;font-style:italic;line-height:1.3;margin-bottom:8px}
@@ -3943,12 +3940,12 @@ body{font-family:Arial,Helvetica,sans-serif;background:#c5d6eb;-webkit-print-col
 .sl-name{flex:1;font-weight:700;font-size:16px}
 .sl-heb{font-size:18px}.sl-eng{font-size:11px;color:#888;font-weight:400}.sl-eng-main{font-size:15px}
 .sl-reason{font-size:10px;color:#c0392b;white-space:nowrap}
-.sl-wm{position:absolute;bottom:0;left:0;right:0;height:155px;z-index:0;opacity:.18;pointer-events:none}
+.sl-wm{position:absolute;bottom:0;right:0;width:60%;height:170px;z-index:0;opacity:.16;pointer-events:none}
 @media print{body{background:#c5d6eb;padding:0}.sl-page{border-radius:0;max-width:100%;min-height:100vh}}`;
-  const wm=`<svg class="sl-wm" viewBox="0 0 700 155" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
-    <path d="M-10,155 L80,70 L140,100 L230,30 L310,80 L390,15 L470,65 L550,35 L630,75 L710,40 L710,155Z" fill="#1e3a8a" opacity=".7"/>
-    <path d="M-10,155 L-10,125 L60,105 L150,125 L240,100 L330,118 L420,95 L510,115 L600,102 L700,120 L700,155Z" fill="#1e3a8a" opacity=".45"/>
-    <path d="M-10,155 L-10,140 L80,132 L200,142 L320,130 L440,140 L560,133 L700,142 L700,155Z" fill="#1e3a8a" opacity=".25"/>
+  const wm=`<svg class="sl-wm" viewBox="0 0 420 170" preserveAspectRatio="xMaxYMax meet" xmlns="http://www.w3.org/2000/svg">
+    <path d="M30,170 L100,70 Q110,55 120,70 L145,105 L180,30 Q190,10 200,30 L240,90 L270,55 Q278,42 286,55 L330,120 L365,85 Q372,75 380,85 L420,140 L420,170Z" fill="#1e3a8a" opacity=".85"/>
+    <path d="M0,170 Q60,148 130,158 Q200,168 270,150 Q330,136 420,152 L420,170Z" fill="#1e3a8a" opacity=".5"/>
+    <path d="M0,170 Q80,162 180,166 Q280,170 420,163 L420,170Z" fill="#1e3a8a" opacity=".3"/>
   </svg>`;
   const body=`<div class="sl-page">
     <div class="sl-inner"${rtl?' dir="rtl"':''}>
@@ -3985,7 +3982,6 @@ function _q(builder, ms=6000){ return Promise.race([builder, new Promise((_,rej)
 boot();
 
 
-/* ══ Student History Matrix ══════════════════════════════════════════════ */
 async function openStuHist(studentId){
   const stu=state.students.find(s=>s.id===studentId); if(!stu)return;
   $('shuBg').classList.remove('hidden');
@@ -3994,8 +3990,7 @@ async function openStuHist(studentId){
   const ini=esc(initials(stu.english_name||stu.hebrew_name||'?'));
   const col=colorFor(studentId);
   const cls=state.classes.find(c=>c.id===stu.class_id);
-  if(photo){$('shuAv').innerHTML=`<img class="shu-av" src="${photo}" onerror="this.style.display='none'">`;
-  }else{$('shuAv').innerHTML=`<div class="shu-av-ini" style="background:${col}">${ini}</div>`;}
+  $('shuAv').innerHTML=photo?`<img class="shu-av" src="${photo}" onerror="this.style.display='none'">`:`<div class="shu-av-ini" style="background:${col}">${ini}</div>`;
   $('shuTitle').textContent=stu.hebrew_name||stu.english_name;
   $('shuSub').textContent=[stu.english_name,cls?cls.name:null].filter(Boolean).join(' · ');
   $('shuBody').innerHTML='<div style="padding:32px;text-align:center;color:var(--ink-faint)">Loading…</div>';
@@ -4009,32 +4004,12 @@ function _renderShuMatrix(stu,recs){
   const sessIds=new Set(recs.map(r=>r.session_id));
   const sessions=state.sessions.filter(s=>sessIds.has(s.id));
   const lk={}; recs.forEach(r=>{lk[r.session_id+'|'+r.date]=r;});
-  const STATUS_C={on_time:'#22c55e',late:'#f97316',absent:'#1a1a1a',excused:'#a78bfa'};
-  const dot=r=>{
-    if(!r)return '';
-    const c=STATUS_C[r.status]||'#ccc';
-    const inside=r.status==='late'&&r.late_minutes?`<span style="font-size:6.5px;color:#fff;font-weight:800;line-height:1">${r.late_minutes}</span>`:'';
-    return `<div style="width:20px;height:20px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center">${inside}</div>`;
-  };
-  const fmtD=d=>{
-    const dt=new Date(d+'T12:00:00');
-    const dow=['Su','M','Tu','W','Th','F','Sa'][dt.getDay()];
-    return `<span style="font-size:8px;color:var(--ink-faint);font-weight:600">${dow}</span>`+
-           `<span style="font-size:11px;font-weight:800">${dt.getDate()}</span>`+
-           `<span style="font-size:8px;color:var(--ink-faint)">${dt.toLocaleDateString('en',{month:'short'})}</span>`;
-  };
-  const cols=`110px repeat(${dates.length},34px)`;
-  let g=`<div class="shm-grid" style="grid-template-columns:${cols}">`;
-  g+=`<div class="shm-corner">Session</div>`;
+  const SC={on_time:'#22c55e',late:'#f97316',absent:'#1a1a1a',excused:'#a78bfa'};
+  const dot=r=>{if(!r)return '';const c=SC[r.status]||'#ccc';const ins=r.status==='late'&&r.late_minutes?`<span style="font-size:6.5px;color:#fff;font-weight:800;line-height:1">${r.late_minutes}</span>`:'';return `<div style="width:20px;height:20px;border-radius:50%;background:${c};display:flex;align-items:center;justify-content:center">${ins}</div>`;};
+  const fmtD=d=>{const dt=new Date(d+'T12:00:00');const dow=['Su','M','Tu','W','Th','F','Sa'][dt.getDay()];return `<span style="font-size:8px;color:var(--ink-faint);font-weight:600">${dow}</span><span style="font-size:11px;font-weight:800">${dt.getDate()}</span><span style="font-size:8px;color:var(--ink-faint)">${dt.toLocaleDateString('en',{month:'short'})}</span>`;};
+  let g=`<div class="shm-grid" style="grid-template-columns:110px repeat(${dates.length},34px)"><div class="shm-corner">Session</div>`;
   dates.forEach(d=>{g+=`<div class="shm-date">${fmtD(d)}</div>`;});
-  sessions.forEach((s,i)=>{
-    const alt=i%2?'alt':'';
-    const present=dates.filter(d=>{const r=lk[s.id+'|'+d];return r&&r.status!=='absent';}).length;
-    const pct=dates.length?Math.round(present/dates.length*100):0;
-    const pc=pct>=80?'#22c55e':pct>=60?'#f97316':'#ef4444';
-    g+=`<div class="shm-name ${alt}"><div style="font-size:11px;font-weight:700;line-height:1.3">${esc(s.name)}</div><div style="font-size:9px;font-weight:700;color:${pc};margin-top:1px">${pct}%</div></div>`;
-    dates.forEach(d=>{g+=`<div class="shm-cell ${alt}">${dot(lk[s.id+'|'+d])}</div>`;});
-  });
+  sessions.forEach((s,i)=>{const alt=i%2?'alt':'';const pres=dates.filter(d=>{const r=lk[s.id+'|'+d];return r&&r.status!=='absent';}).length;const pct=dates.length?Math.round(pres/dates.length*100):0;const pc=pct>=80?'#22c55e':pct>=60?'#f97316':'#ef4444';g+=`<div class="shm-name ${alt}"><div style="font-size:11px;font-weight:700;line-height:1.3">${esc(s.name)}</div><div style="font-size:9px;font-weight:700;color:${pc};margin-top:1px">${pct}%</div></div>`;dates.forEach(d=>{g+=`<div class="shm-cell ${alt}">${dot(lk[s.id+'|'+d])}</div>`;});});
   g+=`</div>`;
   $('shuBody').innerHTML=`<div class="shm-wrap">${g}</div>`;
 }
