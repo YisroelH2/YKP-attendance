@@ -1350,49 +1350,56 @@ function fmtTime12(t){
   return h12+':'+(String(m).padStart(2,'0'))+' '+ap;
 }
 
+let _agoTimer=null;
+function _calcAgoLine(ses){
+  if(!ses||!ses.start_time) return '';
+  const now=Date.now();
+  const [sh,sm]=(ses.start_time||'0:0').split(':').map(Number);
+  const start=new Date(); start.setHours(sh,sm,0,0);
+  let end;
+  if(ses.end_time && ses.end_time!=='00:00' && ses.end_time!==''){
+    const [eh,em]=ses.end_time.split(':').map(Number);
+    end=new Date(); end.setHours(eh,em,0,0);
+  } else { end=new Date(start.getTime()+45*60000); }
+  const startMs=start.getTime(), endMs=end.getTime();
+  if(now<startMs){
+    const mins=Math.ceil((startMs-now)/60000);
+    return mins<=30?`<div class="ses-live-ago">Starts <span>in ${mins} min</span></div>`:'';
+  } else if(now<endMs){
+    return `<div class="ses-live-ago">Started <span>${Math.floor((now-startMs)/60000)} min ago</span></div>`;
+  } else if(now<endMs+30*60000){
+    return `<div class="ses-live-ago">Finished <span>${Math.floor((now-endMs)/60000)} min ago</span></div>`;
+  }
+  return '';
+}
+function _startAgoTimer(ses, cardId){
+  if(_agoTimer){clearInterval(_agoTimer);_agoTimer=null;}
+  if(!ses||!ses.start_time) return;
+  _agoTimer=setInterval(()=>{
+    const card=$(cardId); if(!card){clearInterval(_agoTimer);_agoTimer=null;return;}
+    const el=card.querySelector('.ses-live-ago');
+    const newHtml=_calcAgoLine(ses);
+    if(el) el.outerHTML=newHtml;
+    else if(newHtml){ const name=card.querySelector('.ses-live-name'); if(name) name.insertAdjacentHTML('afterend',newHtml); }
+  },30000);
+}
+
 async function renderSesLiveCard(cardId='sesLiveCard', sessionId=state.sessionId){
   const card=$(cardId); if(!card)return;
   const ses=state.sessions.find(s=>s.id===sessionId);
-  if(!ses||!ses.start_time){card.innerHTML='';return;}
+  if(!ses||!ses.start_time){card.innerHTML='';if(_agoTimer){clearInterval(_agoTimer);_agoTimer=null;}return;}
   const d=state.date;
   const engDate=fmtEngDate(d);
   const hebDate=await fetchHebDate(d);
   const schTime=fmtTime12(ses.start_time);
   const isToday=d===todayStr();
-  let agoLine='';
-  if(isToday){
-    const now=Date.now();
-    const [sh,sm]=(ses.start_time||'0:0').split(':').map(Number);
-    const start=new Date(); start.setHours(sh,sm,0,0);
-    // end = explicit end_time, else start + 45min default
-    let end;
-    if(ses.end_time && ses.end_time!=='00:00' && ses.end_time!==''){
-      const [eh,em]=ses.end_time.split(':').map(Number);
-      end=new Date(); end.setHours(eh,em,0,0);
-    } else {
-      end=new Date(start.getTime()+45*60000);
-    }
-    const startMs=start.getTime(), endMs=end.getTime();
-    if(now < startMs){
-      // upcoming — only show within 30 min of start
-      const mins=Math.ceil((startMs-now)/60000);
-      if(mins<=30) agoLine=`<div class="ses-live-ago">Starts <span>in ${mins} min</span></div>`;
-    } else if(now < endMs){
-      // in progress
-      const mins=Math.floor((now-startMs)/60000);
-      agoLine=`<div class="ses-live-ago">Started <span>${mins} min ago</span></div>`;
-    } else if(now < endMs + 30*60000){
-      // finished — show for 30 min after end
-      const mins=Math.floor((now-endMs)/60000);
-      agoLine=`<div class="ses-live-ago">Finished <span>${mins} min ago</span></div>`;
-    }
-    // else: more than 30 min after end → no status line
-  }
+  const agoLine=isToday?_calcAgoLine(ses):'';
   card.innerHTML=`<div class="ses-live">
     <div class="ses-live-meta">${engDate}${hebDate?' · '+hebDate:''}${schTime?' · scheduled '+schTime:''}</div>
     <div class="ses-live-name">${esc(ses.name)}</div>
     ${agoLine}
   </div>`;
+  if(isToday) _startAgoTimer(ses, cardId);
 }
 /* ---------- MARK ---------- */
 async function renderMark(){
