@@ -2965,13 +2965,28 @@ function closePicker(){ $('pickSheet').classList.remove('show'); $('pickBg').cla
 /* ---- full-screen marking ---- */
 function _updateFsLateBadge(){
   const el=$('fsLateBadge'); if(!el)return;
-  const mins=lateFor(state.zalSessionId);
-  if(state.zal.full && mins>0){
-    el.innerHTML=`⏱ <span>currently</span> <b>${mins} min</b> late`;
-    el.classList.remove('hidden');
-  } else {
-    el.classList.add('hidden');
+  const ses=state.sessions.find(s=>s.id===state.zalSessionId);
+  if(!ses||!ses.start_time||!state.zal.full){el.classList.add('hidden');return;}
+  const now=Date.now();
+  const [sh,sm]=(ses.start_time||'0:0').split(':').map(Number);
+  const start=new Date(); start.setHours(sh,sm,0,0);
+  let end;
+  if(ses.end_time&&ses.end_time!=='00:00'&&ses.end_time!==''){
+    const [eh,em]=ses.end_time.split(':').map(Number);
+    end=new Date(); end.setHours(eh,em,0,0);
+  } else { end=new Date(start.getTime()+45*60000); }
+  const startMs=start.getTime(), endMs=end.getTime();
+  let txt='';
+  if(now<startMs){
+    const mins=Math.ceil((startMs-now)/60000);
+    if(mins<=30) txt=`⏱ <span>starts in</span> <b>${mins} min</b>`;
+  } else if(now<endMs){
+    txt=`⏱ <span>started</span> <b>${Math.floor((now-startMs)/60000)} min ago</b>`;
+  } else if(now<endMs+30*60000){
+    txt=`⏱ <span>finished</span> <b>${Math.floor((now-endMs)/60000)} min ago</b>`;
   }
+  if(txt){el.innerHTML=txt;el.classList.remove('hidden');}
+  else el.classList.add('hidden');
 }
 let _fsLateTimer=null;
 function enterFull(){
@@ -2982,7 +2997,9 @@ function enterFull(){
   document.body.style.overflow='hidden';
   renderZalGrid();
   _updateFsLateBadge();
-  if(_fsLateTimer)clearInterval(_fsLateTimer);
+  // Piggyback onto the existing _agoTimer tick so both badge and session card
+  // always show the same number from one shared 30-second interval.
+  if(_fsLateTimer){clearInterval(_fsLateTimer);_fsLateTimer=null;}
   _fsLateTimer=setInterval(_updateFsLateBadge,30000);
 }
 function exitFull(){
