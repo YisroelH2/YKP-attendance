@@ -2610,22 +2610,21 @@ function renderZalGrid(){
   let cells='';
   for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
 
-  // Soft group ovals — outline-only ring around every adjacent pair of real table cells.
-  // Rendered after (on top of) the grid but with transparent fill so seats show through.
-  // The outline is visible in the gap areas and at the oval edges against the background.
+  // Vertical divider bars between adjacent column pairs — same style as the horizontal
+  // tbar between seat slots. One bar centered in the gap between col c and col c+1.
   let groupOvals='';
   const editingTables=state.zal.mode==='edit'&&state.zal.tool==='tables';
   if(!editingTables){
-    const pad=Math.round(cell*0.07);
+    const barW=10, insetY=Math.round(CH*0.08);
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols-1;c+=2){
         const t0=at[r+'_'+c], t1=at[r+'_'+(c+1)];
         if(t0&&!t0.label&&t1&&!t1.label){
-          const L=c*(cell+gap)-pad;
-          const T=r*(CH+gap)-pad;
-          const W=2*cell+gap+pad*2;
-          const H=CH+pad*2;
-          groupOvals+=`<div style="position:absolute;left:${L}px;top:${T}px;width:${W}px;height:${H}px;border:1.5px solid rgba(80,95,140,0.22);border-radius:${Math.round(H/2)}px;pointer-events:none"></div>`;
+          // Center the bar inside the column gap
+          const barX=Math.round((c+1)*(cell+gap) - gap/2 - barW/2);
+          const barY=r*(CH+gap)+insetY;
+          const barH=CH-insetY*2;
+          groupOvals+=`<div style="position:absolute;left:${barX}px;top:${barY}px;width:${barW}px;height:${barH}px;background:#b9c1d6;border-radius:5px;pointer-events:none"></div>`;
         }
       }
     }
