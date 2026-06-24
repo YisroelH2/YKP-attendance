@@ -2617,7 +2617,7 @@ function renderZalGrid(){
   const CH=seatH(cell)*2+16;
   const at={}; zalData.tables.forEach(t=>at[t.grid_row+'_'+t.grid_col]=t);
   let cells='';
-  for(let r=0;r<rows;r++){ let c=0; while(c<cols){ const t=at[r+'_'+c]; cells+=cellHTML(t,r,c,cell); c+=(t&&t.col_span>1?t.col_span:1); } }
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells+=cellHTML(at[r+'_'+c],r,c,cell);
 
   let groupOvals='';
   const editingTables=state.zal.mode==='edit'&&state.zal.tool==='tables';
@@ -3886,26 +3886,50 @@ async function generateShulList(people,heading,showReason,nameFmt){
     ? `<div class="sl-col">${rightCol}</div><div class="sl-col">${leftCol}</div>`
     : `<div class="sl-col">${leftCol}</div><div class="sl-col">${rightCol}</div>`;
 
-  const css=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a2e}
-.sl-page{padding:36px 40px;max-width:780px;margin:0 auto}
-.sl-top{display:flex;align-items:center;gap:16px;border-bottom:3px solid #2b5299;padding-bottom:14px;margin-bottom:10px}
-.sl-logo{height:64px;object-fit:contain}
-.sl-inst{font-size:13px;color:#555}.sl-iname{font-size:16px;font-weight:bold;color:#1a1a2e}
-.sl-dates{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#777;margin-bottom:20px}
-.sl-dates .heb{direction:rtl;font-weight:600;color:#555}
-.sl-head{font-size:25px;font-weight:bold;text-align:center;line-height:1.3;margin:18px 0 28px;color:#1a2747}
-.sl-cols{display:flex;gap:34px}.sl-col{flex:1}
-.sl-row{display:flex;align-items:baseline;gap:10px;padding:9px 4px;border-bottom:1.5px solid #d4dae6}
-.sl-num{width:24px;flex:none;text-align:center;color:#9aa;font-size:13px;font-weight:600}
-.sl-name{flex:1;font-weight:600;font-size:17px}
-.sl-heb{font-size:19px}.sl-eng{font-size:12px;color:#888;font-weight:400}.sl-eng-main{font-size:16px}
-.sl-reason{font-size:11px;color:#c0392b;white-space:nowrap}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sl-page{padding:24px 30px}}`;
-  const body=`<div class="sl-page"${rtl?' dir="rtl"':''}>
-    <div class="sl-top"${rtl?' dir="ltr"':''}><img class="sl-logo" src="${LOGO_RC}" alt="YKP"><div class="sl-inst"><div class="sl-iname">Yeshivas Kayitz Program</div><div>Attendance Office</div></div></div>
-    <div class="sl-dates"${rtl?' dir="ltr"':''}><span class="eng">${engDate}</span><span class="heb">${esc(hebDate)}</span></div>
-    <div class="sl-head">${esc(heading)}</div>
-    <div class="sl-cols">${colsHtml}</div>
+  const css=`*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;background:#d4deec;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:18px}
+.sl-page{background:#fff;max-width:780px;margin:0 auto;position:relative;border:9px solid #1e3a8a;border-radius:3px;overflow:hidden}
+.sl-page::after{content:'';position:absolute;inset:5px;border:1.5px solid #1e3a8a;border-radius:1px;pointer-events:none;z-index:2}
+.sl-inner{padding:22px 36px 148px;position:relative;z-index:1}
+.sl-bh{text-align:right;font-size:13px;font-weight:900;color:#1e3a8a;font-family:serif;margin-bottom:6px;letter-spacing:.5px}
+.sl-header{display:flex;align-items:center;gap:18px;margin-bottom:14px}
+.sl-logo{height:72px;width:72px;object-fit:contain;flex-shrink:0}
+.sl-orgwrap{flex:1}
+.sl-orgname{font-size:21px;font-weight:900;color:#1e3a8a;text-transform:uppercase;line-height:1.2;letter-spacing:.3px}
+.sl-orgsub{font-size:12px;font-weight:700;color:#374151;letter-spacing:.3px;margin-top:2px}
+.sl-divider{height:3px;background:#1e3a8a;margin:14px 0 18px;border-radius:2px}
+.sl-title-section{text-align:center;margin-bottom:24px}
+.sl-heading{font-size:24px;font-weight:900;color:#1e3a8a;font-style:italic;line-height:1.3;margin-bottom:8px}
+.sl-dateline{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.sl-hebdate{font-size:13px;font-weight:600;color:#555;direction:rtl}
+.sl-cols{display:flex;gap:28px}.sl-col{flex:1}
+.sl-row{display:flex;align-items:baseline;gap:8px;padding:8px 4px;border-bottom:1.5px solid #d4dae6}
+.sl-num{width:22px;flex:none;text-align:center;color:#9aa;font-size:12px;font-weight:700}
+.sl-name{flex:1;font-weight:700;font-size:16px}
+.sl-heb{font-size:18px}.sl-eng{font-size:11px;color:#888;font-weight:400}.sl-eng-main{font-size:15px}
+.sl-reason{font-size:10px;color:#c0392b;white-space:nowrap}
+.sl-wm{position:absolute;bottom:0;left:0;right:0;height:138px;z-index:0;opacity:.14;pointer-events:none}
+@media print{body{background:#fff;padding:0}.sl-page{border:9px solid #1e3a8a;max-width:100%;min-height:100vh}}`;
+  const wm=`<svg class="sl-wm" viewBox="0 0 800 138" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><polygon points="0,138 70,75 150,100 260,28 370,72 460,18 560,58 650,32 740,52 800,30 800,138" fill="#1e3a8a"/><polygon points="0,138 40,110 120,120 200,90 310,115 400,80 500,105 600,88 700,108 800,90 800,138" fill="#1e3a8a" opacity=".5"/></svg>`;
+  const body=`<div class="sl-page">
+    <div class="sl-inner"${rtl?' dir="rtl"':''}>
+      <div class="sl-bh" dir="ltr">בּ״ה</div>
+      <div class="sl-header" dir="ltr">
+        <img class="sl-logo" src="${LOGO_RC}" alt="YKP">
+        <div class="sl-orgwrap">
+          <div class="sl-orgname">Yeshivas Kayitz Program</div>
+          <div class="sl-orgsub">Mechina Program · 8th Grade Division 5786</div>
+        </div>
+      </div>
+      <div class="sl-divider"></div>
+      <div class="sl-title-section">
+        <div class="sl-heading">${esc(heading)}</div>
+        <div class="sl-dateline">${engDate}</div>
+        ${hebDate?`<div class="sl-hebdate">${esc(hebDate)}</div>`:''}
+      </div>
+      <div class="sl-cols">${colsHtml}</div>
+    </div>
+    ${wm}
   </div>`;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
