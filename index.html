@@ -3872,8 +3872,12 @@ async function generateShulList(people,heading,showReason,nameFmt){
   let hebDate='';
   try{ hebDate=await fetchHebDate(todayStr()); }catch{}
 
-  // Last-name-first helper for English names
-  const lastFirst=n=>{if(!n)return '';const p=n.trim().split(/\s+/);return p.length<2?n:p[p.length-1]+' '+p.slice(0,-1).join(' ');};
+  // ── Name helpers ──────────────────────────────────────────────────────────
+  const lastFirst=n=>{
+    if(!n)return '';
+    const p=n.trim().split(/\s+/);
+    return p.length<2?n:p[p.length-1]+' '+p.slice(0,-1).join(' ');
+  };
 
   const nameCell=(s)=>{
     const heb=esc(s.hebrew_name||'');
@@ -3884,73 +3888,240 @@ async function generateShulList(people,heading,showReason,nameFmt){
   };
   const reasonCell=(s)=>showReason&&reasonByStu[s.id]?`<span class="sl-reason">${esc(reasonByStu[s.id])}</span>`:'';
 
+  // ── Column split ───────────────────────────────────────────────────────────
   const n=people.length;
   const half=Math.ceil(n/2);
   const colA=people.slice(0,half);
   const colB=people.slice(half);
   const rowFor=(s,idx)=>`<div class="sl-row"><span class="sl-num">${idx}</span><span class="sl-name">${nameCell(s)}</span>${reasonCell(s)}</div>`;
-  const leftCol=colA.map((s,i)=>rowFor(s,i+1)).join('');
+  const leftCol =colA.map((s,i)=>rowFor(s,i+1)).join('');
   const rightCol=colB.map((s,i)=>rowFor(s,half+i+1)).join('');
   const colsHtml=rtl
     ?`<div class="sl-col">${rightCol}</div><div class="sl-col">${leftCol}</div>`
     :`<div class="sl-col">${leftCol}</div><div class="sl-col">${rightCol}</div>`;
 
+  // Dynamic heading font size — shrinks gracefully for long announcements
+  const hLen=heading.length;
+  const headingSize=hLen>70?'18px':hLen>45?'24px':hLen>28?'34px':hLen>18?'42px':'52px';
+
+  // ── COMPLETE CSS ───────────────────────────────────────────────────────────
   const css=`
-@page{margin:0;size:letter portrait}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:28px}
-.sl-page{background:#fff;max-width:720px;margin:0 auto;border-radius:20px;position:relative;overflow:hidden;min-height:calc(100vh - 56px)}
-.sl-inner{padding:26px 48px 185px;position:relative;z-index:1}
-.sl-bh{text-align:right;font-size:13px;font-weight:800;color:#1e3a8a;font-family:serif;margin-bottom:8px;letter-spacing:.5px}
-.sl-header{display:flex;align-items:center;gap:16px;margin-bottom:14px}
-.sl-logo{height:80px;width:80px;object-fit:contain;flex-shrink:0}
-.sl-orgwrap{flex:1}
-.sl-orgname{font-size:22px;font-weight:900;color:#1e3a8a;text-transform:uppercase;line-height:1.2;letter-spacing:.2px}
-.sl-orgsub1{font-size:12px;font-weight:400;color:#1e3a8a;letter-spacing:.5px;margin-top:4px;text-transform:uppercase}
-.sl-orgsub2{font-size:12px;font-weight:900;color:#1e3a8a;letter-spacing:.5px;text-transform:uppercase}
-.sl-divider{height:2px;background:#1e3a8a;margin:14px 0 32px}
-.sl-heading{font-size:52px;font-weight:400;color:#111;text-align:center;font-family:Georgia,'Times New Roman',serif;line-height:1.2;margin-bottom:40px;letter-spacing:-.5px}
-.sl-cols{display:flex;gap:40px;align-items:flex-start}
-.sl-col{flex:1}
-.sl-row{display:flex;align-items:baseline;gap:14px;padding:10px 0;border-bottom:1px solid #e5eaf3}
-.sl-num{width:18px;flex:none;text-align:right;color:#9ab0cc;font-size:12px;font-weight:600;flex-shrink:0}
-.sl-name{flex:1;font-weight:700;font-size:15px;color:#1a1a2e;letter-spacing:.2px}
-.sl-heb{font-size:17px;direction:rtl}
-.sl-eng{font-size:11px;color:#888;font-weight:400}
-.sl-eng-main{font-size:15px}
-.sl-reason{font-size:10px;color:#c0392b;white-space:nowrap;margin-left:6px}
-.sl-wm{position:absolute;bottom:0;right:0;width:62%;height:172px;z-index:0;opacity:.17;pointer-events:none}
-@media print{
-  @page{margin:0;size:letter portrait}
-  body{background:#c5d6eb;padding:0}
-  .sl-page{border-radius:0;max-width:100%;box-shadow:none}
-  .sl-inner{padding:24px 48px 145px}
-  .sl-wm{position:fixed;bottom:0;right:0;width:60%;height:160px}
-  .sl-cols{page-break-inside:auto}
-  .sl-row{page-break-inside:avoid;break-inside:avoid}
+/* Remove all browser print headers/footers/URLs */
+@page { margin: 0; size: letter portrait; }
+
+/* Reset */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ── Canvas ──────────────────────────────────────────────────────────────── */
+body {
+  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  background: #c5d6eb;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  min-height: 100vh;
+  padding: 28px;
+}
+
+/* ── White card ──────────────────────────────────────────────────────────── */
+.sl-page {
+  background: #ffffff;
+  max-width: 740px;
+  margin: 0 auto;
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100vh - 56px);
+}
+
+/* ── Inner content ───────────────────────────────────────────────────────── */
+.sl-inner {
+  padding: 26px 52px 192px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── \u05d1"\u05d4 top-right ───────────────────────────────────────────────────── */
+.sl-bh {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e3a8a;
+  font-family: 'Times New Roman', Times, serif;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Header row (logo + org text) ───────────────────────────────────────── */
+/* LOGO: swap src via LOGO_RC variable in the JS below */
+.sl-header { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
+.sl-logo   { height: 84px; width: 84px; object-fit: contain; flex-shrink: 0; }
+.sl-orgwrap{ flex: 1; }
+.sl-orgname{
+  font-size: 23px; font-weight: 900; color: #1e3a8a;
+  text-transform: uppercase; line-height: 1.15; letter-spacing: 0.3px;
+}
+.sl-orgsub1{
+  font-size: 12px; font-weight: 400; color: #1e3a8a;
+  text-transform: uppercase; letter-spacing: 0.5px; margin-top: 5px;
+}
+.sl-orgsub2{
+  font-size: 12px; font-weight: 900; color: #1e3a8a;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* ── Divider ─────────────────────────────────────────────────────────────── */
+.sl-divider { height: 2px; background: #1e3a8a; border: none; margin: 16px 0 34px; }
+
+/* ── Dynamic title ───────────────────────────────────────────────────────── */
+.sl-heading {
+  text-align: center;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  font-weight: 400;
+  color: #111111;
+  line-height: 1.28;
+  margin-bottom: 38px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  /* font-size injected inline — adapts to string length */
+}
+
+/* ── Two-column student grid ─────────────────────────────────────────────── */
+.sl-cols { display: flex; gap: 44px; align-items: flex-start; }
+.sl-col  { flex: 1; min-width: 0; }
+
+.sl-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid #e2e8f4;
+}
+
+/* Index number: muted blue-gray, fixed right-aligned in 22px gutter */
+.sl-num {
+  width: 22px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8facc8;
+  line-height: 1;
+}
+
+/* Student name: bold, dark, crisp */
+.sl-name {
+  flex: 1;
+  font-weight: 700;
+  font-size: 15px;
+  color: #111111;
+  letter-spacing: 0.15px;
+  line-height: 1.3;
+}
+
+/* Hebrew / bilingual name variants */
+.sl-heb     { font-size: 17px; direction: rtl; }
+.sl-eng     { font-size: 11px; color: #777; font-weight: 400; margin-left: 5px; }
+.sl-eng-main{ font-size: 15px; }
+.sl-reason  { font-size: 10px; color: #c0392b; white-space: nowrap; margin-left: 8px; flex-shrink: 0; }
+
+/* ── Mountain watermark (bottom-right of white card) ────────────────────── */
+.sl-wm {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 62%;
+  height: 178px;
+  z-index: 0;
+  opacity: 0.17;
+  pointer-events: none;
+  display: block;
+}
+
+/* ── @media print — strip all browser chrome, force colors ──────────────── */
+@media print {
+  @page { margin: 0; size: letter portrait; }
+
+  html, body {
+    background: #c5d6eb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .sl-page {
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    box-shadow: none !important;
+  }
+
+  .sl-inner { padding: 24px 52px 152px !important; }
+
+  /* Watermark anchors to page bottom on every print page */
+  .sl-wm {
+    position: fixed !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: 60% !important;
+    height: 165px !important;
+    opacity: 0.17 !important;
+  }
+
+  .sl-cols { page-break-inside: auto; }
+  .sl-row  { page-break-inside: avoid; break-inside: avoid; }
 }`;
 
-  const wm=`<svg class="sl-wm" viewBox="0 0 420 172" preserveAspectRatio="xMaxYMax meet" xmlns="http://www.w3.org/2000/svg">
-    <path d="M40,172 L110,72 Q120,56 130,72 L158,108 L190,32 Q200,10 210,32 L252,94 L282,56 Q290,42 298,56 L342,122 L375,86 Q383,74 392,86 L420,130 L420,172Z" fill="#1e3a8a" opacity=".85"/>
-    <path d="M0,172 Q70,150 140,161 Q210,172 285,152 Q345,136 420,154 L420,172Z" fill="#1e3a8a" opacity=".5"/>
-    <path d="M0,172 Q90,164 190,168 Q290,172 420,165 L420,172Z" fill="#1e3a8a" opacity=".28"/>
+  // ── Mountain watermark SVG ──────────────────────────────────────────────────
+  const wm=`<svg class="sl-wm" viewBox="0 0 400 178" preserveAspectRatio="xMaxYMax meet"
+      xmlns="http://www.w3.org/2000/svg" fill="#1e3a8a">
+    <!-- Main mountain peaks -->
+    <path d="M0,178 L52,90 C61,74 70,79 80,66 C95,48 105,53 116,37
+             C127,21 137,27 148,44 L169,77 C179,60 194,33 205,17
+             C213,5 221,2 229,16 L254,56 C264,39 279,23 295,34
+             C309,43 321,66 337,81 L365,52 C375,39 386,46 397,54
+             L400,57 L400,178Z" opacity=".75"/>
+    <!-- Mid-ground ridge -->
+    <path d="M0,178 C38,164 78,158 118,163 C158,168 198,158 238,151
+             C278,144 318,151 358,158 C374,161 389,165 400,167 L400,178Z"
+          opacity=".5"/>
+    <!-- Foreground base -->
+    <path d="M0,178 C72,172 154,175 234,171 C304,168 364,172 400,173
+             L400,178Z" opacity=".3"/>
   </svg>`;
 
+  // ── BODY HTML ──────────────────────────────────────────────────────────────
   const body=`<div class="sl-page">
     <div class="sl-inner"${rtl?' dir="rtl"':''}>
-      <div class="sl-bh" dir="ltr">ב"ה</div>
+
+      <!-- ב"ה — top-right corner -->
+      <div class="sl-bh" dir="ltr">&#x05d1;&#x05f4;&#x05d4;</div>
+
+      <!-- Header: logo + org text -->
+      <!-- LOGO: src="${LOGO_RC}" is the base64 YKP emblem embedded via JS -->
       <div class="sl-header" dir="ltr">
-        <img class="sl-logo" src="${LOGO_RC}" alt="YKP">
+        <img class="sl-logo" src="${LOGO_RC}" alt="YKP Emblem">
         <div class="sl-orgwrap">
           <div class="sl-orgname">Yeshivas Kayitz<br>Program</div>
           <div class="sl-orgsub1">Mechina Program</div>
           <div class="sl-orgsub2">8th Grade Division 5786</div>
         </div>
       </div>
-      <div class="sl-divider"></div>
-      <div class="sl-heading">${esc(heading)}</div>
+
+      <!-- Full-width dark-blue divider -->
+      <hr class="sl-divider">
+
+      <!-- Dynamic title — font-size adapts to length via headingSize variable -->
+      <div class="sl-heading" style="font-size:${headingSize};line-height:${hLen>45?'1.35':'1.25'}">${esc(heading)}</div>
+
+      <!-- Two-column student list -->
       <div class="sl-cols">${colsHtml}</div>
+
     </div>
+
+    <!-- Mountain watermark — positioned bottom:0 right:0 of white card -->
     ${wm}
   </div>`
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
