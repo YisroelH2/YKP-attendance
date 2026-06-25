@@ -554,11 +554,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-date-heb:not(:empty)::before{content:'·';color:var(--ink-faint);margin-right:8px;font-weight:400}
 .cal-date-today{font-size:11px;color:var(--accent);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:3px}
 .cal-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 200px);position:relative}
-.cal-grid{position:relative;padding-left:50px}
-.cal-hour-line{position:absolute;left:50px;right:0;height:1px;background:var(--line);pointer-events:none}
-.cal-hour-lbl{position:absolute;left:0;width:46px;font-size:10px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:5px;transform:translateY(-50%);line-height:1;pointer-events:none}
-.cal-lane{position:absolute;left:50px;right:0;top:0;bottom:0}
-.cal-block{position:absolute;left:0;right:4px;border-radius:10px;padding:7px 10px 5px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:34px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.cal-grid{position:relative;padding-left:66px;padding-right:6px;margin:0 4px}
+.cal-hour-line{position:absolute;left:66px;right:6px;height:1px;background:var(--line);opacity:.6;pointer-events:none}
+.cal-hour-lbl{position:absolute;left:0;width:62px;font-size:10.5px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:10px;transform:translateY(-50%);line-height:1;pointer-events:none;letter-spacing:-.01em}
+.cal-lane{position:absolute;left:66px;right:6px;top:0;bottom:0}
+.cal-block{position:absolute;border-radius:12px;padding:7px 11px 6px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:36px;box-shadow:0 3px 12px rgba(79,70,229,.25),0 1px 3px rgba(0,0,0,.12)}
 .cal-mini-wrap{position:absolute;pointer-events:none;display:flex;align-items:center;gap:6px;min-height:14px}
 .cal-mini-bar{border-radius:4px;width:5px;flex-shrink:0;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .cal-mini-lbl{display:flex;align-items:center;gap:5px;padding:1px 2px;cursor:pointer;pointer-events:auto;white-space:nowrap;overflow:hidden;min-width:0;flex:1}
@@ -568,7 +568,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-block-name{font-weight:700;font-size:13.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-block-time{font-size:10px;color:rgba(255,255,255,.82);white-space:nowrap;line-height:1.3}
 .cal-block-badge{display:inline-flex;align-items:center;background:rgba(255,255,255,.22);border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700;color:#fff;margin-top:4px;align-self:flex-start}
-.cal-now{position:absolute;left:-50px;right:0;height:2px;background:#EA4335;z-index:2;pointer-events:none}
+.cal-now{position:absolute;left:-66px;right:0;height:2px;background:#EA4335;z-index:2;pointer-events:none}
 .cal-now::before{content:'';position:absolute;left:0;top:-4px;width:10px;height:10px;border-radius:50%;background:#EA4335}
 .cal-empty{text-align:center;color:var(--ink-faint);font-size:14px;padding:60px 24px;line-height:1.7}
 /* Setup session calendar */
@@ -1291,15 +1291,21 @@ function renderSchedule(){
     evs.forEach(({s,top,ht,col,numCols})=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
-      const pct=(100/numCols);
-      const L=(col*pct).toFixed(1);
-      const W=(pct-1.5).toFixed(1);
-      const bh=Math.max(ht,30); // actual rendered height
-
-      const showTime=true; // right-aligned on name row — no vertical cost
+      // Cascade stagger: later overlapping events shift right + higher z-index
+      let bLeft, bRight;
+      if(numCols===1){
+        bLeft='0px'; bRight='6px';
+      } else if(numCols===2){
+        bLeft=(col*40)+'%'; bRight=(col===0?'36%':'0px');
+      } else {
+        const pct=100/numCols;
+        bLeft=(col*pct).toFixed(1)+'%'; bRight=((numCols-1-col)*pct+1).toFixed(1)+'%';
+      }
+      const bh=Math.max(ht,32);
+      const showTime=true;
       const showBadge=bh>=66;
-      const pad=bh<38?'3px 8px 2px':'7px 10px 5px';
-      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${L}%;width:${W}%;background:${bg};padding:${pad}">
+      const pad=bh<38?'3px 8px 2px':'7px 11px 6px';
+      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${bLeft};right:${bRight};z-index:${col+1};background:${bg};padding:${pad}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;min-width:0">
           <div class="cal-block-name" style="flex:1;min-width:0">${esc(s.name)}</div>
           ${showTime?`<div class="cal-block-time" style="flex-shrink:0;margin-top:1px;text-align:right">${fmtTime12(s.start_time)}<br>${fmtTime12(_sesEnd(s))}</div>`:''}
@@ -1715,7 +1721,7 @@ function renderStudents(selMode, sel){
       <span id="selCount">0 selected</span>
       <button class="btn btn-soft btn-sm" id="selAll">All</button>
       <button class="btn btn-soft btn-sm" id="selMove">Move</button>
-      <button class="btn btn-sm" id="selDel" style="background:var(--attn);color:#fff">Delete</button>
+      ${!state.isTeacher?`<button class="btn btn-sm" id="selDel" style="background:var(--attn);color:#fff">Delete</button>`:''  }
     </div>`:''}`;
   if(!state.stuFilters) state.stuFilters={classId:'',bunkId:'',q:''};
   let filterClass=state.stuFilters.classId||'', filterBunk=state.stuFilters.bunkId||'', stuLimit=50;
@@ -1774,8 +1780,8 @@ function renderStudents(selMode, sel){
         }
       });
     };
-    $('selDel').onclick=()=>{
-      if(!sel.size){toast('Select students first',true);return;}
+    if($('selDel')) $('selDel').onclick=()=>{
+      if(state.isTeacher||!sel.size){if(!sel.size)toast('Select students first',true);return;}
       openCustomSheet({id:'__del__',title:`Delete ${sel.size} students?`,html:`<p style="color:var(--ink-soft);font-size:14px">Permanently removes their record and all attendance data. Cannot be undone.</p><div class="row2"><button class="btn btn-ghost" id="dlCancel" style="flex:1">Cancel</button><button class="btn btn-sm" id="dlConfirm" style="flex:1;background:var(--attn);color:#fff">Delete</button></div>`,
         onMount(){
           $('dlCancel').onclick=closeCustomSheet;
@@ -2357,7 +2363,7 @@ function editStudent(id){
       if(r.error){toast('Save failed: '+r.error.message,true);return;}
       closeForm(); await loadAll(); renderStudents(); toast('Saved');
     },
-    onDelete: s?async()=>{await sb.from('students').delete().eq('id',s.id);closeForm();await loadAll();renderStudents();toast('Student deleted');}:null,
+    onDelete: (s&&!state.isTeacher)?async()=>{await sb.from('students').delete().eq('id',s.id);closeForm();await loadAll();renderStudents();toast('Student deleted');}:null,
   });
   // Inject photo section at top of formBody when editing an existing student
   if(s){
@@ -4003,7 +4009,7 @@ async function generateShulList(people,heading,showReason,nameFmt){
 /* ── Outer canvas: full-bleed ice-blue background ───────────────────────── */
 body {
   font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif;
-  background: #c5d6eb;
+  background: #c5d6eb !important;  /* enforce ice-blue — no gray allowed */
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
   min-height: 100vh;
@@ -4019,7 +4025,8 @@ body {
   width: 100%;
   max-width: 720px;
   border-radius: 24px;
-  box-shadow: 0 6px 40px rgba(30,58,138,.12), 0 2px 8px rgba(30,58,138,.06);
+  box-shadow: none;
+  outline: 2.5px solid rgba(197,214,235,0.85);  /* soft ice-blue ring, no gray blur */
   position: relative;
   overflow: hidden;
   min-height: calc(100vh - 56px);
@@ -4156,14 +4163,16 @@ body {
 
   .card {
     background: #ffffff !important;
-    border-radius: 0 !important;
+    border-radius: 24px !important;  /* preserve rounded corners on print/PDF */
     max-width: 100% !important;
     width: 100% !important;
     box-shadow: none !important;
+    outline: none !important;
+    overflow: hidden !important;
     min-height: calc(100vh - 48px) !important;
   }
 
-  .card-inner { padding: 22px 48px 160px !important; }
+  .card-inner { padding: 22px 48px 160px !important; background: #ffffff !important; }
 
   /* Watermark anchors to page bottom on every printed sheet */
   .wm {
