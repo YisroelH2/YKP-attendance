@@ -3965,10 +3965,6 @@ body{
 .sl-eng{font-size:12px;color:#666;font-weight:400;margin-left:4px}
 .sl-eng-main{font-size:16px;font-weight:700;color:#1a1a2e}
 .sl-reason{font-size:11px;color:#c0392b;white-space:nowrap}
-.sl-watermark{
-  position:absolute;bottom:-24px;right:-24px;
-  width:270px;height:auto;opacity:0.07;pointer-events:none;
-}
 @media print{
   body{background:#D9E6F4 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0}
   .sl-page{padding:28px 38px 80px;max-width:none;box-shadow:none;border-radius:22px}
@@ -3976,7 +3972,7 @@ body{
   const body=`<div class="sl-page"${rtl?' dir="rtl"':''}>
   <div class="sl-bh">ב"ה</div>
   <div class="sl-top"${rtl?' dir="ltr"':''}>
-    <img class="sl-logo" src="${LOGO_RC}" alt="YKP">
+    <img class="sl-logo" src="${LOGO}" alt="YKP">
     <div class="sl-brand">
       <div class="ykp-title">Yeshivas Kayitz<br>Program</div>
       <div class="ykp-sub">Mechina Program</div>
@@ -3986,7 +3982,6 @@ body{
   <hr class="sl-divider">
   <div class="sl-head">${esc(heading)}</div>
   <div class="sl-cols">${colsHtml}</div>
-  <img class="sl-watermark" src="${LOGO_RC}" alt="">
 </div>`;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet"><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},800);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
