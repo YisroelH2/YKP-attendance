@@ -3916,28 +3916,79 @@ async function generateShulList(people,heading,showReason,nameFmt){
     ? `<div class="sl-col">${rightCol}</div><div class="sl-col">${leftCol}</div>`
     : `<div class="sl-col">${leftCol}</div><div class="sl-col">${rightCol}</div>`;
 
-  const css=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a2e}
-.sl-page{padding:36px 40px;max-width:780px;margin:0 auto}
-.sl-top{display:flex;align-items:center;gap:16px;border-bottom:3px solid #2b5299;padding-bottom:14px;margin-bottom:10px}
-.sl-logo{height:64px;object-fit:contain}
-.sl-inst{font-size:13px;color:#555}.sl-iname{font-size:16px;font-weight:bold;color:#1a1a2e}
-.sl-dates{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#777;margin-bottom:20px}
-.sl-dates .heb{direction:rtl;font-weight:600;color:#555}
-.sl-head{font-size:25px;font-weight:bold;text-align:center;line-height:1.3;margin:18px 0 28px;color:#1a2747}
-.sl-cols{display:flex;gap:34px}.sl-col{flex:1}
-.sl-row{display:flex;align-items:baseline;gap:10px;padding:9px 4px;border-bottom:1.5px solid #d4dae6}
-.sl-num{width:24px;flex:none;text-align:center;color:#9aa;font-size:13px;font-weight:600}
-.sl-name{flex:1;font-weight:600;font-size:17px}
-.sl-heb{font-size:19px}.sl-eng{font-size:12px;color:#888;font-weight:400}.sl-eng-main{font-size:16px}
+  const css=`*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:'Heebo',Arial,Helvetica,sans-serif;
+  background:#D9E6F4;
+  min-height:100vh;
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:32px 20px;
+}
+.sl-page{
+  background:#fff;border-radius:22px;
+  box-shadow:0 6px 40px rgba(0,50,130,.13);
+  padding:32px 44px 90px;max-width:740px;width:100%;
+  position:relative;overflow:hidden;
+}
+.sl-bh{
+  position:absolute;top:22px;right:26px;
+  font-size:13px;font-weight:700;color:#1a2747;direction:rtl;
+}
+.sl-top{display:flex;align-items:center;gap:20px;padding-right:56px}
+.sl-logo{height:74px;width:auto;flex:none;object-fit:contain}
+.sl-brand .ykp-title{
+  font-size:23px;font-weight:900;color:#1E3A8A;line-height:1.1;
+  text-transform:uppercase;letter-spacing:.3px;
+}
+.sl-brand .ykp-sub{
+  font-size:12px;font-weight:600;color:#333;
+  letter-spacing:.5px;text-transform:uppercase;margin-top:5px;
+}
+.sl-brand .ykp-sub2{
+  font-size:13px;font-weight:800;color:#111;
+  letter-spacing:.2px;text-transform:uppercase;
+}
+.sl-divider{height:3px;background:#1E3A8A;border:none;margin:16px 0 30px;border-radius:2px}
+.sl-head{
+  font-family:Georgia,'Times New Roman',Times,serif;
+  font-size:42px;font-weight:700;text-align:center;
+  color:#1a1a2e;line-height:1.2;margin:0 0 36px;
+}
+.sl-cols{display:flex;gap:44px}.sl-col{flex:1}
+.sl-row{
+  display:flex;align-items:baseline;gap:12px;
+  padding:11px 6px;border-bottom:1.5px solid #C8D6E8;
+}
+.sl-num{width:20px;flex:none;text-align:right;color:#5577AA;font-size:13px;font-weight:700}
+.sl-name{flex:1}
+.sl-heb{font-size:17px;font-weight:700;color:#1a1a2e}
+.sl-eng{font-size:12px;color:#666;font-weight:400;margin-left:4px}
+.sl-eng-main{font-size:16px;font-weight:700;color:#1a1a2e}
 .sl-reason{font-size:11px;color:#c0392b;white-space:nowrap}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sl-page{padding:24px 30px}}`;
+.sl-watermark{
+  position:absolute;bottom:-24px;right:-24px;
+  width:270px;height:auto;opacity:0.07;pointer-events:none;
+}
+@media print{
+  body{background:#D9E6F4 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0}
+  .sl-page{padding:28px 38px 80px;max-width:none;box-shadow:none;border-radius:22px}
+}`;
   const body=`<div class="sl-page"${rtl?' dir="rtl"':''}>
-    <div class="sl-top"${rtl?' dir="ltr"':''}><img class="sl-logo" src="${LOGO_RC}" alt="YKP"><div class="sl-inst"><div class="sl-iname">Yeshivas Kayitz Program</div><div>Attendance Office</div></div></div>
-    <div class="sl-dates"${rtl?' dir="ltr"':''}><span class="eng">${engDate}</span><span class="heb">${esc(hebDate)}</span></div>
-    <div class="sl-head">${esc(heading)}</div>
-    <div class="sl-cols">${colsHtml}</div>
-  </div>`;
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
+  <div class="sl-bh">ב"ה</div>
+  <div class="sl-top"${rtl?' dir="ltr"':''}>
+    <img class="sl-logo" src="${LOGO_RC}" alt="YKP">
+    <div class="sl-brand">
+      <div class="ykp-title">Yeshivas Kayitz<br>Program</div>
+      <div class="ykp-sub">Mechina Program</div>
+      <div class="ykp-sub2">8th Grade Division 5786</div>
+    </div>
+  </div>
+  <hr class="sl-divider">
+  <div class="sl-head">${esc(heading)}</div>
+  <div class="sl-cols">${colsHtml}</div>
+  <img class="sl-watermark" src="${LOGO_RC}" alt="">
+</div>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet"><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},800);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
