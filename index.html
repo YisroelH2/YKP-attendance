@@ -3918,162 +3918,204 @@ async function generateShulList(people,heading,showReason,nameFmt){
   let hebDate='';
   try{ hebDate=await fetchHebDate(todayStr()); }catch{}
 
-  // ── Asset URLs resolved from app origin ──────────────────────────────────
-  const _base    = location.href.replace(/[^/]*$/, '');
-  const headerUrl = _base + 'header.png';
-  const wmUrl     = _base + 'watermark.png';
+  // ── Asset URLs (absolute from app origin so blob: can load them) ──────────
+  const assetBase = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const headerUrl = assetBase + 'header.png';
+  const wmUrl     = assetBase + 'watermark.png';
 
   // ── Hebrew date sanitization ──────────────────────────────────────────────
-  // Strip nikud (U+0591–U+05C7) then remove leading ב from month names
-  const _stripNikud = s => s ? s.replace(/[\u0591-\u05C7]/g,'') : '';
+  // 1. Strip all nikud / cantillation (U+0591–U+05C7)
+  // 2. Remove prepositional ב that precedes a Hebrew letter at word start
+  const _stripNikud = s => s ? s.replace(/[\u0591-\u05C7]/g, '') : '';
   const cleanHebDate = _stripNikud(hebDate)
-                         .replace(/(^|\s)ב([א-ת])/g,'$1$2')
-                         .trim();
+    .replace(/(^|\s)ב([א-ת])/g, '$1$2')
+    .trim();
 
   // ── Last-name-first helper ────────────────────────────────────────────────
   const lastFirst = n => {
-    if(!n) return '';
+    if (!n) return '';
     const p = n.trim().split(/\s+/);
-    return p.length < 2 ? n : p[p.length-1]+' '+p.slice(0,-1).join(' ');
+    return p.length < 2 ? n : p[p.length - 1] + ' ' + p.slice(0, -1).join(' ');
   };
 
   // ── Name / reason cells ───────────────────────────────────────────────────
-  const nameCell = (s) => {
-    const heb = esc(s.hebrew_name||'');
-    const eng = esc(lastFirst(s.english_name||''));
-    if(nameFmt==='heb') return `<span class="sl-heb" dir="rtl">${heb||eng}</span>`;
-    if(nameFmt==='eng') return `<span class="sl-eng-main">${eng||heb}</span>`;
-    return `<span class="sl-heb" dir="rtl">${heb}</span>${s.english_name?`<span class="sl-eng"> ${esc(lastFirst(s.english_name))}</span>`:''}`;
+  const nameCell = s => {
+    const heb = esc(s.hebrew_name || '');
+    const eng = esc(lastFirst(s.english_name || ''));
+    if (nameFmt === 'heb') return heb || eng;
+    if (nameFmt === 'eng') return eng || heb;
+    return heb + (s.english_name ? ' ' + esc(lastFirst(s.english_name)) : '');
   };
-  const reasonCell = (s) =>
+  const reasonCell = s =>
     showReason && reasonByStu[s.id]
-      ? `<span class="sl-reason">${esc(reasonByStu[s.id])}</span>`
+      ? `<span class="reason">${esc(reasonByStu[s.id])}</span>`
       : '';
 
   // ── Column split ──────────────────────────────────────────────────────────
   const n    = people.length;
-  const half = Math.ceil(n/2);
-  const colA = people.slice(0,half);
+  const half = Math.ceil(n / 2);
+  const colA = people.slice(0, half);
   const colB = people.slice(half);
-  const rowFor = (s,idx) =>
-    `<div class="sl-row"><span class="sl-num">${idx}</span><span class="sl-name">${nameCell(s)}</span>${reasonCell(s)}</div>`;
-  const leftCol  = colA.map((s,i) => rowFor(s,i+1)).join('');
-  const rightCol = colB.map((s,i) => rowFor(s,half+i+1)).join('');
-  const colsHtml = rtl
-    ? `<div class="sl-col">${rightCol}</div><div class="sl-col">${leftCol}</div>`
-    : `<div class="sl-col">${leftCol}</div><div class="sl-col">${rightCol}</div>`;
 
-  // Heading font-size scales inversely with length
+  // Each row: number ALWAYS left, name ALWAYS right (direction:ltr forced)
+  const mkRow = (s, idx) =>
+    `<div class="row"><span class="num">${idx}</span><span class="name">${nameCell(s)}</span>${reasonCell(s)}</div>`;
+
+  const leftRows  = colA.map((s, i) => mkRow(s, i + 1)).join('');
+  const rightRows = colB.map((s, i) => mkRow(s, half + i + 1)).join('');
+
+  // Heading font-size scales inversely with character count
   const hLen        = heading.length;
-  const headingSize = hLen>70?'18px':hLen>45?'24px':hLen>28?'34px':hLen>18?'42px':'52px';
-  const headingLH   = hLen>45?'1.35':'1.25';
+  const headingSize = hLen > 70 ? '18px' : hLen > 45 ? '24px' : hLen > 28 ? '34px' : hLen > 18 ? '42px' : '52px';
+  const headingLH   = hLen > 45 ? '1.35' : '1.25';
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  COMPLETE CSS
+  //  CSS — complete standalone stylesheet
   // ══════════════════════════════════════════════════════════════════════════
   const css = `
+/* ── Print: strip all browser chrome ─────────────────────────────────────── */
 @page { margin: 0; size: letter portrait; }
-*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 
-/* Canvas */
+/* ── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ── Canvas (full-bleed pastel blue behind the white card) ───────────────── */
 body {
-  font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif;
+  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
   background: #c5d6eb;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
   min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   padding: 28px;
 }
 
-/* White card */
-.sl-page {
+/* ── White card — centered, rounded, shadowed ────────────────────────────── */
+.card {
   background: #ffffff;
-  max-width: 740px;
-  margin: 0 auto;
-  border-radius: 22px;
+  width: 100%;
+  max-width: 720px;
+  border-radius: 24px;
+  box-shadow:
+    0 6px 40px rgba(30, 58, 138, 0.12),
+    0 2px 8px  rgba(30, 58, 138, 0.06);
   position: relative;
   overflow: hidden;
   min-height: calc(100vh - 56px);
 }
 
-/* Inner content */
-.sl-inner {
-  padding: 24px 44px 200px;
+/* ── Inner padding layer (sits above watermark) ──────────────────────────── */
+.card-inner {
+  padding: 24px 48px 210px;
   position: relative;
   z-index: 1;
 }
 
-/* ── Header row: banner image + bh ─────────────────────────────────────── */
-.sl-header-wrap {
+/* ── Header row: logo image left, bh right ───────────────────────────────── */
+/* To swap the logo: change src in the JS variable headerUrl above           */
+.header-row {
   display: flex;
+  flex-direction: row;          /* explicit: left → right */
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 0;
 }
-/* header.png = YKP letterhead banner (logo + org name block) */
-.sl-header-img {
-  max-height: 108px;
+.header-img {
+  max-height: 110px;
   width: auto;
   object-fit: contain;
   flex-shrink: 0;
   display: block;
 }
-.sl-bh {
+.bh {
   font-size: 13px;
   font-weight: 800;
   color: #1e3a8a;
-  font-family: 'Times New Roman',Times,serif;
+  font-family: 'Times New Roman', Times, serif;
   white-space: nowrap;
+  flex-shrink: 0;
   padding-top: 3px;
   letter-spacing: 0.4px;
 }
 
-/* ── Divider ────────────────────────────────────────────────────────────── */
-.sl-divider { height:2px; background:#1e3a8a; border:none; margin:14px 0 32px; }
+/* ── Divider: solid dark-blue rule ──────────────────────────────────────────*/
+.divider {
+  border: none;
+  height: 2px;
+  background: #1e3a8a;
+  margin: 14px 0 30px;
+  display: block;
+}
 
-/* ── Dynamic heading ────────────────────────────────────────────────────── */
-.sl-heading {
+/* ── Dynamic title ────────────────────────────────────────────────────────── */
+.title {
   text-align: center;
-  font-family: Georgia,'Times New Roman',Times,serif;
+  font-family: Georgia, 'Times New Roman', Times, serif;
   font-weight: 400;
   color: #111111;
-  margin-bottom: 10px;
+  line-height: 1.28;
+  margin-bottom: 12px;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 
-/* Hebrew date (sanitized, optional) */
-.sl-datestr {
-  text-align: center;
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 28px;
+/* ── Date container ───────────────────────────────────────────────────────── */
+.dates {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.eng-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c4880;
+  letter-spacing: 0.2px;
+}
+.heb-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c4880;
   direction: rtl;
-  unicode-bidi: embed;
+  unicode-bidi: isolate;
 }
 
-/* ── Two-column list ────────────────────────────────────────────────────── */
-.sl-cols { display:flex; gap:44px; align-items:flex-start; }
-.sl-col  { flex:1; min-width:0; }
-
-.sl-row {
+/* ── Two-column student grid ──────────────────────────────────────────────── */
+.list-grid {
   display: flex;
+  flex-direction: row;          /* explicit */
+  gap: 44px;
+  align-items: flex-start;
+}
+.col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Student row ──────────────────────────────────────────────────────────── */
+/* direction:ltr is CRITICAL — prevents RTL parent from flipping num/name    */
+.row {
+  display: flex;
+  flex-direction: row;          /* explicit: num left, name right */
+  direction: ltr;               /* force LTR regardless of any parent dir */
   align-items: baseline;
-  gap: 14px;
-  padding: 11px 0;
+  gap: 12px;
+  padding: 10px 0;
   border-bottom: 1px solid #e2e8f4;
 }
-.sl-num {
-  width: 22px;
-  flex-shrink: 0;
+.num {
+  flex: 0 0 26px;               /* fixed width, never grows */
   text-align: right;
   font-size: 12px;
   font-weight: 600;
   color: #8facc8;
   line-height: 1;
 }
-.sl-name {
+.name {
   flex: 1;
   font-weight: 700;
   font-size: 15px;
@@ -4081,18 +4123,21 @@ body {
   letter-spacing: 0.15px;
   line-height: 1.3;
 }
-.sl-heb      { font-size:17px; direction:rtl; }
-.sl-eng      { font-size:11px; color:#777; font-weight:400; margin-left:5px; }
-.sl-eng-main { font-size:15px; }
-.sl-reason   { font-size:10px; color:#c0392b; white-space:nowrap; margin-left:8px; flex-shrink:0; }
+.reason {
+  font-size: 10px;
+  color: #c0392b;
+  white-space: nowrap;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
 
-/* ── Watermark (mix-blend-mode removes any white bg from PNG) ───────────── */
-/* watermark.png = isolated mountain silhouette from repo root             */
-.sl-wm {
+/* ── Watermark: bottom-right, mix-blend removes PNG white bg ──────────────── */
+/* source: watermark.png in repo root                                          */
+.wm {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 62%;
+  width: 60%;
   height: auto;
   z-index: 0;
   pointer-events: none;
@@ -4100,68 +4145,76 @@ body {
   mix-blend-mode: multiply;
 }
 
-/* ── @media print: strip all browser chrome, force colors ──────────────── */
+/* ── @media print ─────────────────────────────────────────────────────────── */
 @media print {
-  @page { margin:0; size:letter portrait; }
-  html,body {
+  @page { margin: 0; size: letter portrait; }
+
+  html, body {
     background: #c5d6eb !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     padding: 0 !important;
+    display: block !important;
     width: 100% !important;
     height: 100% !important;
   }
-  .sl-page {
+
+  .card {
     border-radius: 0 !important;
     max-width: 100% !important;
     width: 100% !important;
-    min-height: 100vh !important;
     box-shadow: none !important;
+    min-height: 100vh !important;
   }
-  .sl-inner { padding: 22px 44px 155px !important; }
-  .sl-wm {
+
+  .card-inner { padding: 22px 48px 160px !important; }
+
+  /* Watermark anchors to every printed page bottom */
+  .wm {
     position: fixed !important;
     bottom: 0 !important;
     right: 0 !important;
-    width: 60% !important;
-    height: auto !important;
+    width: 58% !important;
     mix-blend-mode: multiply !important;
   }
-  .sl-cols { page-break-inside: auto; }
-  .sl-row  { page-break-inside: avoid; break-inside: avoid; }
+
+  .list-grid { page-break-inside: auto; }
+  .row { page-break-inside: avoid; break-inside: avoid; }
 }`;
 
-  // ── Watermark ─────────────────────────────────────────────────────────────
-  // src resolved from app origin so blob: URL can load it
-  const wm = `<img class="sl-wm" src="${wmUrl}" alt="" loading="eager">`;
+  // ── Watermark element ─────────────────────────────────────────────────────
+  const wm = `<img class="wm" src="${wmUrl}" alt="" loading="eager">`;
 
   // ── Body HTML ─────────────────────────────────────────────────────────────
-  const body = `<div class="sl-page">
-    <div class="sl-inner"${rtl?' dir="rtl"':''}>
+  const body = `<div class="card">
+  <div class="card-inner">
 
-      <!-- Header: banner image left, bh right -->
-      <div class="sl-header-wrap" dir="ltr">
-        <img class="sl-header-img" src="${headerUrl}" alt="YKP Header">
-        <div class="sl-bh">&#x05D1;&#x05F4;&#x05D4;</div>
-      </div>
-
-      <!-- Full-width dark-blue rule -->
-      <hr class="sl-divider">
-
-      <!-- Dynamic title (font-size scales with length) -->
-      <div class="sl-heading" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>
-
-      <!-- Hebrew date — sanitized: no ב prefix, no nikud -->
-      ${cleanHebDate?`<div class="sl-datestr">${esc(cleanHebDate)}</div>`:''}
-
-      <!-- Two-column student list -->
-      <div class="sl-cols">${colsHtml}</div>
-
+    <!-- Header: header.png banner (logo + org text) on left, bh on right -->
+    <div class="header-row">
+      <img class="header-img" src="${headerUrl}" alt="YKP Header">
+      <span class="bh">&#x05D1;&#x05F4;&#x05D4;</span>
     </div>
 
-    <!-- watermark.png via mix-blend-mode:multiply — bottom-right corner -->
-    ${wm}
-  </div>`;
+    <!-- Full-width dark-blue divider -->
+    <hr class="divider">
+
+    <!-- Dynamic title: auto-sizes to text length -->
+    <div class="title" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>
+
+    <!-- Date line: English + sanitized Hebrew (no ב prefix, no nikud) -->
+    ${(engDate || cleanHebDate) ? `<div class="dates">${engDate ? `<span class="eng-date">${esc(engDate)}</span>` : ''}${cleanHebDate ? `<span class="heb-date">${esc(cleanHebDate)}</span>` : ''}</div>` : ''}
+
+    <!-- Two-column student list: num ALWAYS left, name ALWAYS right -->
+    <div class="list-grid">
+      <div class="col">${leftRows}</div>
+      <div class="col">${rightRows}</div>
+    </div>
+
+  </div>
+
+  <!-- Mountain watermark: mix-blend-mode:multiply removes PNG white bg -->
+  ${wm}
+</div>`;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
