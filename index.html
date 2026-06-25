@@ -565,7 +565,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-mini-name{font-size:11.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
 .cal-mini-time{font-size:10px;font-weight:600;color:var(--ink-faint);flex-shrink:0}
 .cal-block:active{opacity:.82;transform:scale(.985)}
-.cal-block-name{font-weight:700;font-size:13.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-block-name{font-weight:700;font-size:13.5px;color:#fff;line-height:1.2;white-space:normal;word-break:break-word;overflow:hidden}
 .cal-block-time{font-size:10px;color:rgba(255,255,255,.82);white-space:nowrap;line-height:1.3}
 .cal-block-badge{display:inline-flex;align-items:center;background:rgba(255,255,255,.22);border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700;color:#fff;margin-top:4px;align-self:flex-start}
 .cal-now{position:absolute;left:-66px;right:0;height:2px;background:#EA4335;z-index:2;pointer-events:none}
@@ -1272,44 +1272,74 @@ function renderSchedule(){
   if(state.schedule.view==='week'){ v.innerHTML=_schedToggle('week')+_weekHtml(); _wireWeek(v); return; }
   const date=state.schedule.date;
 
-  // ── Day-view list: each session is a horizontal flex row ──────────────────
-  // Left column (width:100px fixed) = time labels  |  Right = colored card
-  const sorted=[...state.sessions].filter(s=>s.start_time && sessionOnDay(s,date)).sort((a,b)=>a.start_time<b.start_time?-1:1);
-  const now=new Date();
-  const nowMins=now.getHours()*60+now.getMinutes();
-  const isToday=date===todayStr();
+  const gridH=(CAL_E-CAL_S)*HR_PX+20;
 
-  let listRows='';
+  // Hour grid
+  let hours='';
+  for(let h=CAL_S;h<=CAL_E;h++){
+    const y=(h-CAL_S)*HR_PX;
+    hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
+  }
+
+  // Session blocks — side-by-side for overlapping events
+  const sorted=[...state.sessions].filter(s=>s.start_time && sessionOnDay(s,date)).sort((a,b)=>a.start_time<b.start_time?-1:1);
+  let blocks='';
   if(!sorted.length){
-    listRows=`<div class="cal-empty">No sessions today.<br>Add them in <b>Setup</b> → Sessions.</div>`;
+    blocks=`<div class="cal-empty">No sessions yet.<br>Add them in <b>Setup</b> → Sessions.</div>`;
   } else {
-    sorted.forEach(s=>{
+    // Compute top/height for each session
+    const evs=sorted.map(s=>{
+      const top=_t2y(s.start_time);
+      const end=_sesEnd(s);
+      const ht=Math.max(_t2y(end)-top,34);
+      return {s,top,ht,col:0,numCols:1};
+    });
+    // Greedy column assignment
+    const colEnds=[];
+    evs.forEach(ev=>{
+      let c=colEnds.findIndex(e=>e<=ev.top+1);
+      if(c<0) c=colEnds.length;
+      ev.col=c;
+      colEnds[c]=ev.top+ev.ht;
+    });
+    // numCols = max concurrent at any given moment for each event
+    evs.forEach(ev=>{
+      ev.numCols=evs.filter(o=>o.top<ev.top+ev.ht-1&&o.top+o.ht>ev.top+1).length||1;
+    });
+    evs.forEach(({s,top,ht,col,numCols})=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
-      // Determine if this session is currently active
-      const [sh,sm]=(s.start_time||'0:0').split(':').map(Number);
-      const startMins=sh*60+sm;
-      const endStr=_sesEnd(s);
-      const [eh,em]=(endStr||'0:0').split(':').map(Number);
-      const endMins=eh*60+em;
-      const isNow=isToday && nowMins>=startMins && nowMins<endMins;
-      const pip=isNow
-        ? '<div class="sch-now-pip"></div>'
-        : '<div class="sch-spacer"></div>';
-      listRows+=`<div class="sch-row" data-id="${s.id}">
-        ${pip}
-        <div class="sch-time-col">
-          <div class="sch-time-start">${fmtTime12(s.start_time)}</div>
-          <div class="sch-time-end">${fmtTime12(endStr)}</div>
+      // Cascade stagger: later overlapping events shift right + higher z-index
+      let bLeft, bRight;
+      if(numCols===1){
+        bLeft='0px'; bRight='6px';
+      } else if(numCols===2){
+        bLeft=(col*40)+'%'; bRight=(col===0?'36%':'0px');
+      } else {
+        const pct=100/numCols;
+        bLeft=(col*pct).toFixed(1)+'%'; bRight=((numCols-1-col)*pct+1).toFixed(1)+'%';
+      }
+      const bh=Math.max(ht,32);
+      const showTime=true;
+      const showBadge=bh>=66;
+      const pad=bh<38?'3px 8px 2px':'7px 11px 6px';
+      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${bLeft};right:${bRight};z-index:${col+1};background:${bg};padding:${pad}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;min-width:0">
+          <div class="cal-block-name" style="flex:1;min-width:0">${esc(s.name)}</div>
+          ${showTime?`<div class="cal-block-time" style="flex-shrink:0;margin-top:1px;text-align:right">${fmtTime12(s.start_time)}<br>${fmtTime12(_sesEnd(s))}</div>`:''}
         </div>
-        <div class="sch-card${isNow?' sch-card-now':''}" data-id="${s.id}" style="background:${bg}">
-          <div class="sch-card-name">${esc(s.name)}</div>
-          <div class="sch-card-type">${isZal?'🕍 Zal':'📋 Class'}</div>
-        </div>
+        ${showBadge?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
       </div>`;
     });
   }
 
+  // Current-time line
+  const now=new Date();
+  const nowY=(now.getHours()+now.getMinutes()/60-CAL_S)*HR_PX;
+  const showNow=date===todayStr()&&nowY>0&&nowY<(CAL_E-CAL_S)*HR_PX;
+  const nowLine=showNow?`<div class="cal-now" style="top:${nowY}px"></div>`:'';
+
+  const isToday=date===todayStr();
   v.innerHTML=`
     ${_schedToggle('day')}
     <div class="cal-hdr">
@@ -1323,8 +1353,11 @@ function renderSchedule(){
       </div>
       <button class="iconbtn" id="calNext" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>
-    <div class="sch-list" id="calScroll">
-      ${listRows}
+    <div class="cal-scroll" id="calScroll">
+      <div class="cal-grid" style="height:${gridH}px">
+        ${hours}
+        <div class="cal-lane">${blocks}${nowLine}</div>
+      </div>
     </div>`;
 
   $('calPrev').onclick=()=>{ state.schedule.date=addDays(date,-1); renderSchedule(); };
@@ -1333,17 +1366,16 @@ function renderSchedule(){
   const _db=document.querySelector('.cal-date-block'); if(_db) _db.onclick=()=>{ if(state.schedule.date!==todayStr()){ state.schedule.date=todayStr(); renderSchedule(); } };
   fetchHebDate(date).then(h=>{ const el=$('calHebDate'); if(el && h) el.textContent=h; });
 
-  // Wire each session card to navigate to mark / zal view
-  v.querySelectorAll('.sch-card[data-id],.sch-row[data-id]').forEach(el=>{
-    el.onclick=e=>{
-      const id=el.dataset.id||(el.closest('[data-id]')||{}).dataset.id;
-      const ses=state.sessions.find(s=>s.id===id);
+  v.querySelectorAll('.cal-block').forEach(el=>{
+    el.onclick=()=>{
+      const ses=state.sessions.find(s=>s.id===el.dataset.id);
       if(!ses)return;
       state.date=date;
       state.zal.fromClassSession=null;
       if(ses.type==='zal'){
         const zs=state.sessions.filter(s=>s.type==='zal');
-        state.zalSessionId=ses.id;
+        if(!state.zalSessionId||!zs.find(s=>s.id===state.zalSessionId)) state.zalSessionId=ses.id;
+        else state.zalSessionId=ses.id;
         switchView('zal');
       } else {
         state.sessionId=ses.id;
@@ -1351,6 +1383,13 @@ function renderSchedule(){
       }
     };
   });
+
+  // Scroll to current time or first session on first render
+  const sc=$('calScroll');
+  if(sc){
+    const target=showNow?Math.max(0,nowY-120):(sorted.length?Math.max(0,_t2y(sorted[0].start_time)-80):(8-CAL_S)*HR_PX);
+    requestAnimationFrame(()=>{ sc.scrollTop=target; });
+  }
 }
 
 
@@ -4115,8 +4154,9 @@ body {
   pointer-events: none;
   display: block;
   mix-blend-mode: multiply;
-  /* grayscale + high brightness/contrast eliminates any gray compression box */
-  filter: grayscale(100%) brightness(1.3) contrast(1.4);
+  opacity: 1;
+  /* ultra-subtle filter — only enough to tighten compression artifacts        */
+  filter: contrast(1.02);
   background: none;
   border: none;
   outline: none;
@@ -4166,8 +4206,8 @@ body {
     right: 0 !important;
     width: 58% !important;
     mix-blend-mode: multiply !important;
-    /* Explicit filter preserved for both color + monochrome prints — zero artifact edges */
-    filter: grayscale(100%) brightness(1.3) contrast(1.4) !important;
+    opacity: 1 !important;
+    filter: contrast(1.02) !important;
     background: none !important;
     border: none !important;
     outline: none !important;
