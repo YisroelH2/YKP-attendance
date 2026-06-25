@@ -1005,7 +1005,9 @@ async function enterApp(){
   $('consentGate').classList.add('hidden');
   $('app').classList.remove('hidden');
   syncQueue(); // drain anything left from prior session
+  await loadRole();   // fetch role BEFORE data so loadAll can filter
   await loadAll();
+  applyRoleUI();      // restrict UI after data is ready
   if(!state.schedule) state.schedule={date:todayStr()};
   // Handle tap-from-widget navigation
   const _wNav=localStorage.getItem('widget_nav');
@@ -1021,18 +1023,50 @@ async function enterApp(){
 /* =========================================================
    3. DATA
    ========================================================= */
+async function loadRole(){
+  state.isTeacher=false; state.role='staff'; state.teacherClassIds=null;
+  if(!state.user?.id) return;
+  try{
+    const {data}=await sb.from('profiles').select('role').eq('id',state.user.id).maybeSingle();
+    state.role=data?.role||'staff';
+    state.isTeacher=(state.role==='teacher');
+  }catch(_){ state.role='staff'; state.isTeacher=false; }
+}
+
+function applyRoleUI(){
+  if(!state.isTeacher) return;
+  // Remove Setup tab from nav and view array so it is completely unreachable
+  document.querySelectorAll('[data-view="setup"]').forEach(el=>el.remove());
+  const sv=$('view-setup'); if(sv) sv.remove();
+}
+
 async function loadAll(){
   // Show cached data immediately so the app feels instant on open
   const c=offlineCache();
   if(c){ state.classes=c.classes||[]; state.sessions=c.sessions||[]; state.students=c.students||[]; }
   try{
-    const [cl,se,st]=await _q(Promise.all([
-      sb.from('classes').select('*').order('sort_order'),
-      sb.from('sessions').select('*').order('sort_order'),
-      sb.from('students').select('*').eq('active',true).order('sort_order'),
-    ]));
-    if(cl.error||se.error||st.error) throw new Error('load failed');
-    state.classes=cl.data||[]; state.sessions=se.data||[]; state.students=st.data||[];
+    // Sessions always load in full
+    const seRes=await sb.from('sessions').select('*').order('sort_order');
+    if(seRes.error) throw new Error('sessions failed');
+    state.sessions=seRes.data||[];
+    // Classes: teachers see only their own; staff see all
+    const clRes=await (state.isTeacher
+      ? sb.from('classes').select('*').eq('teacher_id',state.user.id).order('sort_order')
+      : sb.from('classes').select('*').order('sort_order'));
+    if(clRes.error) throw new Error('classes failed');
+    state.classes=clRes.data||[];
+    state.teacherClassIds=state.isTeacher ? state.classes.map(c=>c.id) : null;
+    // Students: teachers see only students in their classes; staff see all
+    let stRes;
+    if(state.isTeacher){
+      stRes=state.teacherClassIds.length
+        ? await sb.from('students').select('*').eq('active',true).in('class_id',state.teacherClassIds).order('sort_order')
+        : {data:[],error:null};
+    } else {
+      stRes=await sb.from('students').select('*').eq('active',true).order('sort_order');
+    }
+    if(stRes.error) throw new Error('students failed');
+    state.students=stRes.data||[];
     try{ localStorage.setItem('ykp_cache_v1',JSON.stringify({classes:state.classes,sessions:state.sessions,students:state.students,at:Date.now()})); }catch(_){}
   }catch(e){
     if(!c){ state.classes=[]; state.sessions=[]; state.students=[]; }
@@ -1092,6 +1126,7 @@ async function loadMarks(sessionId=state.sessionId){
    4. VIEWS
    ========================================================= */
 function switchView(v){
+  if(state.isTeacher && v==='setup') v='schedule'; // teachers have no setup access
   state.view=v;
   // Leaving the Zal-override flow? Clear the flag (but keep it when bouncing between mark<->zal during override).
   if(v!=='zal' && v!=='mark') state.zal.fromClassSession=null;
@@ -3072,6 +3107,11 @@ function renderHistList(rows){
   const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
 
   let filt=rows.filter(r=>stuById[r.student_id]);
+  // Teacher-scoped: only records for their own students (defense-in-depth)
+  if(state.isTeacher && state.teacherClassIds){
+    const tStuIds=new Set(state.students.map(s=>s.id));
+    filt=filt.filter(r=>tStuIds.has(r.student_id));
+  }
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
   if(h.studentId) filt=filt.filter(r=>r.student_id===h.studentId);
   if(h.sessionId) filt=filt.filter(r=>r.session_id===h.sessionId);
@@ -3413,6 +3453,11 @@ async function loadBaalPehList(){
   const {data}=await q; const rows=data||[];
   const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
   let filt=rows.filter(r=>stuById[r.student_id]);
+  // Teacher-scoped: only records for their own students (defense-in-depth)
+  if(state.isTeacher && state.teacherClassIds){
+    const tStuIds=new Set(state.students.map(s=>s.id));
+    filt=filt.filter(r=>tStuIds.has(r.student_id));
+  }
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
   const list=$('bpList'); if(!list)return;
   if(!filt.length){ list.innerHTML=`<div class="hist-empty">No sessions logged yet.</div>`; return; }
