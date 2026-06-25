@@ -558,7 +558,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-hour-line{position:absolute;left:66px;right:6px;height:1px;background:var(--line);opacity:.6;pointer-events:none}
 .cal-hour-lbl{position:absolute;left:0;width:62px;font-size:10.5px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:10px;transform:translateY(-50%);line-height:1;pointer-events:none;letter-spacing:-.01em}
 .cal-lane{position:absolute;left:66px;right:6px;top:0;bottom:0}
-.cal-block{position:absolute;border-radius:12px;padding:7px 11px 6px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:36px;box-shadow:0 3px 12px rgba(79,70,229,.25),0 1px 3px rgba(0,0,0,.12)}
+.cal-block{position:absolute;border-radius:12px;padding:4px 6px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:36px;box-shadow:0 3px 12px rgba(79,70,229,.25),0 1px 3px rgba(0,0,0,.12);word-break:break-word;white-space:normal}
 .cal-mini-wrap{position:absolute;pointer-events:none;display:flex;align-items:center;gap:6px;min-height:14px}
 .cal-mini-bar{border-radius:4px;width:5px;flex-shrink:0;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .cal-mini-lbl{display:flex;align-items:center;gap:5px;padding:1px 2px;cursor:pointer;pointer-events:auto;white-space:nowrap;overflow:hidden;min-width:0;flex:1}
@@ -1287,45 +1287,75 @@ function renderSchedule(){
   if(!sorted.length){
     blocks=`<div class="cal-empty">No sessions yet.<br>Add them in <b>Setup</b> → Sessions.</div>`;
   } else {
-    // Compute top/height for each session
+    // ── Step 1: pixel coords ────────────────────────────────────────────────
     const evs=sorted.map(s=>{
       const top=_t2y(s.start_time);
       const end=_sesEnd(s);
       const ht=Math.max(_t2y(end)-top,34);
       return {s,top,ht,col:0,numCols:1};
     });
-    // Greedy column assignment
-    const colEnds=[];
-    evs.forEach(ev=>{
-      let c=colEnds.findIndex(e=>e<=ev.top+1);
-      if(c<0) c=colEnds.length;
-      ev.col=c;
-      colEnds[c]=ev.top+ev.ht;
+
+    // ── Step 2: cluster — connected components of the overlap graph ─────────
+    // Two events overlap when their pixel ranges intersect (1 px tolerance).
+    const visited=new Set();
+    const clusters=[];
+    evs.forEach((_,i)=>{
+      if(visited.has(i)) return;
+      const cluster=[];
+      const queue=[i];
+      while(queue.length){
+        const idx=queue.shift();
+        if(visited.has(idx)) continue;
+        visited.add(idx);
+        cluster.push(evs[idx]);
+        evs.forEach((other,j)=>{
+          if(!visited.has(j)
+            && evs[idx].top     < other.top+other.ht-1
+            && evs[idx].top+evs[idx].ht > other.top+1){
+            queue.push(j);
+          }
+        });
+      }
+      clusters.push(cluster);
     });
-    // numCols = max concurrent at any given moment for each event
-    evs.forEach(ev=>{
-      ev.numCols=evs.filter(o=>o.top<ev.top+ev.ht-1&&o.top+o.ht>ev.top+1).length||1;
+
+    // ── Step 3: greedy column assignment within each cluster ─────────────────
+    // colEnds[c] = bottom pixel of the last event placed in column c.
+    // Always pick the leftmost free column; this gives a stable, Google-style layout.
+    clusters.forEach(cluster=>{
+      const colEnds=[];
+      cluster.forEach(ev=>{
+        let c=colEnds.findIndex(end=>end<=ev.top+1);
+        if(c<0) c=colEnds.length;
+        ev.col=c;
+        colEnds[c]=ev.top+ev.ht;
+      });
+      const numCols=colEnds.length;      // total columns needed for THIS cluster
+      cluster.forEach(ev=>{ ev.numCols=numCols; });
     });
+
+    // ── Step 4: render — left% + width% (never overlap) ────────────────────
     evs.forEach(({s,top,ht,col,numCols})=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
-      // Cascade stagger: later overlapping events shift right + higher z-index
-      let bLeft, bRight;
-      if(numCols===1){
-        bLeft='0px'; bRight='6px';
-      } else if(numCols===2){
-        bLeft=(col*40)+'%'; bRight=(col===0?'36%':'0px');
-      } else {
-        const pct=100/numCols;
-        bLeft=(col*pct).toFixed(1)+'%'; bRight=((numCols-1-col)*pct+1).toFixed(1)+'%';
-      }
       const bh=Math.max(ht,32);
-      const showTime=true;
       const showBadge=bh>=66;
-      const pad=bh<38?'3px 8px 2px':'7px 11px 6px';
-      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${bLeft};right:${bRight};z-index:${col+1};background:${bg};padding:${pad}">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;min-width:0">
-          <div class="cal-block-name" style="flex:1;min-width:0">${esc(s.name)}</div>
+      // Tighter padding when blocks are split so text fits
+      const pad=bh<42?'3px 5px 2px':(numCols>1?'6px 8px 5px':'7px 11px 6px');
+      // Hide the end-time label in 3+ column scenarios to avoid crunch
+      const showTime=numCols<3;
+      // Reduce font size when heavily split
+      const nameSize=numCols>=3?'11.5px':'13.5px';
+
+      // Each column gets an equal share; 2px gap between adjacent columns
+      const colW=100/numCols;
+      const gapPct=numCols>1?1.5:0;
+      const bLeft=(col*colW).toFixed(2)+'%';
+      const bWidth=(colW-gapPct).toFixed(2)+'%';
+
+      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${bLeft};width:${bWidth};z-index:${col+1};background:${bg};padding:${pad}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:3px;min-width:0;overflow:hidden">
+          <div class="cal-block-name" style="flex:1;min-width:0;font-size:${nameSize}">${esc(s.name)}</div>
           ${showTime?`<div class="cal-block-time" style="flex-shrink:0;margin-top:1px;text-align:right">${fmtTime12(s.start_time)}<br>${fmtTime12(_sesEnd(s))}</div>`:''}
         </div>
         ${showBadge?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
