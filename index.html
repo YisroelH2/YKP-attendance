@@ -571,6 +571,23 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-now{position:absolute;left:-66px;right:0;height:2px;background:#EA4335;z-index:2;pointer-events:none}
 .cal-now::before{content:'';position:absolute;left:0;top:-4px;width:10px;height:10px;border-radius:50%;background:#EA4335}
 .cal-empty{text-align:center;color:var(--ink-faint);font-size:14px;padding:60px 24px;line-height:1.7}
+/* ── Daily schedule list view ─────────────────────────────────────────────── */
+/* Each session renders as an explicit horizontal flex row:                    */
+/*   [pip] [time col 100px fixed] [colored event card flex-grow]              */
+.sch-list{padding:6px 0 36px;overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:calc(100svh - 200px)}
+.sch-row{display:flex;flex-direction:row;align-items:stretch;gap:0;margin-bottom:12px}
+/* ── Left: time column — strict fixed width so all times align vertically ── */
+.sch-time-col{width:100px;flex-shrink:0;display:flex;flex-direction:column;justify-content:flex-start;padding-top:12px;padding-left:4px}
+.sch-time-start{font-size:12.5px;font-weight:700;color:var(--ink-soft);line-height:1}
+.sch-time-end{font-size:10.5px;font-weight:500;color:var(--ink-faint);margin-top:3px}
+/* ── Right: colored event card — grows to fill remaining width ─────────────  */
+.sch-card{flex-grow:1;flex-shrink:1;min-width:0;border-radius:14px;padding:13px 16px;cursor:pointer;box-shadow:0 3px 14px rgba(79,70,229,.22),0 1px 4px rgba(0,0,0,.1);display:flex;flex-direction:column;justify-content:center;transition:opacity .15s,transform .15s}
+.sch-card:active{opacity:.82;transform:scale(.985)}
+.sch-card-name{font-weight:800;font-size:15.5px;color:#fff;line-height:1.3;text-align:left;white-space:normal;overflow:visible;word-break:break-word}
+.sch-card-type{display:inline-flex;align-items:center;background:rgba(255,255,255,.2);border-radius:99px;padding:2px 10px;font-size:10.5px;font-weight:700;color:#fff;margin-top:9px;align-self:flex-start;text-align:left}
+.sch-card-now{box-shadow:0 0 0 2.5px rgba(234,67,53,.7),0 4px 18px rgba(79,70,229,.3)!important}
+.sch-now-pip{width:8px;height:8px;border-radius:50%;background:#EA4335;flex-shrink:0;margin-top:14px;margin-right:4px;box-shadow:0 0 0 3px rgba(234,67,53,.18)}
+.sch-spacer{width:8px;flex-shrink:0}
 /* Setup session calendar */
 .ses-cal-wrap{position:relative;padding-left:50px;border-radius:var(--r-lg);overflow:hidden;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-1)}
 .ses-cal-block{position:absolute;left:0;right:4px;border-radius:9px;padding:5px 9px;cursor:pointer;min-height:28px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.18)}
@@ -1254,74 +1271,45 @@ function renderSchedule(){
   if(!state.schedule.view) state.schedule.view='day';
   if(state.schedule.view==='week'){ v.innerHTML=_schedToggle('week')+_weekHtml(); _wireWeek(v); return; }
   const date=state.schedule.date;
-  const gridH=(CAL_E-CAL_S)*HR_PX+20;
 
-  // Hour grid
-  let hours='';
-  for(let h=CAL_S;h<=CAL_E;h++){
-    const y=(h-CAL_S)*HR_PX;
-    hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
-  }
-
-  // Session blocks — side-by-side for overlapping events
+  // ── Day-view list: each session is a horizontal flex row ──────────────────
+  // Left column (width:100px fixed) = time labels  |  Right = colored card
   const sorted=[...state.sessions].filter(s=>s.start_time && sessionOnDay(s,date)).sort((a,b)=>a.start_time<b.start_time?-1:1);
-  let blocks='';
+  const now=new Date();
+  const nowMins=now.getHours()*60+now.getMinutes();
+  const isToday=date===todayStr();
+
+  let listRows='';
   if(!sorted.length){
-    blocks=`<div class="cal-empty">No sessions yet.<br>Add them in <b>Setup</b> → Sessions.</div>`;
+    listRows=`<div class="cal-empty">No sessions today.<br>Add them in <b>Setup</b> → Sessions.</div>`;
   } else {
-    // Compute top/height for each session
-    const evs=sorted.map(s=>{
-      const top=_t2y(s.start_time);
-      const end=_sesEnd(s);
-      const ht=Math.max(_t2y(end)-top,34);
-      return {s,top,ht,col:0,numCols:1};
-    });
-    // Greedy column assignment
-    const colEnds=[];
-    evs.forEach(ev=>{
-      let c=colEnds.findIndex(e=>e<=ev.top+1);
-      if(c<0) c=colEnds.length;
-      ev.col=c;
-      colEnds[c]=ev.top+ev.ht;
-    });
-    // numCols = max concurrent at any given moment for each event
-    evs.forEach(ev=>{
-      ev.numCols=evs.filter(o=>o.top<ev.top+ev.ht-1&&o.top+o.ht>ev.top+1).length||1;
-    });
-    evs.forEach(({s,top,ht,col,numCols})=>{
+    sorted.forEach(s=>{
       const isZal=s.type==='zal';
       const bg=isZal?'linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)':'linear-gradient(135deg,#4f46e5 0%,#6366f1 100%)';
-      // Cascade stagger: later overlapping events shift right + higher z-index
-      let bLeft, bRight;
-      if(numCols===1){
-        bLeft='0px'; bRight='6px';
-      } else if(numCols===2){
-        bLeft=(col*40)+'%'; bRight=(col===0?'36%':'0px');
-      } else {
-        const pct=100/numCols;
-        bLeft=(col*pct).toFixed(1)+'%'; bRight=((numCols-1-col)*pct+1).toFixed(1)+'%';
-      }
-      const bh=Math.max(ht,32);
-      const showTime=true;
-      const showBadge=bh>=66;
-      const pad=bh<38?'3px 8px 2px':'7px 11px 6px';
-      blocks+=`<div class="cal-block" data-id="${s.id}" style="top:${top}px;height:${bh}px;left:${bLeft};right:${bRight};z-index:${col+1};background:${bg};padding:${pad}">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;min-width:0">
-          <div class="cal-block-name" style="flex:1;min-width:0">${esc(s.name)}</div>
-          ${showTime?`<div class="cal-block-time" style="flex-shrink:0;margin-top:1px;text-align:right">${fmtTime12(s.start_time)}<br>${fmtTime12(_sesEnd(s))}</div>`:''}
+      // Determine if this session is currently active
+      const [sh,sm]=(s.start_time||'0:0').split(':').map(Number);
+      const startMins=sh*60+sm;
+      const endStr=_sesEnd(s);
+      const [eh,em]=(endStr||'0:0').split(':').map(Number);
+      const endMins=eh*60+em;
+      const isNow=isToday && nowMins>=startMins && nowMins<endMins;
+      const pip=isNow
+        ? '<div class="sch-now-pip"></div>'
+        : '<div class="sch-spacer"></div>';
+      listRows+=`<div class="sch-row" data-id="${s.id}">
+        ${pip}
+        <div class="sch-time-col">
+          <div class="sch-time-start">${fmtTime12(s.start_time)}</div>
+          <div class="sch-time-end">${fmtTime12(endStr)}</div>
         </div>
-        ${showBadge?`<div class="cal-block-badge">${isZal?'🕍 Zal':'📋 Class'}</div>`:''}
+        <div class="sch-card${isNow?' sch-card-now':''}" data-id="${s.id}" style="background:${bg}">
+          <div class="sch-card-name">${esc(s.name)}</div>
+          <div class="sch-card-type">${isZal?'🕍 Zal':'📋 Class'}</div>
+        </div>
       </div>`;
     });
   }
 
-  // Current-time line
-  const now=new Date();
-  const nowY=(now.getHours()+now.getMinutes()/60-CAL_S)*HR_PX;
-  const showNow=date===todayStr()&&nowY>0&&nowY<(CAL_E-CAL_S)*HR_PX;
-  const nowLine=showNow?`<div class="cal-now" style="top:${nowY}px"></div>`:'';
-
-  const isToday=date===todayStr();
   v.innerHTML=`
     ${_schedToggle('day')}
     <div class="cal-hdr">
@@ -1335,11 +1323,8 @@ function renderSchedule(){
       </div>
       <button class="iconbtn" id="calNext" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>
-    <div class="cal-scroll" id="calScroll">
-      <div class="cal-grid" style="height:${gridH}px">
-        ${hours}
-        <div class="cal-lane">${blocks}${nowLine}</div>
-      </div>
+    <div class="sch-list" id="calScroll">
+      ${listRows}
     </div>`;
 
   $('calPrev').onclick=()=>{ state.schedule.date=addDays(date,-1); renderSchedule(); };
@@ -1348,16 +1333,17 @@ function renderSchedule(){
   const _db=document.querySelector('.cal-date-block'); if(_db) _db.onclick=()=>{ if(state.schedule.date!==todayStr()){ state.schedule.date=todayStr(); renderSchedule(); } };
   fetchHebDate(date).then(h=>{ const el=$('calHebDate'); if(el && h) el.textContent=h; });
 
-  v.querySelectorAll('.cal-block').forEach(el=>{
-    el.onclick=()=>{
-      const ses=state.sessions.find(s=>s.id===el.dataset.id);
+  // Wire each session card to navigate to mark / zal view
+  v.querySelectorAll('.sch-card[data-id],.sch-row[data-id]').forEach(el=>{
+    el.onclick=e=>{
+      const id=el.dataset.id||(el.closest('[data-id]')||{}).dataset.id;
+      const ses=state.sessions.find(s=>s.id===id);
       if(!ses)return;
       state.date=date;
       state.zal.fromClassSession=null;
       if(ses.type==='zal'){
         const zs=state.sessions.filter(s=>s.type==='zal');
-        if(!state.zalSessionId||!zs.find(s=>s.id===state.zalSessionId)) state.zalSessionId=ses.id;
-        else state.zalSessionId=ses.id;
+        state.zalSessionId=ses.id;
         switchView('zal');
       } else {
         state.sessionId=ses.id;
@@ -1365,13 +1351,6 @@ function renderSchedule(){
       }
     };
   });
-
-  // Scroll to current time or first session on first render
-  const sc=$('calScroll');
-  if(sc){
-    const target=showNow?Math.max(0,nowY-120):(sorted.length?Math.max(0,_t2y(sorted[0].start_time)-80):(8-CAL_S)*HR_PX);
-    requestAnimationFrame(()=>{ sc.scrollTop=target; });
-  }
 }
 
 
@@ -4026,7 +4005,8 @@ body {
   max-width: 720px;
   border-radius: 24px;
   box-shadow: none;
-  outline: 2.5px solid rgba(197,214,235,0.85);  /* soft ice-blue ring, no gray blur */
+  outline: none;   /* no artifact border around card — keep watermark clean */
+  border: none;
   position: relative;
   overflow: hidden;
   min-height: calc(100vh - 56px);
@@ -4135,7 +4115,12 @@ body {
   pointer-events: none;
   display: block;
   mix-blend-mode: multiply;
-  filter: brightness(1.05) contrast(.9);
+  /* grayscale + high brightness/contrast eliminates any gray compression box */
+  filter: grayscale(100%) brightness(1.3) contrast(1.4);
+  background: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4181,6 +4166,12 @@ body {
     right: 0 !important;
     width: 58% !important;
     mix-blend-mode: multiply !important;
+    /* Explicit filter preserved for both color + monochrome prints — zero artifact edges */
+    filter: grayscale(100%) brightness(1.3) contrast(1.4) !important;
+    background: none !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
   }
 
   .list-grid { page-break-inside: auto; }
@@ -4240,281 +4231,4 @@ boot();
 
 </script>
 </body>
-</html>  // ── Asset URLs (absolute from app origin so blob: URL can load them) ──────
-  const assetBase = location.origin + location.pathname.replace(/[^/]*$/, '');
-  const headerUrl = assetBase + 'header.png';
-  const wmUrl     = assetBase + 'watermark.png';
-
-  // ── Hebrew date sanitization ──────────────────────────────────────────────
-  // 1. Strip all nikud / cantillation (U+0591–U+05C7)
-  // 2. Remove leading day-of-month notation like "ד׳ " or "ד' "
-  // 3. Remove prepositional ב before month name
-  const _sn = s => s ? s.replace(/[\u0591-\u05C7]/g,'') : '';
-  const cleanHebDate = _sn(hebDate)
-    .replace(/^[\u05D0-\u05EA][\u05F3']+\s*/,'')   // strip "ד׳ " day prefix
-    .replace(/(^|\s)ב([\u05D0-\u05EA])/g,'$1$2')   // strip ב month prefix
-    .trim();
-
-  // ── Last-name-first helper ────────────────────────────────────────────────
-  const lastFirst = n => {
-    if(!n) return '';
-    const p = n.trim().split(/\s+/);
-    return p.length < 2 ? n : p[p.length-1]+' '+p.slice(0,-1).join(' ');
-  };
-
-  // ── Name / reason cells ───────────────────────────────────────────────────
-  const nameCell = s => {
-    const heb = esc(s.hebrew_name||'');
-    const eng = esc(lastFirst(s.english_name||''));
-    if(nameFmt==='heb') return heb||eng;
-    if(nameFmt==='eng') return eng||heb;
-    return heb+(s.english_name?' '+esc(lastFirst(s.english_name)):'');
-  };
-  const reasonCell = s =>
-    showReason&&reasonByStu[s.id]
-      ? `<span class="reason">${esc(reasonByStu[s.id])}</span>`
-      : '';
-
-  // ── Column split ──────────────────────────────────────────────────────────
-  const n    = people.length;
-  const half = Math.ceil(n/2);
-  const colA = people.slice(0,half);
-  const colB = people.slice(half);
-
-  // Explicit num-left name-right; direction:ltr on row defeats any RTL parent
-  const mkRow = (s,idx) =>
-    `<div class="row"><span class="num">${idx}</span><span class="name">${nameCell(s)}</span>${reasonCell(s)}</div>`;
-
-  const leftRows  = colA.map((s,i)=>mkRow(s,i+1)).join('');
-  const rightRows = colB.map((s,i)=>mkRow(s,half+i+1)).join('');
-
-  // Heading font-size: calibrated so ~60-char text wraps to 2 lines
-  const hLen        = heading.length;
-  const headingSize = hLen>100?'18px':hLen>70?'26px':hLen>45?'38px':hLen>25?'50px':'60px';
-  const headingLH   = hLen>45?'1.30':'1.22';
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  CSS
-  // ══════════════════════════════════════════════════════════════════════════
-  const css = `
-/* ── Strip browser print chrome ─────────────────────────────────────────── */
-@page { margin: 0; size: letter portrait; }
-
-/* ── Reset ───────────────────────────────────────────────────────────────── */
-*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
-
-/* ── Outer canvas: full-bleed ice-blue background ───────────────────────── */
-body {
-  font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif;
-  background: #c5d6eb;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 28px;
-}
-
-/* ── White card ──────────────────────────────────────────────────────────── */
-.card {
-  background: #ffffff;
-  width: 100%;
-  max-width: 720px;
-  border-radius: 24px;
-  box-shadow: 0 6px 40px rgba(30,58,138,.12), 0 2px 8px rgba(30,58,138,.06);
-  position: relative;
-  overflow: hidden;
-  min-height: calc(100vh - 56px);
-}
-
-/* ── Inner padding ───────────────────────────────────────────────────────── */
-.card-inner {
-  padding: 26px 48px 210px;
-  position: relative;
-  z-index: 1;
-}
-
-/* ── Header: header.png centered, bh absolutely top-right ───────────────── */
-.header-wrap {
-  position: relative;       /* anchor for absolute bh */
-  display: flex;
-  justify-content: center;  /* dead-center the logo */
-  align-items: flex-start;
-  width: 100%;
-  margin-bottom: 14px;
-  min-height: 90px;
-}
-.header-img {
-  max-height: 112px;
-  width: auto;
-  object-fit: contain;
-  display: block;
-}
-.bh {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1e3a8a;
-  font-family: 'Times New Roman',Times,serif;
-  white-space: nowrap;
-  letter-spacing: .4px;
-}
-
-/* ── Divider ─────────────────────────────────────────────────────────────── */
-.divider { border:none; height:2px; background:#1e3a8a; margin:0 0 14px; display:block; }
-
-/* ── Date row: BELOW divider, ABOVE title ────────────────────────────────── */
-/* English aligns left edge; Hebrew aligns right edge                        */
-.date-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  margin-bottom: 22px;
-}
-.eng-date {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2c4880;
-  letter-spacing: .2px;
-  text-align: left;
-}
-.heb-date {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2c4880;
-  text-align: right;
-  direction: rtl;
-  unicode-bidi: isolate;
-}
-
-/* ── Dynamic title ───────────────────────────────────────────────────────── */
-.title {
-  text-align: center;
-  font-family: Georgia,'Times New Roman',Times,serif;
-  font-weight: 400;
-  color: #111111;
-  margin-bottom: 28px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-/* ── Two-column grid ─────────────────────────────────────────────────────── */
-.list-grid { display:flex; flex-direction:row; gap:44px; align-items:flex-start; }
-.col       { flex:1; min-width:0; }
-
-/* ── Student row: num left, name right, direction:ltr forced ─────────────── */
-.row {
-  display: flex;
-  flex-direction: row;
-  direction: ltr;
-  align-items: baseline;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid #e2e8f4;
-}
-.num  { flex:0 0 26px; text-align:right; font-size:12px; font-weight:600; color:#8facc8; line-height:1; }
-.name { flex:1; font-weight:700; font-size:15px; color:#111111; letter-spacing:.15px; line-height:1.3; }
-.reason { font-size:10px; color:#c0392b; white-space:nowrap; margin-left:6px; flex-shrink:0; }
-
-/* ── Watermark: bottom-right, mix-blend-mode removes PNG white bg ─────────── */
-.wm {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 60%;
-  height: auto;
-  z-index: 0;
-  pointer-events: none;
-  display: block;
-  mix-blend-mode: multiply;
-  filter: brightness(1.05) contrast(.9);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   @media print — full ice-blue border visible on physical page
-   ═══════════════════════════════════════════════════════════════════════════ */
-@media print {
-  @page { margin: 0; size: letter portrait; }
-
-  /* Both html and body get the blue — belt & suspenders */
-  html {
-    background: #c5d6eb !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  body {
-    background: #c5d6eb !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    display: block !important;
-    width: 100% !important;
-    height: 100% !important;
-    /* 24px padding = 24px wide blue frame on all four sides of the white card */
-    padding: 24px !important;
-  }
-
-  .card {
-    background: #ffffff !important;
-    border-radius: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    box-shadow: none !important;
-    min-height: calc(100vh - 48px) !important;
-  }
-
-  .card-inner { padding: 22px 48px 160px !important; }
-
-  /* Watermark anchors to page bottom on every printed sheet */
-  .wm {
-    position: fixed !important;
-    bottom: 0 !important;
-    right: 0 !important;
-    width: 58% !important;
-    mix-blend-mode: multiply !important;
-  }
-
-  .list-grid { page-break-inside: auto; }
-  .row       { page-break-inside: avoid; break-inside: avoid; }
-}`;
-
-  // ── Watermark ─────────────────────────────────────────────────────────────
-  const wm = `<img class="wm" src="${wmUrl}" alt="" loading="eager">`;
-
-  // ── Body HTML ─────────────────────────────────────────────────────────────
-  const body = `<div class="card">
-  <div class="card-inner">
-
-    <!-- 1. Header: header.png centered; bh absolutely top-right of card -->
-    <div class="header-wrap">
-      <span class="bh">&#x05D1;&#x05F4;&#x05D4;</span>
-      <img class="header-img" src="${headerUrl}" alt="YKP Header">
-    </div>
-
-    <!-- 2. Full-width dark-blue divider -->
-    <hr class="divider">
-
-    <!-- 3. Date row: directly below divider, above title -->
-    <!--    English left edge ◄────────────────────► Hebrew right edge -->
-    ${(engDate||cleanHebDate)?`<div class="date-row">
-      ${engDate?`<span class="eng-date">${esc(engDate)}</span>`:'<span></span>'}
-      ${cleanHebDate?`<span class="heb-date">${esc(cleanHebDate)}</span>`:''}
-    </div>`:''}
-
-    <!-- 4. Dynamic title (centered serif, size auto-scales to length) -->
-    <div class="title" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>
-
-    <!-- 5. Two-column student list: num left, name right -->
-    <div class="list-grid">
-      <div class="col">${leftRows}</div>
-      <div class="col">${rightRows}</div>
-    </div>
-
-  </div>
-
-  <!-- 6. Watermark: mix-blend-mode:multiply removes PNG white bg -->
-  ${wm}
-</div>`;
+</html>
