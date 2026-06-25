@@ -3072,7 +3072,7 @@ function renderHistList(rows){
   let filt=rows.filter(r=>stuById[r.student_id]);
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
   if(h.studentId) filt=filt.filter(r=>r.student_id===h.studentId);
-  if(h.sessionClassId) filt=filt.filter(r=>{ const ses=sesById[r.session_id]; if(!ses)return false; const ids=ses.class_ids||[]; return ids.length===0||ids.includes(h.sessionClassId); });
+  if(h.sessionId) filt=filt.filter(r=>r.session_id===h.sessionId);
 
   const c={on_time:0,late:0,absent:0,excused:0,flagged:0};
   filt.forEach(r=>{
@@ -3136,7 +3136,7 @@ async function renderHistory(){
     v.innerHTML=emptyState('No history yet','Import students and start marking attendance to see history here.','setup','Go to Setup');
     bindEmpty(v); return;
   }
-  if(!state.history) state.history={period:'week',classId:'',studentId:'',statuses:new Set(),flagged:false,lateMins:0,limit:50,selMode:false,sel:new Set()};
+  if(!state.history) state.history={period:'week',classId:'',studentId:'',sessionId:'',statuses:new Set(),flagged:false,lateMins:0,limit:50,selMode:false,sel:new Set()};
   if(!state.history.sel) state.history.sel=new Set();
   const h=state.history;
   const forClass = h.classId ? state.students.filter(s=>(s.class_id||'__none__')===h.classId) : state.students;
@@ -3155,10 +3155,10 @@ async function renderHistory(){
         </select></div>
       <div class="ctl"><span>Reporting period</span>
         <select id="hPeriod">${Object.entries(PERIOD_LABEL).map(([k,label])=>`<option value="${k}" ${k===h.period?'selected':''}>${label}</option>`).join('')}</select></div>
-      <div class="ctl"><span>Class</span>
-        <select id="hSessionClass">
-          <option value="">All classes</option>
-          ${state.classes.map(c=>`<option value="${c.id}" ${c.id===h.sessionClassId?'selected':''}>${esc(c.name)}</option>`).join('')}
+      <div class="ctl"><span>Session</span>
+        <select id="hSessionSel">
+          <option value="">All sessions</option>
+          ${state.sessions.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(s=>`<option value="${s.id}" ${s.id===h.sessionId?'selected':''}>${esc(s.name)}</option>`).join('')}
         </select></div>
     </div>
     <div class="htabs" id="hStatusTabs">
@@ -3180,7 +3180,7 @@ async function renderHistory(){
   $('hClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; h.limit=50; renderHistory(); };
   $('hStudent').onchange=e=>{ h.studentId=e.target.value; h.limit=50; refreshHistList(); };
   $('hPeriod').onchange=e=>{ h.period=e.target.value; h.limit=50; renderHistory(); };
-  $('hSessionClass').onchange=e=>{ h.sessionClassId=e.target.value; h.limit=50; refreshHistList(); };
+  $('hSessionSel').onchange=e=>{ h.sessionId=e.target.value; h.limit=50; refreshHistList(); };
   $('hSelToggle').onclick=()=>{ h.selMode=!h.selMode; if(!h.selMode)h.sel.clear(); renderHistory(); };
   if($('hSelAll')) $('hSelAll').onclick=()=>{
     const all=(h._filtered||[]);
