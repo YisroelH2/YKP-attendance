@@ -1098,7 +1098,7 @@ async function loadAll(){
   const zsv=state.sessions.filter(s=>s.type==='zal');
   if(!state.sessionId || !csv.find(s=>s.id===state.sessionId)) state.sessionId=csv[0]?.id||null;
   if(!state.zalSessionId || !zsv.find(s=>s.id===state.zalSessionId)) state.zalSessionId=zsv[0]?.id||null;
-  if(!state.classId && state.classes[0]) state.classId=state.classes[0].id;
+  if((!state.classId || state.classId==='__all__') && state.classes[0]) state.classId=state.classes[0].id;
   loadPhotos().catch(()=>{}); // background — never block startup
 }
 const _photoCache={urls:{},at:0};
@@ -1510,7 +1510,8 @@ async function renderMark(){
     <div class="controls" style="grid-template-columns:1.5fr 1fr;margin-bottom:10px">
       <div class="ctl"><span>Class</span>
         <select id="selClass">${state.classes.map(c=>`<option value="${c.id}" ${c.id===state.classId?'selected':''}>${esc(c.name)}${c.teacher?' · '+esc(c.teacher):''}</option>`).join('')}
-        ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${state.classId==='__none__'?'selected':''}>(No class)</option>`:''}</select></div>
+        ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${state.classId==='__none__'?'selected':''}>(No class)</option>`:''}
+        <option value="__all__" ${state.classId==='__all__'?'selected':''}>— All Classes —</option></select></div>
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
@@ -1553,6 +1554,7 @@ async function renderMark(){
 }
 
 function classStudents(){
+  if(state.classId==='__all__') return state.students.slice(); // entire roster, all classes
   if(state.classId==='__none__') return state.students.filter(s=>!s.class_id);
   return state.students.filter(s=>s.class_id===state.classId);
 }
