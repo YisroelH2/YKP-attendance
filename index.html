@@ -1465,7 +1465,7 @@ function classStudents(){
 
 function renderGrid(){
   const grid=$('grid'); if(!grid)return;
-  const list=classStudents();
+  const list=classStudents().slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
   grid.innerHTML = list.map(s=>cardHTML(s)).join('') ||
     `<div class="empty" style="grid-column:1/-1"><p>No students in this class.</p></div>`;
   attachGrid(grid);
@@ -1684,6 +1684,7 @@ function renderStudents(selMode, sel){
     let list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
     if(filterClass==='__none__') list=list.filter(s=>!s.class_id);
     else if(filterClass) list=list.filter(s=>s.class_id===filterClass);
+    list=list.slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
     if(filterBunk) list=list.filter(s=>s.bunk===filterBunk);
     currentList=list;
     const page=list.slice(0,stuLimit); const hasMore=list.length>stuLimit;
