@@ -4197,7 +4197,7 @@ body {
 
 /* ── Inner padding ───────────────────────────────────────────────────────── */
 .card-inner {
-  padding: 26px 48px 210px;
+  padding: 26px 48px 120px;
   position: relative;
   z-index: 1;
 }
@@ -4325,9 +4325,10 @@ body {
     print-color-adjust: exact !important;
     display: block !important;
     width: 100% !important;
-    height: 100% !important;
-    /* 24px padding = 24px wide blue frame on all four sides of the white card */
+    /* No height constraint — content determines page count naturally */
     padding: 24px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .card {
@@ -4337,13 +4338,22 @@ body {
     width: 100% !important;
     box-shadow: none !important;
     outline: none !important;
-    overflow: hidden !important;
-    min-height: calc(100vh - 48px) !important;
+    /* overflow: visible so position:fixed watermark is not clipped to card bounds */
+    overflow: visible !important;
+    /* height:auto — never force the card taller than its content;
+       this is the primary fix for the ghost blank page.            */
+    min-height: 0 !important;
+    height: auto !important;
   }
 
-  .card-inner { padding: 22px 48px 160px !important; background: #ffffff !important; }
+  /* Tighter bottom padding: watermark is fixed so it no longer needs
+     a large reserved gutter; 80 px is enough for the last row's border */
+  .card-inner { padding: 22px 48px 80px !important; background: #ffffff !important; }
 
-  /* Watermark anchors to page bottom on every printed sheet */
+  /* Watermark: fixed positions it relative to the page, not the card —
+     so it stamps itself onto the bottom-right of EVERY printed sheet.
+     The watermark element must live OUTSIDE .card in the HTML so that
+     .card's overflow property cannot clip it.                          */
   .wm {
     position: fixed !important;
     bottom: 0 !important;
@@ -4395,10 +4405,11 @@ body {
     </div>
 
   </div>
+</div>
 
-  <!-- 6. Watermark: mix-blend-mode:multiply removes PNG white bg -->
-  ${wm}
-</div>`;
+<!-- 6. Watermark lives OUTSIDE .card so position:fixed in @media print
+        is not clipped by .card's overflow — stamps on every printed page -->
+${wm}`;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
