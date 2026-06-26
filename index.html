@@ -1030,7 +1030,14 @@ async function enterApp(){
   const _wNav=localStorage.getItem('widget_nav');
   if(_wNav){ try{ const wn=JSON.parse(_wNav); localStorage.removeItem('widget_nav');
     if(Date.now()-wn.ts<30000){ // only if within 30 seconds
-      if(wn.type==='zal'){state.zalSessionId=wn.sessionId;state.date=todayStr();switchView('zal');return;}
+      if(wn.type==='zal'){
+        state.zalSessionId=wn.sessionId;
+        state.date=todayStr();
+        // Apply this session's preferred arrangement once Zal data loads
+        const _wSes=state.sessions.find(s=>s.id===wn.sessionId);
+        state.zal.pendingDefaultArrangementId=(_wSes&&_wSes.default_arrangement_id)||null;
+        switchView('zal');return;
+      }
       else{state.sessionId=wn.sessionId;state.date=todayStr();switchView('mark');return;}
     }
   }catch(_){} }
@@ -1258,7 +1265,11 @@ function _wireWeek(v){
     if(!ses)return;
     state.date=el.dataset.date||todayStr();
     state.zal.fromClassSession=null;
-    if(ses.type==='zal'){ state.zalSessionId=ses.id; switchView('zal'); }
+    if(ses.type==='zal'){
+      state.zalSessionId=ses.id;
+      state.zal.pendingDefaultArrangementId=ses.default_arrangement_id||null;
+      switchView('zal');
+    }
     else { state.sessionId=ses.id; switchView('mark'); }
   });
   // scroll week to morning
@@ -1406,6 +1417,8 @@ function renderSchedule(){
         const zs=state.sessions.filter(s=>s.type==='zal');
         if(!state.zalSessionId||!zs.find(s=>s.id===state.zalSessionId)) state.zalSessionId=ses.id;
         else state.zalSessionId=ses.id;
+        // Pre-select this session's default seating arrangement (applied after Zal data loads)
+        state.zal.pendingDefaultArrangementId=ses.default_arrangement_id||null;
         switchView('zal');
       } else {
         state.sessionId=ses.id;
@@ -2512,8 +2525,20 @@ function _renderSesCal(container){
   });
 }
 
-function editSession(id){
+async function editSession(id){
   const s=id?state.sessions.find(x=>x.id===id):null;
+
+  // Pre-fetch arrangements so the dropdown is populated (uses cache if already loaded)
+  if(!zalData.arrangements.length){
+    try{
+      const a=await _q(sb.from('arrangements').select('*').order('created_at'));
+      if(!a.error) zalData.arrangements=a.data||[];
+    }catch(_){}
+  }
+
+  const arrOpts=[{value:'',label:'(Use whichever arrangement is currently active)'}]
+    .concat(zalData.arrangements.map(a=>({value:a.id,label:a.name})));
+
   openForm({
     title:s?'Edit session':'Add session',
     fields:[
@@ -2521,18 +2546,46 @@ function editSession(id){
       {key:'start_time',label:'Start time',type:'time',value:s?(s.start_time||'').slice(0,5):''},
       {key:'end_time',label:'End time',type:'time',value:s?(s.end_time||'').slice(0,5):''},
       {key:'days',label:'Days of the week',type:'days',value:s&&s.days?s.days:[]},
-      {key:'type',label:'Session type',type:'select',value:s?(s.type||'class'):'class',options:[{value:'class',label:'In-class — marked on the Mark tab'},{value:'zal',label:'Zal — marked on the Zal tab'}]},
+      {key:'type',label:'Session type',type:'select',value:s?(s.type||'class'):'class',options:[
+        {value:'class',label:'In-class — marked on the Mark tab'},
+        {value:'zal',label:'Zal — marked on the Zal tab'},
+      ]},
+      // Only meaningful for Zal sessions; shown/hidden dynamically below
+      {key:'default_arrangement_id',label:'Default seating arrangement',type:'select',
+        value:s?(s.default_arrangement_id||''):'',options:arrOpts},
     ],
     onSave:async v=>{
-      const rec={name:(v.name||'').trim(),start_time:v.start_time||null,end_time:v.end_time||null,type:v.type||'class',days:(v.days&&v.days.length)?v.days:null};
+      const rec={
+        name:(v.name||'').trim(),
+        start_time:v.start_time||null,
+        end_time:v.end_time||null,
+        type:v.type||'class',
+        days:(v.days&&v.days.length)?v.days:null,
+        // Only persist arrangement preference for Zal sessions
+        default_arrangement_id:(v.type==='zal'&&v.default_arrangement_id)?v.default_arrangement_id:null,
+      };
       if(!rec.name){toast('Session name required',true);return;}
-      const r = s ? await sb.from('sessions').update(rec).eq('id',s.id)
-                  : await sb.from('sessions').insert({...rec,sort_order:state.sessions.length+1});
+      const r=s ? await sb.from('sessions').update(rec).eq('id',s.id)
+                : await sb.from('sessions').insert({...rec,sort_order:state.sessions.length+1});
       if(r.error){toast('Save failed: '+r.error.message,true);return;}
       closeForm(); state.sessionId=s?state.sessionId:null; await loadAll(); renderSetup(); if($('calScroll'))renderSchedule(); toast('Saved');
     },
-    onDelete: s?async()=>{await sb.from('sessions').delete().eq('id',s.id);closeForm();state.sessionId=null;await loadAll();renderSetup();if($('calScroll'))renderSchedule();toast('Session deleted');}:null,
+    onDelete:s?async()=>{
+      await sb.from('sessions').delete().eq('id',s.id);
+      closeForm();state.sessionId=null;await loadAll();renderSetup();if($('calScroll'))renderSchedule();toast('Session deleted');
+    }:null,
   });
+
+  // Conditionally show/hide the arrangement dropdown based on session type
+  const typeEl=$('formBody').querySelector('[data-key="type"]');
+  const arrField=$('formBody').querySelector('[data-key="default_arrangement_id"]')?.closest('.field');
+  if(typeEl && arrField){
+    const toggleArr=()=>{
+      arrField.style.display=typeEl.value==='zal'?'':'none';
+    };
+    toggleArr();                             // apply on open
+    typeEl.addEventListener('change',toggleArr);
+  }
 }
 
 /* ---- today's start delay ---- */
@@ -2550,7 +2603,7 @@ async function applyDelay(v){
 /* =========================================================
    6. THE ZAL — grid room, native scroll, seat & mark
    ========================================================= */
-state.zal = {arrangementId:null, mode:'mark', tool:'seat', cell:84, fromClassSession:null};
+state.zal = {arrangementId:null, mode:'mark', tool:'seat', cell:84, fromClassSession:null, pendingDefaultArrangementId:null};
 state.zalSessionId = state.zalSessionId || null;
 const zalData = {arrangements:[], tables:[], seats:[], loaded:false};
 const FRONT_KIND = {aron:'Aron Kodesh', bimah:'Bimah', door:'Front Door'};
@@ -2599,6 +2652,19 @@ function curArr(){ return zalData.arrangements.find(a=>a.id===state.zal.arrangem
 async function renderZal(){
   const v=$('view-zal');
   if(!zalData.loaded){ await loadZal(); zalData.loaded=true; }
+
+  // Apply a session's default seating arrangement if one was requested on navigation.
+  // This runs after loadZal() so arrangements are guaranteed available.
+  // The pending value is cleared immediately so it only fires once per navigation.
+  if(state.zal.pendingDefaultArrangementId){
+    const _pending=state.zal.pendingDefaultArrangementId;
+    state.zal.pendingDefaultArrangementId=null;
+    const _match=zalData.arrangements.find(a=>a.id===_pending);
+    if(_match && _match.id!==state.zal.arrangementId){
+      state.zal.arrangementId=_match.id;
+      await loadZalLayout();   // reload tables/seats for this arrangement
+    }
+  }
   if(!zalData.arrangements.length){
     v.innerHTML=`<div class="empty"><div class="em-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/></svg></div>
       <h3>No Zal layout yet</h3><p>Make a seating arrangement — it starts as a 5×10 grid of tables you can shape.</p>
