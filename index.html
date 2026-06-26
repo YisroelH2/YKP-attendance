@@ -50,7 +50,18 @@
 /* Stop taps from grabbing text on app UI; keep selection where it's actually typed */
 body{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea,[contenteditable="true"]{-webkit-user-select:text;-moz-user-select:text;user-select:text}
+/* ── iOS PWA rubber-band lock ─────────────────────────────────────────────
+   html + body are pinned to the viewport so the PWA frame never bounces.
+   <main> becomes the single scroll surface for all content views.          */
+html{
+  overflow:hidden; position:fixed;
+  width:100%; height:100%; top:0; left:0;
+}
 html,body{margin:0;height:100%}
+body{
+  overflow:hidden; position:fixed;
+  width:100%; height:100%; top:0; left:0;
+}
 body{
   font-family:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   background:var(--bg); color:var(--ink);
@@ -106,7 +117,12 @@ input,select,textarea{font-family:inherit; font-size:15px; color:var(--ink)}
 /* =========================================================
    App shell
    ========================================================= */
-#app{min-height:100%; display:flex; flex-direction:column}
+#app{
+  width:100%; height:100%;
+  display:flex; flex-direction:column;
+  overflow:hidden;           /* prevent #app itself from bouncing */
+  position:relative;
+}
 .topbar{
   position:sticky; top:0; z-index:30;
   display:flex; align-items:center; gap:12px;
@@ -124,7 +140,12 @@ input,select,textarea{font-family:inherit; font-size:15px; color:var(--ink)}
   color:#1E1F4B; background:rgba(255,255,255,.7); border:1px solid rgba(30,31,75,.14)}
 .iconbtn:active{background:#dde0f5}
 
-main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
+main{
+  flex:1; min-height:0;       /* allow shrinking so nav stays pinned */
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px);
+}
 .view{max-width:760px; margin:0 auto}
 
 /* ---------- mark controls ---------- */
@@ -474,7 +495,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .fs-zbtn{width:50px;height:50px;border-radius:16px;background:rgba(255,255,255,.68);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border:1px solid rgba(215,220,240,.72);box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.92);color:var(--accent);font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:transform .12s}
 .fs-zbtn:active{transform:scale(.87)}
 .fs-zbtn-divider{height:1px;margin:1px 6px;background:rgba(160,170,210,.35)}
-.zroom{overflow:auto;-webkit-overflow-scrolling:touch;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 18px,#e9edf5 18px,#e9edf5 36px);
+.zroom{overflow:auto;-webkit-overflow-scrolling:touch;touch-action:manipulation;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 18px,#e9edf5 18px,#e9edf5 36px);
   border:1px solid var(--line);border-radius:var(--r-lg);max-height:48vh;padding:14px}
 .zroom-inner{display:flex;gap:10px;width:max-content}
 .zside-top,.zside-bottom{flex-direction:column;align-items:stretch}
@@ -4197,7 +4218,7 @@ body {
 
 /* ── Inner padding ───────────────────────────────────────────────────────── */
 .card-inner {
-  padding: 22px 44px 36px;
+  padding: 18px 40px 28px;
   position: relative;
   z-index: 1;
 }
@@ -4209,11 +4230,11 @@ body {
   justify-content: center;
   align-items: flex-start;
   width: 100%;
-  margin-bottom: 10px;
-  min-height: 80px;
+  margin-bottom: 8px;
+  min-height: 72px;
 }
 .header-img {
-  max-height: 96px;
+  max-height: 88px;
   width: auto;
   object-fit: contain;
   display: block;
@@ -4231,7 +4252,7 @@ body {
 }
 
 /* ── Divider ─────────────────────────────────────────────────────────────── */
-.divider { border:none; height:2px; background:#1e3a8a; margin:0 0 10px; display:block; }
+.divider { border:none; height:2px; background:#1e3a8a; margin:0 0 8px; display:block; }
 
 /* ── Date row: BELOW divider, ABOVE title ────────────────────────────────── */
 .date-row {
@@ -4239,7 +4260,7 @@ body {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .eng-date { font-size:13px; font-weight:600; color:#2c4880; letter-spacing:.2px; text-align:left; }
 .heb-date { font-size:13px; font-weight:600; color:#2c4880; text-align:right; direction:rtl; unicode-bidi:isolate; }
@@ -4250,13 +4271,13 @@ body {
   font-family: Georgia,'Times New Roman',Times,serif;
   font-weight: 400;
   color: #111111;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 
 /* ── Two-column grid ─────────────────────────────────────────────────────── */
-.list-grid { display:flex; flex-direction:row; gap:36px; align-items:flex-start; }
+.list-grid { display:flex; flex-direction:row; gap:28px; align-items:flex-start; }
 .col       { flex:1; min-width:0; }
 
 /* ── Student row: compact, readable, tightly packed ─────────────────────── */
@@ -4265,13 +4286,13 @@ body {
   flex-direction: row;
   direction: ltr;
   align-items: baseline;
-  gap: 8px;
-  padding: 5px 0;          /* was 10px — halved to pack more rows per page */
+  gap: 7px;
+  padding: 4px 0;          /* tight: ~22 px per row so 60 rows ≈ 1 320 px */
   border-bottom: 1px solid #e2e8f4;
 }
-.num    { flex:0 0 22px; text-align:right; font-size:11px; font-weight:600; color:#8facc8; line-height:1; }
-.name   { flex:1; font-weight:700; font-size:13.5px; color:#111111; letter-spacing:.1px; line-height:1.25; }
-.reason { font-size:10px; color:#c0392b; white-space:nowrap; margin-left:4px; flex-shrink:0; }
+.num    { flex:0 0 20px; text-align:right; font-size:10.5px; font-weight:600; color:#8facc8; line-height:1; }
+.name   { flex:1; font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
+.reason { font-size:9.5px; color:#c0392b; white-space:nowrap; margin-left:3px; flex-shrink:0; }
 
 /* ── Watermark: fixed so it appears on every printed page ───────────────── */
 /* Lives outside .card in the HTML — overflow on card cannot clip it        */
@@ -4331,7 +4352,7 @@ body {
     height: auto !important;
   }
 
-  .card-inner { padding: 20px 44px 32px !important; background: #ffffff !important; }
+  .card-inner { padding: 16px 40px 24px !important; background: #ffffff !important; }
 
   /* Watermark stamps on every page — position:fixed is scoped to page in print */
   .wm {
