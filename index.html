@@ -155,6 +155,14 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .mark-toprow{display:flex;gap:7px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
 .mark-toprow #markAll{flex:1 1 110px;height:38px}
 .mark-toprow .delaychip,.mark-toprow .layoutchip{flex:0 1 auto;height:38px;padding:0 11px;font-size:12.5px;white-space:nowrap}
+/* ── All-Classes search bar ──────────────────────────────────────────────── */
+.mark-search{position:relative;margin-bottom:10px}
+.mark-search input{width:100%;height:42px;border:1.5px solid var(--line);border-radius:var(--r-sm);padding:0 38px 0 38px;font-size:14.5px;background:var(--surface-1);color:var(--ink);transition:border-color .15s,box-shadow .15s;box-sizing:border-box}
+.mark-search input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(79,70,229,.13)}
+.mark-search input::placeholder{color:var(--ink-faint)}
+.mark-search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-faint);pointer-events:none;display:flex;align-items:center}
+.mark-search-clear{position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:19px;line-height:1;padding:4px 5px;border-radius:50%;transition:color .12s,background .12s}
+.mark-search-clear:hover{color:var(--ink);background:var(--surface-2)}
 .layoutchip{flex-shrink:0;height:40px;padding:0 12px;border-radius:var(--r-md);background:var(--surface-2);border:1.5px solid var(--line);color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap}
 .layoutchip:active{transform:scale(.96)}
 .layout-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,#EEF2FF,#F3E8FF);border:1px solid #C7D2FE;border-radius:var(--r-md);padding:9px 12px;margin-bottom:10px;font-size:13px;color:var(--ink)}
@@ -845,6 +853,7 @@ const BADGE = {on_time:'✓', late:'!', absent:'✕', excused:'E'};
 const state = {
   user:null, classes:[], sessions:[], students:[], photoUrls:{},
   marks:{}, activeStatus:'on_time', date:todayStr(), sessionId:null, classId:null,
+  markSearch:'',
   view:'mark', sheetStudent:null, sheetStatus:null, sheetFlag:false, delayMinutes:0,
 };
 
@@ -1519,15 +1528,24 @@ async function renderMark(){
     bindEmpty(v); return;
   }
   await loadMarks();
+  const isAllClasses=state.classId==='__all__';
   v.innerHTML = `
     <div class="controls" style="grid-template-columns:1.5fr 1fr;margin-bottom:10px">
       <div class="ctl"><span>Class</span>
         <select id="selClass">${state.classes.map(c=>`<option value="${c.id}" ${c.id===state.classId?'selected':''}>${esc(c.name)}${c.teacher?' · '+esc(c.teacher):''}</option>`).join('')}
         ${state.students.some(s=>!s.class_id)?`<option value="__none__" ${state.classId==='__none__'?'selected':''}>(No class)</option>`:''}
-        <option value="__all__" ${state.classId==='__all__'?'selected':''}>— All Classes —</option></select></div>
+        <option value="__all__" ${isAllClasses?'selected':''}>— All Classes —</option></select></div>
       <div class="ctl"><span>Date</span>
         <input id="selDate" type="date" value="${state.date}" max="${todayStr()}"></div>
     </div>
+    ${isAllClasses?`
+    <div class="mark-search" id="markSearchWrap">
+      <span class="mark-search-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      <input id="markSearch" type="search" autocomplete="off" spellcheck="false"
+        placeholder="Search all ${state.students.length} students…"
+        value="${esc(state.markSearch||'')}">
+      ${state.markSearch?`<button class="mark-search-clear" id="markSearchClear" type="button" aria-label="Clear">×</button>`:''}
+    </div>`:''}
     <div class="mark-toprow">
       <button class="btn btn-soft btn-sm" id="markAll">Mark all</button>
       <button id="toZalLayout" class="layoutchip" type="button" title="Mark this session in Zal seating layout">⇄ Zal</button>
@@ -1544,8 +1562,23 @@ async function renderMark(){
       </div>
     </div>`;
 
-  $('selClass').onchange=e=>{state.classId=e.target.value;renderMark();};
+  // Class picker — clear stale search when switching away from All Classes
+  $('selClass').onchange=e=>{
+    if(e.target.value!=='__all__') state.markSearch='';
+    state.classId=e.target.value;
+    renderMark();
+  };
   $('selDate').onchange=async e=>{state.date=e.target.value;renderMark();};
+
+  // Search bar — only present in All Classes mode
+  if($('markSearch')){
+    const _sr=$('markSearch');
+    _sr.oninput=e=>{ state.markSearch=e.target.value; renderGrid(); };
+    _sr.addEventListener('keydown',e=>{ if(e.key==='Escape'){ state.markSearch=''; renderMark(); } });
+    if($('markSearchClear')) $('markSearchClear').onclick=()=>{ state.markSearch=''; renderMark(); };
+    // Auto-focus only when the bar was just revealed (query is empty)
+    if(!state.markSearch) requestAnimationFrame(()=>_sr?.focus());
+  }
   renderSesLiveCard();
   $('tabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
     state.activeStatus=t.dataset.s;
@@ -1574,9 +1607,22 @@ function classStudents(){
 
 function renderGrid(){
   const grid=$('grid'); if(!grid)return;
-  const list=classStudents().slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
+  let list=classStudents().slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
+
+  // Live search filter — active only in All Classes mode
+  const q=(state.classId==='__all__' && state.markSearch) ? state.markSearch.trim().toLowerCase() : '';
+  if(q){
+    list=list.filter(s=>
+      (s.english_name||'').toLowerCase().includes(q) ||
+      (s.hebrew_name||'').toLowerCase().includes(q)
+    );
+  }
+
+  const emptyMsg=q
+    ? `No students match "<b>${esc(state.markSearch.trim())}</b>".`
+    : 'No students in this class.';
   grid.innerHTML = list.map(s=>cardHTML(s)).join('') ||
-    `<div class="empty" style="grid-column:1/-1"><p>No students in this class.</p></div>`;
+    `<div class="empty" style="grid-column:1/-1"><p>${emptyMsg}</p></div>`;
   attachGrid(grid);
   renderSummary(list);
 }
