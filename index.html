@@ -4171,14 +4171,14 @@ async function generateShulList(people,heading,showReason,nameFmt){
 /* ── Outer canvas: full-bleed ice-blue background ───────────────────────── */
 body {
   font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif;
-  background: #c5d6eb !important;  /* enforce ice-blue — no gray allowed */
+  background: #c5d6eb !important;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-  min-height: 100vh;
+  /* No min-height: this is a print popup — never force blank pages */
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 28px;
+  padding: 24px;
 }
 
 /* ── White card ──────────────────────────────────────────────────────────── */
@@ -4188,32 +4188,32 @@ body {
   max-width: 720px;
   border-radius: 24px;
   box-shadow: none;
-  outline: none;   /* no artifact border around card — keep watermark clean */
+  outline: none;
   border: none;
   position: relative;
-  overflow: hidden;
-  min-height: calc(100vh - 56px);
+  overflow: visible;   /* watermark lives outside card — no clipping needed */
+  /* No min-height — let content determine card height on every page */
 }
 
 /* ── Inner padding ───────────────────────────────────────────────────────── */
 .card-inner {
-  padding: 26px 48px 120px;
+  padding: 22px 44px 36px;
   position: relative;
   z-index: 1;
 }
 
 /* ── Header: header.png centered, bh absolutely top-right ───────────────── */
 .header-wrap {
-  position: relative;       /* anchor for absolute bh */
+  position: relative;
   display: flex;
-  justify-content: center;  /* dead-center the logo */
+  justify-content: center;
   align-items: flex-start;
   width: 100%;
-  margin-bottom: 14px;
-  min-height: 90px;
+  margin-bottom: 10px;
+  min-height: 80px;
 }
 .header-img {
-  max-height: 112px;
+  max-height: 96px;
   width: auto;
   object-fit: contain;
   display: block;
@@ -4231,32 +4231,18 @@ body {
 }
 
 /* ── Divider ─────────────────────────────────────────────────────────────── */
-.divider { border:none; height:2px; background:#1e3a8a; margin:0 0 14px; display:block; }
+.divider { border:none; height:2px; background:#1e3a8a; margin:0 0 10px; display:block; }
 
 /* ── Date row: BELOW divider, ABOVE title ────────────────────────────────── */
-/* English aligns left edge; Hebrew aligns right edge                        */
 .date-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  margin-bottom: 22px;
+  margin-bottom: 14px;
 }
-.eng-date {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2c4880;
-  letter-spacing: .2px;
-  text-align: left;
-}
-.heb-date {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2c4880;
-  text-align: right;
-  direction: rtl;
-  unicode-bidi: isolate;
-}
+.eng-date { font-size:13px; font-weight:600; color:#2c4880; letter-spacing:.2px; text-align:left; }
+.heb-date { font-size:13px; font-weight:600; color:#2c4880; text-align:right; direction:rtl; unicode-bidi:isolate; }
 
 /* ── Dynamic title ───────────────────────────────────────────────────────── */
 .title {
@@ -4264,42 +4250,42 @@ body {
   font-family: Georgia,'Times New Roman',Times,serif;
   font-weight: 400;
   color: #111111;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 
 /* ── Two-column grid ─────────────────────────────────────────────────────── */
-.list-grid { display:flex; flex-direction:row; gap:44px; align-items:flex-start; }
+.list-grid { display:flex; flex-direction:row; gap:36px; align-items:flex-start; }
 .col       { flex:1; min-width:0; }
 
-/* ── Student row: num left, name right, direction:ltr forced ─────────────── */
+/* ── Student row: compact, readable, tightly packed ─────────────────────── */
 .row {
   display: flex;
   flex-direction: row;
   direction: ltr;
   align-items: baseline;
-  gap: 12px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 5px 0;          /* was 10px — halved to pack more rows per page */
   border-bottom: 1px solid #e2e8f4;
 }
-.num  { flex:0 0 26px; text-align:right; font-size:12px; font-weight:600; color:#8facc8; line-height:1; }
-.name { flex:1; font-weight:700; font-size:15px; color:#111111; letter-spacing:.15px; line-height:1.3; }
-.reason { font-size:10px; color:#c0392b; white-space:nowrap; margin-left:6px; flex-shrink:0; }
+.num    { flex:0 0 22px; text-align:right; font-size:11px; font-weight:600; color:#8facc8; line-height:1; }
+.name   { flex:1; font-weight:700; font-size:13.5px; color:#111111; letter-spacing:.1px; line-height:1.25; }
+.reason { font-size:10px; color:#c0392b; white-space:nowrap; margin-left:4px; flex-shrink:0; }
 
-/* ── Watermark: bottom-right, mix-blend-mode removes PNG white bg ─────────── */
+/* ── Watermark: fixed so it appears on every printed page ───────────────── */
+/* Lives outside .card in the HTML — overflow on card cannot clip it        */
 .wm {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   right: 0;
-  width: 60%;
+  width: 56%;
   height: auto;
   z-index: 0;
   pointer-events: none;
   display: block;
   mix-blend-mode: multiply;
   opacity: 1;
-  /* ultra-subtle filter — only enough to tighten compression artifacts        */
   filter: contrast(1.02);
   background: none;
   border: none;
@@ -4308,24 +4294,26 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   @media print — full ice-blue border visible on physical page
+   @media print
    ═══════════════════════════════════════════════════════════════════════════ */
 @media print {
   @page { margin: 0; size: letter portrait; }
 
-  /* Both html and body get the blue — belt & suspenders */
   html {
     background: #c5d6eb !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
   body {
     background: #c5d6eb !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     display: block !important;
     width: 100% !important;
-    /* No height constraint — content determines page count naturally */
+    /* Explicitly kill any min-height so body never forces blank trailing pages */
+    min-height: 0 !important;
+    height: auto !important;
     padding: 24px !important;
     margin: 0 !important;
     box-sizing: border-box !important;
@@ -4333,32 +4321,24 @@ body {
 
   .card {
     background: #ffffff !important;
-    border-radius: 24px !important;  /* preserve rounded corners on print/PDF */
+    border-radius: 24px !important;
     max-width: 100% !important;
     width: 100% !important;
     box-shadow: none !important;
     outline: none !important;
-    /* overflow: visible so position:fixed watermark is not clipped to card bounds */
     overflow: visible !important;
-    /* height:auto — never force the card taller than its content;
-       this is the primary fix for the ghost blank page.            */
     min-height: 0 !important;
     height: auto !important;
   }
 
-  /* Tighter bottom padding: watermark is fixed so it no longer needs
-     a large reserved gutter; 80 px is enough for the last row's border */
-  .card-inner { padding: 22px 48px 80px !important; background: #ffffff !important; }
+  .card-inner { padding: 20px 44px 32px !important; background: #ffffff !important; }
 
-  /* Watermark: fixed positions it relative to the page, not the card —
-     so it stamps itself onto the bottom-right of EVERY printed sheet.
-     The watermark element must live OUTSIDE .card in the HTML so that
-     .card's overflow property cannot clip it.                          */
+  /* Watermark stamps on every page — position:fixed is scoped to page in print */
   .wm {
     position: fixed !important;
     bottom: 0 !important;
     right: 0 !important;
-    width: 58% !important;
+    width: 56% !important;
     mix-blend-mode: multiply !important;
     opacity: 1 !important;
     filter: contrast(1.02) !important;
@@ -4368,6 +4348,11 @@ body {
     box-shadow: none !important;
   }
 
+  /* Utility classes */
+  .page-break { page-break-after: always; break-after: page; }
+  .no-print   { display: none !important; }
+
+  /* Let the list flow naturally across pages; avoid splitting a single row */
   .list-grid { page-break-inside: auto; }
   .row       { page-break-inside: avoid; break-inside: avoid; }
 }`;
