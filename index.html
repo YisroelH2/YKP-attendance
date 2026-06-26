@@ -4211,6 +4211,9 @@ body {
 /* ── White card ──────────────────────────────────────────────────────────── */
 .card {
   background: #ffffff;
+  /* Force browser to render background and border-radius on physical print  */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
   width: 100%;
   max-width: 720px;
   border-radius: 24px;
@@ -4218,8 +4221,9 @@ body {
   outline: none;
   border: none;
   position: relative;
-  overflow: visible;   /* watermark lives outside card — no clipping needed */
-  /* No min-height — let content determine card height on every page */
+  /* overflow:hidden clips the rounded corners — watermark is a sibling element
+     outside this div so it is never affected by this rule                   */
+  overflow: hidden;
 }
 
 /* ── Inner padding ───────────────────────────────────────────────────────── */
@@ -4306,13 +4310,13 @@ body {
   position: fixed;
   bottom: 0;
   right: 0;
-  width: 56%;
+  width: 130px;        /* explicit px keeps it subtle regardless of page width */
   height: auto;
+  opacity: 0.85;
   z-index: 0;
   pointer-events: none;
   display: block;
   mix-blend-mode: multiply;
-  opacity: 1;
   filter: contrast(1.02);
   background: none;
   border: none;
@@ -4348,12 +4352,15 @@ body {
 
   .card {
     background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     border-radius: 24px !important;
     max-width: 100% !important;
     width: 100% !important;
     box-shadow: none !important;
     outline: none !important;
-    overflow: visible !important;
+    /* overflow:hidden enforces rounded-corner clipping on the physical printout */
+    overflow: hidden !important;
     min-height: 0 !important;
     height: auto !important;
   }
@@ -4365,9 +4372,10 @@ body {
     position: fixed !important;
     bottom: 0 !important;
     right: 0 !important;
-    width: 56% !important;
+    width: 130px !important;
+    height: auto !important;
+    opacity: 0.85 !important;
     mix-blend-mode: multiply !important;
-    opacity: 1 !important;
     filter: contrast(1.02) !important;
     background: none !important;
     border: none !important;
