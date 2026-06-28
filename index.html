@@ -4202,17 +4202,23 @@ const SHUL_PRESETS=[
 function openShulListSheet(){
   const h=state.history;
   if(!h.sel.size){toast('Select some records first',true);return;}
-  // resolve selected -> unique students (in selection order of appearance)
   const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
-  const seen=new Set(); const people=[];
+  // One entry per selected record — same student may appear multiple times for different sessions
+  const entries=[];
   (histRows||[]).forEach(r=>{
     const key=r.student_id+'|'+r.session_id+'|'+r.date;
-    if(h.sel.has(key)&&!seen.has(r.student_id)){ seen.add(r.student_id); const s=stuById[r.student_id]; if(s)people.push(s); }
+    if(h.sel.has(key)){const s=stuById[r.student_id]; if(s) entries.push({student:s,key});}
   });
-  const count=people.length;
+  // Strict alphabetical order by name so multi-session duplicates appear sequentially
+  entries.sort((a,b)=>{
+    const na=(a.student.english_name||a.student.hebrew_name||'').toLowerCase();
+    const nb=(b.student.english_name||b.student.hebrew_name||'').toLowerCase();
+    return na<nb?-1:na>nb?1:0;
+  });
+  const uniqueCount=new Set(entries.map(e=>e.student.id)).size;
   openCustomSheet({
     id:'__shul__',
-    title:`Shul list — ${count} ${count===1?'boy':'boys'}`,
+    title:`Shul list — ${uniqueCount} ${uniqueCount===1?'boy':'boys'}`,
     html:`<p class="muted" style="margin-bottom:8px">Pick a heading, then generate a printable list to hang up. Use your browser's Print → Save as PDF.</p>
       <div class="field"><label>Heading</label>
         <textarea id="shulHdr" class="inp" rows="2" style="resize:none">${esc(SHUL_PRESETS[0])}</textarea>
@@ -4235,25 +4241,28 @@ function openShulListSheet(){
         const hdr=$('shulHdr').value.trim()||SHUL_PRESETS[0];
         const showReason=$('shulShowReason').checked;
         closeCustomSheet();
-        generateShulList(people,hdr,showReason,nameFmt);
+        generateShulList(entries,hdr,showReason,nameFmt);
       };
     }
   });
 }
-async function generateShulList(people,heading,showReason,nameFmt){
-  if(!people.length){toast('No one selected',true);return;}
+async function generateShulList(entries,heading,showReason,nameFmt){
+  if(!entries.length){toast('No one selected',true);return;}
   nameFmt=nameFmt||'heb';
   toast('Generating list…');
   const h=state.history;
   const rtl=(nameFmt==='heb'); // Hebrew-only → lay out right-to-left
-  // reason lookup
-  const reasonByStu={};
+
+  // ── Reason lookup — keyed by the full selection key so multi-session entries
+  //    each carry their own class · session · reason · note independently ────
+  const reasonByKey={};
   if(showReason){
     (histRows||[]).forEach(r=>{
       const key=r.student_id+'|'+r.session_id+'|'+r.date;
       if(h.sel.has(key)){
         const lbl=(STATUS_LABEL[r.status]||r.status)+(r.status==='late'&&r.late_minutes?` +${r.late_minutes}m`:'')+(r.flagged?' • attention':'');
-        if(!reasonByStu[r.student_id]) reasonByStu[r.student_id]={lbl, note:(r.note||'').trim()};
+        const ses=state.sessions.find(s=>s.id===r.session_id);
+        reasonByKey[key]={lbl, note:(r.note||'').trim(), sesName:ses?.name||''};
       }
     });
   }
@@ -4291,34 +4300,36 @@ async function generateShulList(people,heading,showReason,nameFmt){
     if(nameFmt==='eng') return eng||heb;
     return heb+(s.english_name?' '+esc(lastFirst(s.english_name)):'');
   };
-  const reasonCell = s => {
+  // reasonCell now receives both the student and the per-record key so that
+  // students with multiple sessions each show their own session·reason·note
+  const reasonCell = (s, key) => {
     if(!showReason) return '';
-    // Ordered: Class name first (muted gray italic) · Reason second (red) · Note last (gray italic, own line)
+    // Order: Class → Session → Reason (top row) · Note (own line below)
     const cls=state.classes.find(c=>c.id===s.class_id);
     const clsHtml=cls?`<span class="reason-cls">${esc(cls.name)}</span>`:'';
-    const rec=reasonByStu[s.id];
-    const rsn=rec?.lbl;
-    const note=rec?.note;
-    const rsnHtml=rsn?`<span class="reason-lbl">${esc(rsn)}</span>`:'';
-    const noteHtml=note?`<span class="reason-note">${esc(note)}</span>`:'';
-    if(!clsHtml&&!rsnHtml&&!noteHtml) return '';
-    // Class + Reason share one flex row; Note drops to its own line via reason-wrap column layout
-    const topHtml=(clsHtml||rsnHtml)?`<span class="reason-top">${clsHtml}${rsnHtml}</span>`:'';
+    const rec=reasonByKey[key];
+    const sesHtml=rec?.sesName?`<span class="reason-ses">${esc(rec.sesName)}</span>`:'';
+    const rsnHtml=rec?.lbl?`<span class="reason-lbl">${esc(rec.lbl)}</span>`:'';
+    const noteHtml=rec?.note?`<span class="reason-note">${esc(rec.note)}</span>`:'';
+    if(!clsHtml&&!sesHtml&&!rsnHtml&&!noteHtml) return '';
+    const topHtml=(clsHtml||sesHtml||rsnHtml)?`<span class="reason-top">${clsHtml}${sesHtml}${rsnHtml}</span>`:'';
     return `<span class="reason-wrap">${topHtml}${noteHtml}</span>`;
   };
 
-  // ── Column split ──────────────────────────────────────────────────────────
-  const n    = people.length;
+  // ── Column split — operates on entries (one per selected record) ──────────
+  const n    = entries.length;
   const half = Math.ceil(n/2);
-  const colA = people.slice(0,half);
-  const colB = people.slice(half);
+  const colA = entries.slice(0,half);
+  const colB = entries.slice(half);
 
-  // Explicit num-left name-right; direction:ltr on row defeats any RTL parent
-  const mkRow = (s,idx) =>
-    `<div class="row"><span class="num">${idx}</span><span class="name">${nameCell(s)}</span>${reasonCell(s)}</div>`;
+  // Each row carries the entry so reasonCell gets its specific key
+  const mkRow = (entry,idx) => {
+    const s=entry.student;
+    return `<div class="row"><span class="num">${idx}</span><span class="name">${nameCell(s)}</span>${reasonCell(s,entry.key)}</div>`;
+  };
 
-  const leftRows  = colA.map((s,i)=>mkRow(s,i+1)).join('');
-  const rightRows = colB.map((s,i)=>mkRow(s,half+i+1)).join('');
+  const leftRows  = colA.map((e,i)=>mkRow(e,i+1)).join('');
+  const rightRows = colB.map((e,i)=>mkRow(e,half+i+1)).join('');
 
   // Heading font-size: calibrated so ~60-char text wraps to 2 lines
   const hLen        = heading.length;
@@ -4427,14 +4438,14 @@ body {
 .list-grid { display:flex; flex-direction:row; gap:28px; align-items:flex-start; }
 .col       { flex:1; min-width:0; }
 
-/* ── Student row: compact, readable, tightly packed ─────────────────────── */
+/* ── Student row: readable spacing, flows naturally across pages ─────────── */
 .row {
   display: flex;
   flex-direction: row;
   direction: ltr;
   align-items: baseline;
   gap: 7px;
-  padding: 4px 0;          /* tight: ~22 px per row so 60 rows ≈ 1 320 px */
+  padding: 7px 0;          /* 7 px top+bottom: readable without crowding      */
   border-bottom: 1px solid #e2e8f4;
 }
 .num    { flex:0 0 20px; text-align:right; font-size:10.5px; font-weight:600; color:#8facc8; line-height:1; }
@@ -4442,6 +4453,7 @@ body {
 .reason-wrap { display:inline-flex; flex-direction:column; gap:2px; align-items:flex-start; margin-left:6px; flex-shrink:0 }
 .reason-top  { display:inline-flex; gap:5px; align-items:baseline; flex-wrap:wrap }
 .reason-cls  { font-style:italic; color:#888888; font-size:0.85em; font-weight:400; white-space:nowrap }
+.reason-ses  { color:#4f6ab8; font-size:0.85em; font-weight:600; white-space:nowrap }
 .reason-lbl  { color:#c0392b; font-size:0.85em; font-weight:700; white-space:nowrap }
 .reason-note { color:#555555; font-size:0.82em; font-weight:400; font-style:italic; line-height:1.3 }
 
@@ -4735,7 +4747,7 @@ const STH_DOT = {
   on_time: '#22c55e', late: '#f97316', absent: '#1a1a1a', excused: '#a78bfa'
 };
 const STH_LABEL = { on_time:'On time', late:'Late', absent:'Absent', excused:'Excused' };
-let _sthView = 'timeline', _sthRecs = [], _sthLimit = 50;
+let _sthView = 'grid', _sthRecs = [], _sthLimit = 50;
 
 async function openStuHistModal(studentId){
   const stu = state.students.find(s=>s.id===studentId);
@@ -4752,8 +4764,8 @@ async function openStuHistModal(studentId){
   $('sthName').textContent = stu.hebrew_name||stu.english_name;
   $('sthSub').textContent = [stu.english_name, cls?.name].filter(Boolean).join(' · ');
   $('sthBody').innerHTML = '<div style="padding:32px;text-align:center;color:var(--ink-faint)">Loading…</div>';
-  _sthView = 'timeline'; _sthLimit = 50;
-  $('sthTimelineBtn').classList.add('active'); $('sthGridBtn').classList.remove('active');
+  _sthView = 'grid'; _sthLimit = 50;
+  $('sthGridBtn').classList.add('active'); $('sthTimelineBtn').classList.remove('active');
 
   // Fetch all attendance for this student
   const res = await _q(sb.from('attendance').select('*').eq('student_id',studentId).order('date',{ascending:false}));
