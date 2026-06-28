@@ -653,7 +653,12 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .sth-tl-main{flex:1;min-width:0}
 .sth-tl-session{font-size:13.5px;font-weight:700;color:var(--ink)}
 .sth-tl-status{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
-.sth-tl-reason{font-size:11px;color:var(--ink-faint);margin-top:1px;font-style:italic}
+/* ── Timeline metadata badges ───────────────────────────────────────────── */
+.sth-tl-meta{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:4px}
+.sth-tl-badge{display:inline-flex;align-items:center;gap:2px;border-radius:5px;padding:2px 7px;font-size:10.5px;font-weight:800;white-space:nowrap;line-height:1.4}
+.sth-tl-badge.late{background:#fff3e0;color:#d84315}
+.sth-tl-badge.flag{background:#fce4ec;color:#c62828}
+.sth-tl-note{font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.45;font-style:italic}
 /* Grid view */
 .sth-grid-wrap{overflow:auto;-webkit-overflow-scrolling:touch}
 .sth-grid{display:grid;min-width:max-content}
@@ -661,7 +666,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .sth-gh{position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:2px solid var(--line);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 0;min-height:44px;min-width:32px}
 .sth-gn{position:sticky;left:0;z-index:1;background:var(--surface);padding:3px 8px;border-bottom:1px solid var(--line);border-right:2px solid var(--line);display:flex;flex-direction:column;justify-content:center;min-height:36px;min-width:100px;max-width:100px;font-size:10.5px;font-weight:700}
 .sth-gn.alt{background:#f8f9fd}
-.sth-gd{border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;min-height:36px;min-width:32px}
+.sth-gd{border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;min-height:44px;min-width:32px}
 .sth-gd.alt{background:#f8f9fd}
 .sth-dot{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:6px;color:#fff;font-weight:800}
 .sth-lbtn{margin:16px auto 0;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 20px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);font-size:13px;font-weight:700;color:var(--accent);cursor:pointer}
@@ -4795,16 +4800,31 @@ function _renderSthTimeline(studentId){
     const dt = new Date(r.date+'T12:00:00');
     const dateStr = dt.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'});
     const statusLbl = STH_LABEL[r.status]||r.status;
-    const late = r.status==='late'&&r.late_minutes?` +${r.late_minutes}m`:'';
-    const attn = r.flagged?' · ⚑ Attention':'';
-    const reason = r.note?`<div class="sth-tl-reason">${esc(r.note)}</div>`:'';
+
+    // Late-minutes badge — orange pill, clearly distinct from the status label
+    const lateBadge = (r.status==='late' && r.late_minutes)
+      ? `<span class="sth-tl-badge late">+${r.late_minutes}m late</span>` : '';
+
+    // Flag badge — red pill, shown when record is flagged for attention
+    const flagBadge = r.flagged
+      ? `<span class="sth-tl-badge flag">⚑ Attention</span>` : '';
+
+    // Meta row only rendered when there is something to show
+    const metaRow = (lateBadge||flagBadge)
+      ? `<div class="sth-tl-meta">${lateBadge}${flagBadge}</div>` : '';
+
+    // Note with a pencil icon prefix for quick visual scanning
+    const noteHtml = r.note
+      ? `<div class="sth-tl-note">✎ ${esc(r.note)}</div>` : '';
+
     return `<div class="sth-tl-row">
       <div class="sth-tl-date">${dateStr}</div>
       <div class="sth-tl-dot" style="background:${STH_DOT[r.status]||'#ccc'}"></div>
       <div class="sth-tl-main">
         <div class="sth-tl-session">${esc(ses?.name||'—')}</div>
-        <div class="sth-tl-status">${statusLbl}${late}${attn}</div>
-        ${reason}
+        <div class="sth-tl-status">${statusLbl}</div>
+        ${metaRow}
+        ${noteHtml}
       </div>
     </div>`;
   }).join('');
@@ -4841,8 +4861,19 @@ function _renderSthGrid(studentId){
   const dot = r=>{
     if(!r) return '';
     const c=STH_DOT[r.status]||'#ccc';
-    const inside=r.status==='late'&&r.late_minutes?String(r.late_minutes).slice(0,2):'';
-    return `<div class="sth-dot" style="background:${c}">${inside}</div>`;
+    // Show late minutes inside the dot (up to 3 chars); cap at "99+" to stay readable
+    const inside = r.status==='late'&&r.late_minutes
+      ? (r.late_minutes>99?'99+':String(r.late_minutes)) : '';
+    // Flagged records get a vivid red ring so they stand out at a glance
+    const ring = r.flagged ? 'box-shadow:0 0 0 2px #e53935,0 0 0 3.5px rgba(229,57,53,.2)' : '';
+    // Notes get a small indigo dot beneath the status dot as a visual cue
+    const noteDot = r.note
+      ? `<div style="width:5px;height:5px;border-radius:50%;background:#6366f1;margin-top:3px;flex-shrink:0" title="${esc(r.note)}"></div>`
+      : '';
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0">
+      <div class="sth-dot" style="background:${c};${ring}">${inside}</div>
+      ${noteDot}
+    </div>`;
   };
 
   let g=`<div class="sth-grid" style="grid-template-columns:100px repeat(${dates.length},32px)">`;
