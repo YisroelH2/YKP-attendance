@@ -605,6 +605,41 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .ses-cal-block-days{font-size:9.5px;color:rgba(255,255,255,.7);font-weight:700;letter-spacing:.04em;margin-top:1px}
 
 /* ── Raffle ──────────────────────────────────────────────────────────── */
+
+/* ── Student History Modal ──────────────────────────────────────────── */
+.sth-modal{position:fixed;inset:0;z-index:800;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1)}
+.sth-modal.show{transform:translateY(0)}
+.sth-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--line);flex-shrink:0}
+.sth-av{width:46px;height:46px;border-radius:12px;object-fit:cover;flex-shrink:0}
+.sth-av-ini{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff;flex-shrink:0}
+.sth-name{font-size:16px;font-weight:800;line-height:1.2}
+.sth-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+.sth-toggles{margin-left:auto;display:flex;gap:6px;flex-shrink:0}
+.sth-vtbtn{padding:5px 12px;border-radius:8px;border:1.5px solid var(--line);font-size:12px;font-weight:700;background:transparent;color:var(--ink-soft);cursor:pointer}
+.sth-vtbtn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.sth-close{width:30px;height:30px;border-radius:50%;background:var(--line);border:none;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);flex-shrink:0;margin-left:6px}
+.sth-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px 16px 24px}
+/* Timeline view */
+.sth-tl-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.sth-tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.sth-tl-date{font-size:11px;font-weight:700;color:var(--ink-faint);min-width:70px;flex-shrink:0;padding-top:1px}
+.sth-tl-main{flex:1;min-width:0}
+.sth-tl-session{font-size:13.5px;font-weight:700;color:var(--ink)}
+.sth-tl-status{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+.sth-tl-reason{font-size:11px;color:var(--ink-faint);margin-top:1px;font-style:italic}
+/* Grid view */
+.sth-grid-wrap{overflow:auto;-webkit-overflow-scrolling:touch}
+.sth-grid{display:grid;min-width:max-content}
+.sth-gc{position:sticky;left:0;top:0;z-index:3;background:var(--surface);padding:6px 8px;font-size:10px;font-weight:700;color:var(--ink-faint);border-bottom:2px solid var(--line);border-right:2px solid var(--line);display:flex;align-items:flex-end}
+.sth-gh{position:sticky;top:0;z-index:2;background:var(--surface);border-bottom:2px solid var(--line);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 0;min-height:44px;min-width:32px}
+.sth-gn{position:sticky;left:0;z-index:1;background:var(--surface);padding:3px 8px;border-bottom:1px solid var(--line);border-right:2px solid var(--line);display:flex;flex-direction:column;justify-content:center;min-height:36px;min-width:100px;max-width:100px;font-size:10.5px;font-weight:700}
+.sth-gn.alt{background:#f8f9fd}
+.sth-gd{border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;min-height:36px;min-width:32px}
+.sth-gd.alt{background:#f8f9fd}
+.sth-dot{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:6px;color:#fff;font-weight:800}
+.sth-lbtn{margin:16px auto 0;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 20px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);font-size:13px;font-weight:700;color:var(--accent);cursor:pointer}
+.sth-hist-btn{width:32px;height:32px;border-radius:9px;background:#f0f4ff;color:var(--accent);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.sth-hist-btn:active{opacity:.7}
 .raffle-modal{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .raffle-modal.hidden{display:none}
 .raffle-card{background:var(--surface);border-radius:24px;padding:32px 28px 24px;width:min(340px,90vw);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.35)}
@@ -1893,7 +1928,7 @@ function renderStudents(selMode, sel){
       const cls=state.classes.find(c=>c.id===s.class_id);
       const av=state.photoUrls[s.id]?`<img class="avatar" src="${state.photoUrls[s.id]}">`:`<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
       const chk=selMode?`<div class="sel-chk ${sel.has(s.id)?'on':''}" data-id="${s.id}"></div>`:'';
-      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<div class="rcbtn" title="Report card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div><div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`:''}</div>`;
+      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<button class="sth-hist-btn" data-hid="${s.id}" title="History"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button><div class="rcbtn" title="Report card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div><div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`:''}</div>`;
     }).join('');
     if(!html) html=`<div class="empty"><p>No match.</p></div>`;
     if(hasMore) html+=`<button class="btn btn-soft btn-block" id="stuMore" style="margin:8px 0 4px">Show more (${list.length-stuLimit} more)</button>`;
@@ -1905,7 +1940,10 @@ function renderStudents(selMode, sel){
       if(selMode){ sel.has(id)?sel.delete(id):sel.add(id); renderStudents(true,sel); }
       else if(e.target.closest('.cam')){ e.stopPropagation(); pickPhoto(id); }
       else if(e.target.closest('.rcbtn')){ e.stopPropagation(); const st=state.students.find(x=>x.id===id); if(st)openRCSheet(st); }
-      else { editStudent(id); }
+      else if(e.target.closest('.sth-hist-btn')){
+        const hid=e.target.closest('.sth-hist-btn').dataset.hid;
+        openStuHistModal(hid); return;
+      } else { editStudent(id); }
     };
     if($('stuMore')) $('stuMore').onclick=()=>{ stuLimit+=50; draw(q); };
     if(selMode && $('selCount')) $('selCount').textContent=`${sel.size} selected`;
@@ -4350,34 +4388,27 @@ body {
    ═══════════════════════════════════════════════════════════════════════════ */
 @media print {
   @page { margin: 0; size: letter portrait; }
-
-  html, body {
-    background: #c5d6eb !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    display: block !important;
-    width: 100% !important;
-    min-height: 100vh !important;
-    padding: 20px !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
+  html { height:auto; background:#c5d6eb!important;
+    -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  body {
+    background:#c5d6eb!important; -webkit-print-color-adjust:exact!important;
+    print-color-adjust:exact!important; padding:18px!important; margin:0!important;
+    min-height:auto!important; height:auto!important;
+    display:block!important; width:100%!important; box-sizing:border-box!important;
   }
-
   .card {
-    background: #ffffff !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    border-radius: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    min-height: calc(100vh - 40px) !important;
-    box-shadow: none !important;
-    outline: none !important;
-    border: none !important;
-    overflow: hidden !important;
+    background:#ffffff!important; -webkit-print-color-adjust:exact!important;
+    print-color-adjust:exact!important; border-radius:0!important;
+    max-width:100%!important; width:100%!important;
+    min-height:auto!important; height:auto!important;
+    box-shadow:none!important; outline:none!important;
+    border:none!important; overflow:visible!important;
   }
-
-  .card-inner { padding: 16px 40px 24px !important; background: #ffffff !important; }
+  .row { page-break-inside:avoid!important; break-inside:avoid!important; }
+  .list-grid { page-break-inside:auto; }
+  .wm { position:fixed!important; bottom:0!important; right:0!important;
+    width:55%!important; height:auto!important; mix-blend-mode:multiply!important; }
+  .card-inner { padding:14px 36px 20px!important; background:#ffffff!important; }
 
   /* Watermark stamps on every page — position:fixed is scoped to page in print */
   .wm {
@@ -4578,8 +4609,8 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
   -webkit-print-color-adjust:exact;print-color-adjust:exact;
   min-height:100vh;padding:28px}
 .card{background:#fff;width:100%;max-width:700px;margin:0 auto;
-  border-radius:22px;overflow:hidden;position:relative;
-  min-height:calc(100vh - 56px);padding:26px 48px 200px}
+  border-radius:22px;position:relative;
+  min-height:calc(100vh - 56px);padding:26px 48px 140px}
 .bh{text-align:right;font-size:13px;font-weight:800;color:#1e3a8a;font-family:serif;margin-bottom:8px}
 .hdr{display:flex;justify-content:center;margin-bottom:14px}
 .himg{max-height:108px;width:auto;object-fit:contain}
@@ -4591,15 +4622,15 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
   color:#111;text-align:center;line-height:1.25;margin-bottom:12px;word-wrap:break-word}
 .sub{text-align:center;font-size:15px;font-weight:500;color:#555;margin-bottom:6px}
 .meta{margin-top:32px;text-align:center;font-size:13px;color:#777;line-height:2}
-.wm{position:absolute;bottom:0;right:0;width:60%;height:auto;
-  mix-blend-mode:multiply;pointer-events:none;display:block}
+.wm{position:fixed;bottom:0;right:0;width:58%;height:auto;
+  mix-blend-mode:multiply;pointer-events:none;display:block;z-index:0}
 @media print{
   @page{margin:0;size:letter portrait}
   html,body{background:#c5d6eb!important;-webkit-print-color-adjust:exact!important;
-    print-color-adjust:exact!important;padding:20px!important;min-height:100vh!important}
-  .card{border-radius:0!important;max-width:100%!important;
-    min-height:calc(100vh - 40px)!important;box-shadow:none!important}
-  .wm{position:fixed!important;bottom:0!important;right:0!important;width:58%!important}
+    print-color-adjust:exact!important;padding:20px!important}
+  .card{border-radius:0!important;max-width:100%!important;height:auto!important;
+    min-height:auto!important;box-shadow:none!important}
+  .wm{position:fixed!important;bottom:0!important;right:0!important;width:56%!important}
 }
 </style></head>
 <body><div class="card">
@@ -4614,11 +4645,131 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
     <div>${ts}</div>
     ${cleanHeb?`<div style="direction:rtl;unicode-bidi:isolate">${cleanHeb}</div>`:''}
   </div>
-  <img class="wm" src="${base}watermark.png" alt="">
-</div></body></html>`;
+</div>
+<img class="wm" src="${base}watermark.png" alt="">
+</body></html>`;
   const url=URL.createObjectURL(new Blob([doc],{type:'text/html'}));
   const w=window.open(url,'_blank');
   if(w) w.addEventListener('load',()=>setTimeout(()=>w.print(),500));
+}
+
+
+/* ══ Student History Modal ══════════════════════════════════════════════════ */
+const STH_DOT = {
+  on_time: '#22c55e', late: '#f97316', absent: '#1a1a1a', excused: '#a78bfa'
+};
+const STH_LABEL = { on_time:'On time', late:'Late', absent:'Absent', excused:'Excused' };
+let _sthView = 'timeline', _sthRecs = [], _sthLimit = 50;
+
+async function openStuHistModal(studentId){
+  const stu = state.students.find(s=>s.id===studentId);
+  if(!stu) return;
+  const modal = $('sthModal');
+  modal.classList.add('show');
+  const cls = state.classes.find(c=>c.id===stu.class_id);
+  const photo = state.photoUrls?.[studentId];
+  const ini = esc(initials(stu.english_name||stu.hebrew_name||'?'));
+  const col = colorFor(studentId);
+  $('sthAv').innerHTML = photo
+    ? `<img class="sth-av" src="${photo}" onerror="this.style.display='none'">`
+    : `<div class="sth-av-ini" style="background:${col}">${ini}</div>`;
+  $('sthName').textContent = stu.hebrew_name||stu.english_name;
+  $('sthSub').textContent = [stu.english_name, cls?.name].filter(Boolean).join(' · ');
+  $('sthBody').innerHTML = '<div style="padding:32px;text-align:center;color:var(--ink-faint)">Loading…</div>';
+  _sthView = 'timeline'; _sthLimit = 50;
+  $('sthTimelineBtn').classList.add('active'); $('sthGridBtn').classList.remove('active');
+
+  // Fetch all attendance for this student
+  const res = await _q(sb.from('attendance').select('*').eq('student_id',studentId).order('date',{ascending:false}));
+  if(res.error){ $('sthBody').innerHTML='<div style="padding:24px;color:red">Failed to load</div>'; return; }
+  _sthRecs = res.data||[];
+  _renderSthView(studentId);
+
+  $('sthTimelineBtn').onclick = ()=>{ _sthView='timeline'; _sthLimit=50; $('sthTimelineBtn').classList.add('active'); $('sthGridBtn').classList.remove('active'); _renderSthView(studentId); };
+  $('sthGridBtn').onclick    = ()=>{ _sthView='grid'; $('sthGridBtn').classList.add('active'); $('sthTimelineBtn').classList.remove('active'); _renderSthView(studentId); };
+  $('sthClose').onclick      = ()=>{ modal.classList.remove('show'); };
+}
+
+function _renderSthView(studentId){
+  if(_sthView==='timeline') _renderSthTimeline(studentId);
+  else _renderSthGrid(studentId);
+}
+
+function _renderSthTimeline(studentId){
+  const sesById = {}; state.sessions.forEach(s=>sesById[s.id]=s);
+  if(!_sthRecs.length){
+    $('sthBody').innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint)">No records yet.</div>';
+    return;
+  }
+  const shown = _sthRecs.slice(0, _sthLimit);
+  let html = shown.map(r=>{
+    const ses = sesById[r.session_id];
+    const dt = new Date(r.date+'T12:00:00');
+    const dateStr = dt.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'});
+    const statusLbl = STH_LABEL[r.status]||r.status;
+    const late = r.status==='late'&&r.late_minutes?` +${r.late_minutes}m`:'';
+    const attn = r.flagged?' · ⚑ Attention':'';
+    const reason = r.note?`<div class="sth-tl-reason">${esc(r.note)}</div>`:'';
+    return `<div class="sth-tl-row">
+      <div class="sth-tl-date">${dateStr}</div>
+      <div class="sth-tl-dot" style="background:${STH_DOT[r.status]||'#ccc'}"></div>
+      <div class="sth-tl-main">
+        <div class="sth-tl-session">${esc(ses?.name||'—')}</div>
+        <div class="sth-tl-status">${statusLbl}${late}${attn}</div>
+        ${reason}
+      </div>
+    </div>`;
+  }).join('');
+  if(_sthRecs.length > _sthLimit){
+    html += `<button class="sth-lbtn" id="sthLoadMore">Load more (${_sthRecs.length-_sthLimit} remaining)</button>`;
+  }
+  $('sthBody').innerHTML = html;
+  const lb = $('sthLoadMore');
+  if(lb) lb.onclick=()=>{ _sthLimit+=50; _renderSthTimeline(studentId); };
+}
+
+function _renderSthGrid(studentId){
+  const sesById = {}; state.sessions.forEach(s=>sesById[s.id]=s);
+  if(!_sthRecs.length){
+    $('sthBody').innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint)">No records yet.</div>';
+    return;
+  }
+  // Get unique dates (most recent first → reverse for grid)
+  const dates = [...new Set(_sthRecs.map(r=>r.date))].sort();
+  // Get sessions that appear in records
+  const sessIds = [...new Set(_sthRecs.map(r=>r.session_id))];
+  const sessions = state.sessions.filter(s=>sessIds.includes(s.id));
+  // Build lookup: session|date → record
+  const lk={};
+  _sthRecs.forEach(r=>{ lk[r.session_id+'|'+r.date]=r; });
+
+  const fmtD = d=>{
+    const dt=new Date(d+'T12:00:00');
+    const dow=['Su','M','Tu','W','Th','F','Sa'][dt.getDay()];
+    return `<span style="font-size:7.5px;color:var(--ink-faint);font-weight:600">${dow}</span>`
+          +`<span style="font-size:10px;font-weight:800">${dt.getDate()}</span>`
+          +`<span style="font-size:7px;color:var(--ink-faint)">${dt.toLocaleDateString('en',{month:'short'})}</span>`;
+  };
+  const dot = r=>{
+    if(!r) return '';
+    const c=STH_DOT[r.status]||'#ccc';
+    const inside=r.status==='late'&&r.late_minutes?String(r.late_minutes).slice(0,2):'';
+    return `<div class="sth-dot" style="background:${c}">${inside}</div>`;
+  };
+
+  let g=`<div class="sth-grid" style="grid-template-columns:100px repeat(${dates.length},32px)">`;
+  g+=`<div class="sth-gc">Session</div>`;
+  dates.forEach(d=>{ g+=`<div class="sth-gh">${fmtD(d)}</div>`; });
+  sessions.forEach((s,i)=>{
+    const alt=i%2?'alt':'';
+    const pres=dates.filter(d=>{ const r=lk[s.id+'|'+d]; return r&&r.status!=='absent'; }).length;
+    const pct=dates.length?Math.round(pres/dates.length*100):0;
+    const pc=pct>=80?'#22c55e':pct>=60?'#f97316':'#ef4444';
+    g+=`<div class="sth-gn ${alt}"><div style="line-height:1.2">${esc(s.name)}</div><div style="font-size:8px;font-weight:700;color:${pc}">${pct}%</div></div>`;
+    dates.forEach(d=>{ g+=`<div class="sth-gd ${alt}">${dot(lk[s.id+'|'+d])}</div>`; });
+  });
+  g+=`</div>`;
+  $('sthBody').innerHTML=`<div class="sth-grid-wrap" style="overflow:auto;height:100%">${g}</div>`;
 }
 
 </script>
@@ -4634,6 +4785,20 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
       <button class="btn btn-ghost" id="raffleCloseBtn">Close</button>
     </div>
   </div>
+</div>
+
+<!-- Student History Modal -->
+<div id="sthModal" class="sth-modal">
+  <div class="sth-head">
+    <div id="sthAv"></div>
+    <div><div id="sthName" class="sth-name"></div><div id="sthSub" class="sth-sub"></div></div>
+    <div class="sth-toggles">
+      <button class="sth-vtbtn active" id="sthTimelineBtn">Timeline</button>
+      <button class="sth-vtbtn" id="sthGridBtn">Grid</button>
+    </div>
+    <button class="sth-close" id="sthClose">×</button>
+  </div>
+  <div class="sth-body" id="sthBody"></div>
 </div>
 </body>
 </html>
