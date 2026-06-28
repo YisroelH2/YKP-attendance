@@ -4183,7 +4183,7 @@ async function generateShulList(people,heading,showReason,nameFmt){
       const key=r.student_id+'|'+r.session_id+'|'+r.date;
       if(h.sel.has(key)){
         const lbl=(STATUS_LABEL[r.status]||r.status)+(r.status==='late'&&r.late_minutes?` +${r.late_minutes}m`:'')+(r.flagged?' • attention':'');
-        if(!reasonByStu[r.student_id]) reasonByStu[r.student_id]=lbl;
+        if(!reasonByStu[r.student_id]) reasonByStu[r.student_id]={lbl, note:(r.note||'').trim()};
       }
     });
   }
@@ -4223,14 +4223,18 @@ async function generateShulList(people,heading,showReason,nameFmt){
   };
   const reasonCell = s => {
     if(!showReason) return '';
-    // Class name first (muted gray italic), reason last (red)
+    // Ordered: Class name first (muted gray italic) · Reason second (red) · Note last (gray italic, own line)
     const cls=state.classes.find(c=>c.id===s.class_id);
     const clsHtml=cls?`<span class="reason-cls">${esc(cls.name)}</span>`:'';
-    const rsn=reasonByStu[s.id];
+    const rec=reasonByStu[s.id];
+    const rsn=rec?.lbl;
+    const note=rec?.note;
     const rsnHtml=rsn?`<span class="reason-lbl">${esc(rsn)}</span>`:'';
-    return (clsHtml||rsnHtml)
-      ? `<span class="reason-wrap">${clsHtml}${rsnHtml}</span>`
-      : '';
+    const noteHtml=note?`<span class="reason-note">${esc(note)}</span>`:'';
+    if(!clsHtml&&!rsnHtml&&!noteHtml) return '';
+    // Class + Reason share one flex row; Note drops to its own line via reason-wrap column layout
+    const topHtml=(clsHtml||rsnHtml)?`<span class="reason-top">${clsHtml}${rsnHtml}</span>`:'';
+    return `<span class="reason-wrap">${topHtml}${noteHtml}</span>`;
   };
 
   // ── Column split ──────────────────────────────────────────────────────────
@@ -4365,9 +4369,11 @@ body {
 }
 .num    { flex:0 0 20px; text-align:right; font-size:10.5px; font-weight:600; color:#8facc8; line-height:1; }
 .name   { flex:1; font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
-.reason-wrap { display:inline-flex; gap:5px; align-items:baseline; flex-wrap:wrap; margin-left:6px; flex-shrink:0 }
-.reason-cls { font-style:italic; color:#888888; font-size:0.85em; font-weight:400; white-space:nowrap }
-.reason-lbl { color:#c0392b; font-size:0.85em; font-weight:700; white-space:nowrap }
+.reason-wrap { display:inline-flex; flex-direction:column; gap:2px; align-items:flex-start; margin-left:6px; flex-shrink:0 }
+.reason-top  { display:inline-flex; gap:5px; align-items:baseline; flex-wrap:wrap }
+.reason-cls  { font-style:italic; color:#888888; font-size:0.85em; font-weight:400; white-space:nowrap }
+.reason-lbl  { color:#c0392b; font-size:0.85em; font-weight:700; white-space:nowrap }
+.reason-note { color:#555555; font-size:0.82em; font-weight:400; font-style:italic; line-height:1.3 }
 
 /* ── Watermark: fixed so it appears on every printed page ───────────────── */
 /* Lives outside .card in the HTML — overflow on card cannot clip it        */
