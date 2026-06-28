@@ -966,6 +966,25 @@ function _initInputGuard(){
     }))).observe(document.body,{childList:true,subtree:true});
   }catch(_){}
 }
+// ── Fuzzy name search ─────────────────────────────────────────────────────
+// Returns a match score: 3=exact substring, 2=word-start, 1=subsequence, 0=no match
+function _fuzzyScore(text,q){
+  if(!text||!q) return 0;
+  const t=text.toLowerCase(), s=q.toLowerCase();
+  if(t.includes(s)) return 3;
+  if(t.split(/\s+/).some(w=>w.startsWith(s))) return 2;
+  if(s.length<3) return 0;
+  // Subsequence: all chars of query appear in text in order
+  let i=0;
+  for(const c of t){ if(c===s[i]) i++; if(i===s.length) return 1; }
+  return 0;
+}
+function _stuMatchesQ(s,q){
+  if(!q) return true;
+  return _fuzzyScore(s.english_name||'',q)>0||
+         _fuzzyScore(s.hebrew_name||'',q)>0;
+}
+
 function boot(){
   _initInputGuard();
   updateOfflineBar();
@@ -1639,10 +1658,9 @@ function renderGrid(){
   // Live search filter — active only in All Classes mode
   const q=(state.classId==='__all__' && state.markSearch) ? state.markSearch.trim().toLowerCase() : '';
   if(q){
-    list=list.filter(s=>
-      (s.english_name||'').toLowerCase().includes(q) ||
-      (s.hebrew_name||'').toLowerCase().includes(q)
-    );
+    // Fuzzy search in marking grid
+    list=list.filter(s=>_stuMatchesQ(s,q));
+    list.sort((a,b)=>(_fuzzyScore(b.english_name||b.hebrew_name||'',q)||0)-(_fuzzyScore(a.english_name||a.hebrew_name||'',q)||0));
   }
 
   const emptyMsg=q
@@ -1863,10 +1881,11 @@ function renderStudents(selMode, sel){
   let filterClass=state.stuFilters.classId||'', filterBunk=state.stuFilters.bunkId||'', stuLimit=50;
   let currentList=[];
   const draw=q=>{
-    let list=state.students.filter(s=>!q||(s.hebrew_name||'').includes(q)||(s.english_name||'').toLowerCase().includes(q.toLowerCase()));
+    let list=state.students.filter(s=>_stuMatchesQ(s,q));
     if(filterClass==='__none__') list=list.filter(s=>!s.class_id);
     else if(filterClass) list=list.filter(s=>s.class_id===filterClass);
-    list=list.slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
+    if(q) list.sort((a,b)=>(_fuzzyScore(b.english_name||b.hebrew_name||'',q)||0)-(_fuzzyScore(a.english_name||a.hebrew_name||'',q)||0));
+    else list=list.slice().sort((a,b)=>(a.english_name||a.hebrew_name||'').localeCompare(b.english_name||b.hebrew_name||''));
     if(filterBunk) list=list.filter(s=>s.bunk===filterBunk);
     currentList=list;
     const page=list.slice(0,stuLimit); const hasMore=list.length>stuLimit;
@@ -4059,20 +4078,7 @@ async function generateReportCards(studentIds,from,to){
     return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0);
   }).join('');
   const css=RC_CSS;
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script>
-<!-- Raffle modal -->
-<div id="raffleModal" class="raffle-modal hidden">
-  <div class="raffle-card">
-    <div class="raffle-title">🎰 Raffle</div>
-    <div class="raffle-ticker" id="raffleTicker">Press Spin!</div>
-    <div class="raffle-btns">
-      <button class="btn btn-primary" id="raffleSpinBtn">🎲 Spin!</button>
-      <button class="btn btn-soft hidden" id="raffleDlBtn">📄 Export Winner PDF</button>
-      <button class="btn btn-ghost" id="raffleCloseBtn">Close</button>
-    </div>
-  </div>
-</div>
-</body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
@@ -4179,13 +4185,13 @@ async function generateShulList(people,heading,showReason,nameFmt){
   };
   const reasonCell = s => {
     if(!showReason) return '';
-    const parts=[];
-    if(reasonByStu[s.id]) parts.push(esc(reasonByStu[s.id]));
-    // Also show the student's class name when reason toggle is on
+    // Class name first (muted gray italic), reason last (red)
     const cls=state.classes.find(c=>c.id===s.class_id);
-    if(cls) parts.push(esc(cls.name));
-    return parts.length
-      ? `<span class="reason">${parts.join(' · ')}</span>`
+    const clsHtml=cls?`<span class="reason-cls">${esc(cls.name)}</span>`:'';
+    const rsn=reasonByStu[s.id];
+    const rsnHtml=rsn?`<span class="reason-lbl">${esc(rsn)}</span>`:'';
+    return (clsHtml||rsnHtml)
+      ? `<span class="reason-wrap">${clsHtml}${rsnHtml}</span>`
       : '';
   };
 
@@ -4324,7 +4330,9 @@ body {
 }
 .num    { flex:0 0 20px; text-align:right; font-size:10.5px; font-weight:600; color:#8facc8; line-height:1; }
 .name   { flex:1; font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
-.reason { font-size:9.5px; color:#c0392b; white-space:nowrap; margin-left:3px; flex-shrink:0; }
+.reason-wrap { display:inline-flex; gap:5px; align-items:baseline; flex-wrap:wrap; margin-left:6px; flex-shrink:0 }
+.reason-cls { font-style:italic; color:#888888; font-size:0.85em; font-weight:400; white-space:nowrap }
+.reason-lbl { color:#c0392b; font-size:0.85em; font-weight:700; white-space:nowrap }
 
 /* ── Watermark: fixed so it appears on every printed page ───────────────── */
 /* Lives outside .card in the HTML — overflow on card cannot clip it        */
@@ -4469,8 +4477,62 @@ boot();
 
 /* ══ Raffle ═══════════════════════════════════════════════════════════════ */
 function openRaffle(){
-  const h=state.history;
-  if(!h.sel.size){ toast('Select records first',true); return; }
+  try{
+    const h=state.history;
+    if(!h||!h.sel||!h.sel.size){ toast('Select records first',true); return; }
+    const sids=[...new Set([...h.sel].map(k=>k.split('|')[0]))];
+    const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
+    const pool=sids.map(id=>stuById[id]).filter(Boolean);
+    if(!pool.length){ toast('No students found in selection',true); return; }
+
+    const modal=document.getElementById('raffleModal');
+    const ticker=document.getElementById('raffleTicker');
+    const spinBtn=document.getElementById('raffleSpinBtn');
+    const dlBtn=document.getElementById('raffleDlBtn');
+    const closeBtn=document.getElementById('raffleCloseBtn');
+    if(!modal||!ticker||!spinBtn){ toast('Raffle UI not ready',true); return; }
+
+    // Reset
+    ticker.textContent='Press Spin!';
+    ticker.className='raffle-ticker';
+    dlBtn.style.display='none';
+    modal.classList.remove('hidden');
+
+    let _winner=null, _iv=null;
+
+    // Clone buttons to remove any stale handlers
+    const newSpin=spinBtn.cloneNode(true); spinBtn.parentNode.replaceChild(newSpin,spinBtn);
+    const newDl=dlBtn.cloneNode(true); dlBtn.parentNode.replaceChild(newDl,dlBtn);
+    const newClose=closeBtn.cloneNode(true); closeBtn.parentNode.replaceChild(newClose,closeBtn);
+
+    newSpin.onclick=()=>{
+      if(_iv){ clearInterval(_iv); _iv=null; }
+      newDl.style.display='none';
+      ticker.className='raffle-ticker rt-spin';
+      const total=Math.floor(Math.random()*24)+32;
+      let i=0;
+      _iv=setInterval(()=>{
+        try{
+          const s=pool[i%pool.length];
+          ticker.textContent=s.hebrew_name||s.english_name||'—';
+          i++;
+          if(i>=total){
+            clearInterval(_iv); _iv=null;
+            _winner=pool[Math.floor(Math.random()*pool.length)];
+            ticker.textContent=_winner.hebrew_name||_winner.english_name||'—';
+            ticker.className='raffle-ticker rt-win';
+            newDl.style.display='';
+          }
+        }catch(e){ clearInterval(_iv); }
+      },80);
+    };
+
+    newDl.onclick=()=>{ if(_winner) exportRafflePdf(_winner).catch(e=>toast('Export error',true)); };
+    newClose.onclick=()=>{
+      if(_iv){ clearInterval(_iv); _iv=null; }
+      modal.classList.add('hidden');
+    };
+  }catch(e){ console.error('openRaffle error:',e); toast('Raffle error: '+e.message,true); }
   const sids=[...new Set([...h.sel].map(k=>k.split('|')[0]))];
   const pool=sids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
   if(!pool.length){ toast('No valid students',true); return; }
@@ -4570,5 +4632,18 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
 }
 
 </script>
+
+<!-- ── Raffle modal ───────────────────────────────────────────────── -->
+<div id="raffleModal" class="raffle-modal hidden">
+  <div class="raffle-card">
+    <div class="raffle-title">🎰 Raffle</div>
+    <div class="raffle-ticker" id="raffleTicker">Press Spin!</div>
+    <div class="raffle-btns">
+      <button class="btn btn-primary" id="raffleSpinBtn">🎲 Spin!</button>
+      <button class="btn btn-soft" id="raffleDlBtn" style="display:none">📄 Export Winner PDF</button>
+      <button class="btn btn-ghost" id="raffleCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
