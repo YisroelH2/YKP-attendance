@@ -474,7 +474,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .fs-zbtn{width:50px;height:50px;border-radius:16px;background:rgba(255,255,255,.68);backdrop-filter:blur(22px) saturate(190%);-webkit-backdrop-filter:blur(22px) saturate(190%);border:1px solid rgba(215,220,240,.72);box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.92);color:var(--accent);font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:transform .12s}
 .fs-zbtn:active{transform:scale(.87)}
 .fs-zbtn-divider{height:1px;margin:1px 6px;background:rgba(160,170,210,.35)}
-.zroom{overflow:auto;-webkit-overflow-scrolling:touch;touch-action:manipulation;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 18px,#e9edf5 18px,#e9edf5 36px);
+.zroom{overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;background:repeating-linear-gradient(45deg,#eef1f7,#eef1f7 18px,#e9edf5 18px,#e9edf5 36px);
   border:1px solid var(--line);border-radius:var(--r-lg);max-height:48vh;padding:14px}
 .zroom-inner{display:flex;gap:10px;width:max-content}
 .zside-top,.zside-bottom{flex-direction:column;align-items:stretch}
@@ -603,6 +603,18 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .ses-cal-block-name{font-weight:700;font-size:12.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ses-cal-block-time{font-size:10px;color:rgba(255,255,255,.75)}
 .ses-cal-block-days{font-size:9.5px;color:rgba(255,255,255,.7);font-weight:700;letter-spacing:.04em;margin-top:1px}
+
+/* ── Raffle ──────────────────────────────────────────────────────────── */
+.raffle-modal{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.raffle-modal.hidden{display:none}
+.raffle-card{background:var(--surface);border-radius:24px;padding:32px 28px 24px;width:min(340px,90vw);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.raffle-title{font-size:20px;font-weight:900;margin-bottom:22px;color:var(--ink)}
+.raffle-ticker{font-size:24px;font-weight:800;color:var(--accent);min-height:66px;display:flex;align-items:center;justify-content:center;border:2.5px solid var(--line);border-radius:16px;padding:12px 16px;margin-bottom:22px;overflow:hidden;word-break:break-word;line-height:1.3}
+.raffle-ticker.rt-spin{animation:rtSpin .1s linear infinite}
+@keyframes rtSpin{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
+.raffle-ticker.rt-win{border-color:#22c55e;color:#16a34a;animation:rtWin .45s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes rtWin{0%{transform:scale(.88)}70%{transform:scale(1.07)}100%{transform:scale(1)}}
+.raffle-btns{display:flex;flex-direction:column;gap:10px}
 .dayrow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .day-opt{height:42px;border-radius:11px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink-soft);font-weight:800;font-size:14px;transition:.12s}
 .day-opt.on{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -832,6 +844,21 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 <input id="photoInput" type="file" accept="image/*" class="hidden" />
 
 <script>
+
+// ── iPad / iPadOS double-tap zoom prevention ──────────────────────────
+(function(){
+  let _lt=0;
+  document.addEventListener('touchend',function(e){
+    const now=Date.now();
+    if(now-_lt<320) e.preventDefault();
+    _lt=now;
+  },{passive:false});
+  document.addEventListener('dblclick',function(e){
+    if(e.target.closest('.zroom,canvas,#view-zal,.zcell,.zseat'))
+      e.preventDefault();
+  },{passive:false});
+})();
+
 /* =========================================================
    1. CONFIG  —  PASTE YOUR TWO VALUES HERE
    (Supabase → Project Settings → API)
@@ -3390,6 +3417,7 @@ async function renderHistory(){
       <button class="btn btn-soft btn-sm" id="hSelToggle">${h.selMode?'Cancel selection':'✓ Select for list'}</button>
       ${h.selMode?`<button class="btn btn-soft btn-sm" id="hSelAll">Select all shown</button>`:''}
       ${h.selMode?`<button class="btn btn-primary btn-sm" id="hExportList">Export list (${h.sel.size})</button>`:''}
+      ${h.selMode?`<button class="btn btn-soft btn-sm" id="hRaffle">🎲 Raffle</button>`:''}
     </div>
     <div class="zal-hint" style="margin:-4px 0 8px">${h.selMode?'Tap records to add them to the list':'Tap a record to edit it'}</div>
     <div id="histList"></div>`;
@@ -3409,6 +3437,7 @@ async function renderHistory(){
     $('hSelAll').textContent=allSelected?'Select all shown':'Unselect all';
   };
   if($('hExportList')) $('hExportList').onclick=()=>openShulListSheet();
+  if($('hRaffle')) $('hRaffle').onclick=()=>openRaffle();
   $('hStatusTabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
     const s=t.dataset.s;
     if(s==='attention') h.flagged=!h.flagged;
@@ -4030,7 +4059,20 @@ async function generateReportCards(studentIds,from,to){
     return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0);
   }).join('');
   const css=RC_CSS;
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script>
+<!-- Raffle modal -->
+<div id="raffleModal" class="raffle-modal hidden">
+  <div class="raffle-card">
+    <div class="raffle-title">🎰 Raffle</div>
+    <div class="raffle-ticker" id="raffleTicker">Press Spin!</div>
+    <div class="raffle-btns">
+      <button class="btn btn-primary" id="raffleSpinBtn">🎲 Spin!</button>
+      <button class="btn btn-soft hidden" id="raffleDlBtn">📄 Export Winner PDF</button>
+      <button class="btn btn-ghost" id="raffleCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+</body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
@@ -4135,10 +4177,17 @@ async function generateShulList(people,heading,showReason,nameFmt){
     if(nameFmt==='eng') return eng||heb;
     return heb+(s.english_name?' '+esc(lastFirst(s.english_name)):'');
   };
-  const reasonCell = s =>
-    showReason&&reasonByStu[s.id]
-      ? `<span class="reason">${esc(reasonByStu[s.id])}</span>`
+  const reasonCell = s => {
+    if(!showReason) return '';
+    const parts=[];
+    if(reasonByStu[s.id]) parts.push(esc(reasonByStu[s.id]));
+    // Also show the student's class name when reason toggle is on
+    const cls=state.classes.find(c=>c.id===s.class_id);
+    if(cls) parts.push(esc(cls.name));
+    return parts.length
+      ? `<span class="reason">${parts.join(' · ')}</span>`
       : '';
+  };
 
   // ── Column split ──────────────────────────────────────────────────────────
   const n    = people.length;
@@ -4416,6 +4465,109 @@ ${wm}`;
 function _q(builder, ms=6000){ return Promise.race([builder, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]); }
 
 boot();
+
+
+/* ══ Raffle ═══════════════════════════════════════════════════════════════ */
+function openRaffle(){
+  const h=state.history;
+  if(!h.sel.size){ toast('Select records first',true); return; }
+  const sids=[...new Set([...h.sel].map(k=>k.split('|')[0]))];
+  const pool=sids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
+  if(!pool.length){ toast('No valid students',true); return; }
+
+  const modal=$('raffleModal');
+  const ticker=$('raffleTicker');
+  const spinBtn=$('raffleSpinBtn');
+  const dlBtn=$('raffleDlBtn');
+
+  // Reset state
+  ticker.textContent='Press Spin!';
+  ticker.className='raffle-ticker';
+  dlBtn.classList.add('hidden');
+  modal.classList.remove('hidden');
+
+  let _winner=null, _iv=null;
+
+  spinBtn.onclick=()=>{
+    if(_iv){ clearInterval(_iv); _iv=null; }
+    dlBtn.classList.add('hidden');
+    ticker.className='raffle-ticker rt-spin';
+    const totalCycles=Math.floor(Math.random()*24)+32; // 32-56 cycles
+    let i=0;
+    _iv=setInterval(()=>{
+      ticker.textContent=(pool[i%pool.length].hebrew_name||pool[i%pool.length].english_name||'—');
+      i++;
+      if(i>=totalCycles){
+        clearInterval(_iv); _iv=null;
+        _winner=pool[Math.floor(Math.random()*pool.length)];
+        ticker.textContent=(_winner.hebrew_name||_winner.english_name||'—');
+        ticker.className='raffle-ticker rt-win';
+        dlBtn.classList.remove('hidden');
+      }
+    },80);
+  };
+
+  dlBtn.onclick=()=>{ if(_winner) exportRafflePdf(_winner); };
+  $('raffleCloseBtn').onclick=()=>{
+    if(_iv){ clearInterval(_iv); _iv=null; }
+    modal.classList.add('hidden');
+  };
+}
+
+async function exportRafflePdf(winner){
+  const base=location.origin+location.pathname.replace(/[^/]*$/,'');
+  const ts=new Date().toLocaleString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  let hebDate=''; try{ hebDate=await fetchHebDate(todayStr()); }catch{}
+  const _sn=s=>s?s.replace(/[\u0591-\u05C7]/g,''):'';
+  const cleanHeb=_sn(hebDate).replace(/^[\u05D0-\u05EA][\u05F3']+\s*/,'')
+    .replace(/(^|\s)ב([\u05D0-\u05EA])/g,'$1$2').trim();
+  const wName=esc(winner.hebrew_name||winner.english_name||'—');
+  const enName=winner.english_name&&winner.hebrew_name?`<div class="sub">${esc(winner.english_name)}</div>`:'';
+  const cls=state.classes.find(c=>c.id===winner.class_id);
+  const clsLine=cls?`<div class="sub">${esc(cls.name)}</div>`:'';
+  const doc=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Raffle Winner</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@page{margin:0;size:letter portrait}
+body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  min-height:100vh;padding:28px;display:flex;justify-content:center;align-items:flex-start}
+.card{background:#fff;width:100%;max-width:700px;border-radius:22px;overflow:hidden;
+  position:relative;min-height:calc(100vh - 56px);padding:26px 48px 200px}
+.bh{text-align:right;font-size:13px;font-weight:800;color:#1e3a8a;font-family:serif;margin-bottom:8px}
+.hdr{display:flex;justify-content:center;margin-bottom:14px}
+.himg{max-height:108px;width:auto;object-fit:contain}
+.divider{height:2px;background:#1e3a8a;border:none;margin:14px 0 36px}
+.trophy{font-size:64px;text-align:center;margin-bottom:16px}
+.label{font-size:13px;font-weight:700;color:#1e3a8a;letter-spacing:.8px;
+  text-transform:uppercase;text-align:center;margin-bottom:12px}
+.winner{font-family:Georgia,'Times New Roman',serif;font-size:52px;font-weight:400;
+  color:#111;text-align:center;line-height:1.25;margin-bottom:12px;word-wrap:break-word}
+.sub{text-align:center;font-size:16px;font-weight:600;color:#444;margin-bottom:6px}
+.meta{margin-top:32px;text-align:center;font-size:13px;color:#777;line-height:2}
+.wm{position:absolute;bottom:0;right:0;width:60%;height:auto;
+  mix-blend-mode:multiply;pointer-events:none;display:block}
+@media print{body{padding:0!important;background:#c5d6eb!important}
+  .card{border-radius:0!important;max-width:100%!important;min-height:100vh!important}}
+</style></head>
+<body><div class="card">
+  <div class="bh">&#x05D1;&#x05F4;&#x05D4;</div>
+  <div class="hdr"><img class="himg" src="${base}header.png" alt="YKP"></div>
+  <hr class="divider">
+  <div class="trophy">🏆</div>
+  <div class="label">Winner of the Raffle</div>
+  <div class="winner">${wName}</div>
+  ${enName}${clsLine}
+  <div class="meta">
+    <div>${ts}</div>
+    ${cleanHeb?`<div style="direction:rtl;unicode-bidi:isolate">${cleanHeb}</div>`:''}
+  </div>
+  <img class="wm" src="${base}watermark.png" alt="">
+</div></body></html>`;
+  const url=URL.createObjectURL(new Blob([doc],{type:'text/html'}));
+  const w=window.open(url,'_blank');
+  if(w) w.addEventListener('load',()=>setTimeout(()=>w.print(),500));
+}
 
 </script>
 </body>
