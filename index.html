@@ -4229,29 +4229,26 @@ body {
   background: #c5d6eb !important;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-  /* No min-height: this is a print popup — never force blank pages */
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  display: block;
+  min-height: 100vh;
   padding: 24px;
 }
 
 /* ── White card ──────────────────────────────────────────────────────────── */
 .card {
   background: #ffffff;
-  /* Force browser to render background and border-radius on physical print  */
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
   width: 100%;
   max-width: 720px;
+  margin: 0 auto;
   border-radius: 24px;
   box-shadow: none;
   outline: none;
   border: none;
   position: relative;
-  /* overflow:hidden clips the rounded corners — watermark is a sibling element
-     outside this div so it is never affected by this rule                   */
   overflow: hidden;
+  min-height: calc(100vh - 48px); /* fills full page minus body padding */
 }
 
 /* ── Inner padding ───────────────────────────────────────────────────────── */
@@ -4337,21 +4334,15 @@ body {
 /* ── Watermark: fixed so it appears on every printed page ───────────────── */
 /* Lives outside .card in the HTML — overflow on card cannot clip it        */
 .wm {
-  position: fixed;
+  position: absolute;
   bottom: 0;
   right: 0;
-  width: 130px;        /* explicit px keeps it subtle regardless of page width */
+  width: 60%;
   height: auto;
-  opacity: 0.85;
   z-index: 0;
   pointer-events: none;
   display: block;
   mix-blend-mode: multiply;
-  filter: contrast(1.02);
-  background: none;
-  border: none;
-  outline: none;
-  box-shadow: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4360,22 +4351,14 @@ body {
 @media print {
   @page { margin: 0; size: letter portrait; }
 
-  html {
-    background: #c5d6eb !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  body {
+  html, body {
     background: #c5d6eb !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     display: block !important;
     width: 100% !important;
-    /* Explicitly kill any min-height so body never forces blank trailing pages */
-    min-height: 0 !important;
-    height: auto !important;
-    padding: 24px !important;
+    min-height: 100vh !important;
+    padding: 20px !important;
     margin: 0 !important;
     box-sizing: border-box !important;
   }
@@ -4384,15 +4367,14 @@ body {
     background: #ffffff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    border-radius: 24px !important;
+    border-radius: 0 !important;
     max-width: 100% !important;
     width: 100% !important;
+    min-height: calc(100vh - 40px) !important;
     box-shadow: none !important;
     outline: none !important;
-    /* overflow:hidden enforces rounded-corner clipping on the physical printout */
+    border: none !important;
     overflow: hidden !important;
-    min-height: 0 !important;
-    height: auto !important;
   }
 
   .card-inner { padding: 16px 40px 24px !important; background: #ffffff !important; }
@@ -4591,11 +4573,13 @@ async function exportRafflePdf(winner){
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 @page{margin:0;size:letter portrait}
+html{height:100%;background:#c5d6eb;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
   -webkit-print-color-adjust:exact;print-color-adjust:exact;
-  min-height:100vh;padding:28px;display:flex;justify-content:center;align-items:flex-start}
-.card{background:#fff;width:100%;max-width:700px;border-radius:22px;overflow:hidden;
-  position:relative;min-height:calc(100vh - 56px);padding:26px 48px 200px}
+  min-height:100vh;padding:28px}
+.card{background:#fff;width:100%;max-width:700px;margin:0 auto;
+  border-radius:22px;overflow:hidden;position:relative;
+  min-height:calc(100vh - 56px);padding:26px 48px 200px}
 .bh{text-align:right;font-size:13px;font-weight:800;color:#1e3a8a;font-family:serif;margin-bottom:8px}
 .hdr{display:flex;justify-content:center;margin-bottom:14px}
 .himg{max-height:108px;width:auto;object-fit:contain}
@@ -4605,12 +4589,18 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
   text-transform:uppercase;text-align:center;margin-bottom:12px}
 .winner{font-family:Georgia,'Times New Roman',serif;font-size:52px;font-weight:400;
   color:#111;text-align:center;line-height:1.25;margin-bottom:12px;word-wrap:break-word}
-.sub{text-align:center;font-size:16px;font-weight:600;color:#444;margin-bottom:6px}
+.sub{text-align:center;font-size:15px;font-weight:500;color:#555;margin-bottom:6px}
 .meta{margin-top:32px;text-align:center;font-size:13px;color:#777;line-height:2}
 .wm{position:absolute;bottom:0;right:0;width:60%;height:auto;
   mix-blend-mode:multiply;pointer-events:none;display:block}
-@media print{body{padding:0!important;background:#c5d6eb!important}
-  .card{border-radius:0!important;max-width:100%!important;min-height:100vh!important}}
+@media print{
+  @page{margin:0;size:letter portrait}
+  html,body{background:#c5d6eb!important;-webkit-print-color-adjust:exact!important;
+    print-color-adjust:exact!important;padding:20px!important;min-height:100vh!important}
+  .card{border-radius:0!important;max-width:100%!important;
+    min-height:calc(100vh - 40px)!important;box-shadow:none!important}
+  .wm{position:fixed!important;bottom:0!important;right:0!important;width:58%!important}
+}
 </style></head>
 <body><div class="card">
   <div class="bh">&#x05D1;&#x05F4;&#x05D4;</div>
@@ -4619,7 +4609,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
   <div class="trophy">🏆</div>
   <div class="label">Winner of the Raffle</div>
   <div class="winner">${wName}</div>
-  ${enName}${clsLine}
+  ${enName}
   <div class="meta">
     <div>${ts}</div>
     ${cleanHeb?`<div style="direction:rtl;unicode-bidi:isolate">${cleanHeb}</div>`:''}
