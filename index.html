@@ -3709,7 +3709,7 @@ function openNewTestSheet(){
 
 // ── Test grade summary: marked count + average ────────────────────────────────
 function _refreshGradeSummary(t, container){
-  const el=(container||document).getElementById('gradeSummary');
+  const el=(container||document).querySelector('#gradeSummary');
   if(!el) return;
   const rows=[...(container||document).querySelectorAll('.score-row')];
   const visible=rows.filter(r=>r.style.display!=='none');
