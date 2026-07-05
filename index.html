@@ -3533,7 +3533,14 @@ function renderHistList(rows){
   }
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
   if(h.studentId) filt=filt.filter(r=>r.student_id===h.studentId);
-  if(h.sessionIds&&h.sessionIds.size) filt=filt.filter(r=>h.sessionIds.has(r.session_id));
+  // Match by session NAME (not raw id) — h.sessionIds now holds the unique
+  // names chosen in the dropdown, so a single selection like "Seder 1" pulls
+  // records from every session row sharing that name, regardless of how many
+  // different time slots / days it's scheduled at.
+  if(h.sessionIds&&h.sessionIds.size) filt=filt.filter(r=>{
+    const ses=sesById[r.session_id];
+    return ses && h.sessionIds.has(ses.name);
+  });
 
   const c={on_time:0,late:0,absent:0,excused:0,flagged:0};
   filt.forEach(r=>{
@@ -3624,10 +3631,21 @@ async function renderHistory(){
         <select id="hPeriod">${Object.entries(PERIOD_LABEL).map(([k,label])=>`<option value="${k}" ${k===h.period?'selected':''}>${label}</option>`).join('')}</select></div>
       <div class="ctl"><span>Session</span>
         <div class="multi-sel" id="hSessionWrap">
-          <button class="multi-sel-btn" id="hSessionBtn" type="button">${(()=>{const n=h.sessionIds.size;if(!n)return 'All sessions';if(n===1){const ses=state.sessions.find(s=>s.id===[...h.sessionIds][0]);return ses?esc(ses.name):'1 session';}return n+' sessions';})()}</button>
+          <button class="multi-sel-btn" id="hSessionBtn" type="button">${(()=>{const n=h.sessionIds.size;if(!n)return 'All sessions';if(n===1)return esc([...h.sessionIds][0]);return n+' sessions';})()}</button>
           <div class="multi-sel-pop hidden" id="hSessionPop">
             <label class="mopt mopt-all"><input type="checkbox" id="hSesAllChk" ${!h.sessionIds.size?'checked':''}> All sessions</label>
-            ${state.sessions.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(s=>`<label class="mopt"><input type="checkbox" class="ses-chk" value="${s.id}" ${h.sessionIds.has(s.id)?'checked':''}> ${esc(s.name)}</label>`).join('')}
+            ${(()=>{
+              // Collapse sessions that share the exact same name (e.g. "Seder 1"
+              // scheduled at 11:00am on one day and 11:10am on another) into a
+              // single checkbox, so the dropdown never shows visual duplicates.
+              const seenNames=new Set();
+              const uniqueNames=[];
+              state.sessions.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(s=>{
+                const nm=s.name||'';
+                if(!seenNames.has(nm)){ seenNames.add(nm); uniqueNames.push(nm); }
+              });
+              return uniqueNames.map(nm=>`<label class="mopt"><input type="checkbox" class="ses-chk" value="${esc(nm)}" ${h.sessionIds.has(nm)?'checked':''}> ${esc(nm)}</label>`).join('');
+            })()}
           </div>
         </div></div>
     </div>
@@ -3655,11 +3673,12 @@ async function renderHistory(){
   // ── Multi-select session dropdown ──────────────────────────────────────
   {
     const wrap=$('hSessionWrap'), btn=$('hSessionBtn'), pop=$('hSessionPop');
-    // Helper: rebuild button label from current sessionIds
+    // Helper: rebuild button label from current sessionIds (now a Set of
+    // unique session NAMES, not raw ids — see the dropdown-population fix above)
     const _updBtn=()=>{
       const n=h.sessionIds.size;
       if(!n){btn.textContent='All sessions';return;}
-      if(n===1){const ses=state.sessions.find(s=>s.id===[...h.sessionIds][0]);btn.textContent=ses?ses.name:'1 session';return;}
+      if(n===1){btn.textContent=[...h.sessionIds][0];return;}
       btn.textContent=n+' sessions';
     };
     // Toggle popup open/close
