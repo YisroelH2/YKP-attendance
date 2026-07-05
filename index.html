@@ -4116,7 +4116,7 @@ function openTestResultExportSheet(t, v){
   const isPoints=t.grade_type==='points'&&t.max_points;
   const rows=[...v.querySelectorAll('.score-row')].filter(r=>r.style.display!=='none');
   if(!rows.length){ toast('No students to export — check your filters',true); return; }
-  const entries=rows.map(row=>{
+  const allEntries=rows.map(row=>{
     const sid=row.dataset.sid;
     const s=state.students.find(x=>x.id===sid); if(!s) return null;
     const inp=row.querySelector('.score-inp');
@@ -4132,17 +4132,35 @@ function openTestResultExportSheet(t, v){
     }
     return {student:s, status, scoreDisplay};
   }).filter(Boolean);
-  entries.sort((a,b)=>{
+  allEntries.sort((a,b)=>{
     const na=(a.student.english_name||a.student.hebrew_name||'').toLowerCase();
     const nb=(b.student.english_name||b.student.hebrew_name||'').toLowerCase();
     return na<nb?-1:na>nb?1:0;
   });
-  const passCount=entries.filter(e=>e.status==='pass').length;
-  const failCount=entries.filter(e=>e.status==='fail').length;
-  const unmarkedCount=entries.length-passCount-failCount;
+  const passCount=allEntries.filter(e=>e.status==='pass').length;
+  const failCount=allEntries.filter(e=>e.status==='fail').length;
+  const unmarkedCount=allEntries.length-passCount-failCount;
+
+  // Result filter — determines which subset of allEntries actually gets
+  // printed. "All Marked" is the default per the "hide unmarked by default"
+  // requirement: it includes Passed + Failed but excludes Unmarked.
+  const RESULT_FILTERS=[
+    {v:'marked', lbl:'All Marked',    count:passCount+failCount},
+    {v:'passed', lbl:'Passed Only',   count:passCount},
+    {v:'failed', lbl:'Failed Only',   count:failCount},
+    {v:'unmarked', lbl:'Unmarked Only', count:unmarkedCount},
+  ];
+  const _filterEntries=f=>{
+    if(f==='marked')   return allEntries.filter(e=>e.status==='pass'||e.status==='fail');
+    if(f==='passed')   return allEntries.filter(e=>e.status==='pass');
+    if(f==='failed')   return allEntries.filter(e=>e.status==='fail');
+    if(f==='unmarked') return allEntries.filter(e=>e.status==='unmarked');
+    return allEntries;
+  };
+
   openCustomSheet({
     id:'__testExport__',
-    title:`Export results — ${entries.length} student${entries.length===1?'':'s'}`,
+    title:`Export results — ${allEntries.length} student${allEntries.length===1?'':'s'}`,
     html:`<p class="muted" style="margin-bottom:8px">Generates a printable pass/fail list for "${esc(t.name)}". Use your browser's Print → Save as PDF.</p>
       <div class="field"><label>Heading</label>
         <textarea id="terHdr" class="inp" rows="2" style="resize:none">${esc(t.name)} — Results</textarea>
@@ -4154,23 +4172,40 @@ function openTestResultExportSheet(t, v){
           <button class="seg-btn" data-v="both" type="button">Both</button>
         </div>
       </div>
+      <div class="field" style="margin-top:12px"><label>Include</label>
+        <select id="terResultFilter" class="inp">
+          ${RESULT_FILTERS.map(f=>`<option value="${f.v}" ${f.v==='marked'?'selected':''}>${f.lbl} (${f.count})</option>`).join('')}
+        </select>
+      </div>
       <label class="shul-opt"><input type="checkbox" id="terShowScore" checked> Show numeric score next to Pass/Fail</label>
-      <p class="muted" style="margin-top:10px;font-size:12.5px">${passCount} passed · ${failCount} failed${unmarkedCount>0?` · ${unmarkedCount} unmarked`:''} at the current ${passing}% passing mark.</p>
+      <label class="shul-opt"><input type="checkbox" id="terShowBadge" checked> Show Pass/Fail badges next to name</label>
+      <p class="muted" id="terCountLine" style="margin-top:10px;font-size:12.5px"></p>
       <button class="btn btn-primary btn-block" id="terGen" style="margin-top:14px">Generate list PDF</button>`,
     onMount:()=>{
       let nameFmt='heb';
+      const _updCountLine=()=>{
+        const f=$('terResultFilter').value;
+        const n=_filterEntries(f).length;
+        $('terCountLine').textContent=`${n} student${n===1?'':'s'} will be included at the current ${passing}% passing mark.`;
+      };
+      _updCountLine();
       $('terNameSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{ nameFmt=b.dataset.v; $('terNameSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b)); });
+      $('terResultFilter').onchange=_updCountLine;
       $('terGen').onclick=()=>{
         const hdr=$('terHdr').value.trim()||`${t.name} — Results`;
         const showScore=$('terShowScore').checked;
+        const showBadge=$('terShowBadge').checked;
+        const resultFilter=$('terResultFilter').value;
+        const entries=_filterEntries(resultFilter);
+        if(!entries.length){ toast('No students match that filter',true); return; }
         closeCustomSheet();
-        generateTestResultList(entries, hdr, nameFmt, showScore, t);
+        generateTestResultList(entries, hdr, nameFmt, showScore, showBadge, t);
       };
     }
   });
 }
 
-async function generateTestResultList(entries, heading, nameFmt, showScore, t){
+async function generateTestResultList(entries, heading, nameFmt, showScore, showBadge, t){
   if(!entries.length){ toast('No one to export',true); return; }
   nameFmt=nameFmt||'heb';
   toast('Generating list…');
@@ -4198,14 +4233,17 @@ async function generateTestResultList(entries, heading, nameFmt, showScore, t){
   const colA=entries.slice(0,half), colB=entries.slice(half);
 
   // Name once, Pass/Fail badge + score pushed to the right — same visual
-  // language as the Shul-list's .sess-toprow spacing fix.
+  // language as the Shul-list's .sess-toprow spacing fix. The badge itself is
+  // fully omitted (not just hidden) when showBadge is off, so unchecking it
+  // leaves a clean name + score with no green/red pill at all.
   const mkRow=(e)=>{
     const badgeLbl=e.status==='pass'?'PASS':e.status==='fail'?'FAIL':'—';
     const badgeCls=e.status==='pass'?'pass':e.status==='fail'?'fail':'unmarked';
     const scoreHtml=(showScore&&e.scoreDisplay)?`<span class="test-score">${esc(e.scoreDisplay)}</span>`:'';
+    const badgeHtml=showBadge?`<span class="test-badge ${badgeCls}">${badgeLbl}</span>`:'';
     return `<div class="row test-row">
       <span class="name">${nameCell(e.student)}</span>
-      <div class="test-right">${scoreHtml}<span class="test-badge ${badgeCls}">${badgeLbl}</span></div>
+      <div class="test-right">${scoreHtml}${badgeHtml}</div>
     </div>`;
   };
   const leftRows=colA.map(mkRow).join('');
