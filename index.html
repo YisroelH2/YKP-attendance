@@ -3724,6 +3724,12 @@ async function renderHistory(){
 }
 
 /* ===================== TESTS ===================== */
+// ── Passing-mark persistence — localStorage, so a page refresh (or the
+// person closing/reopening the app) never resets a test's passing threshold.
+// Keyed by test id since each test can have its own passing mark.
+function _loadPassingMarks(){ try{ return JSON.parse(localStorage.getItem('ykp_test_passing_v1')||'{}'); }catch(_){ return {}; } }
+function _savePassingMark(testId,val){ try{ const all=_loadPassingMarks(); all[testId]=val; localStorage.setItem('ykp_test_passing_v1',JSON.stringify(all)); }catch(_){} }
+
 const testsState={sub:'tests', activeTest:null};
 
 // ── Friendly test-date formatter: "Fri, Jul 3 '26" ────────────────────────────
@@ -3860,6 +3866,21 @@ async function renderGradeEntry(v){
   let students=state.students.filter(s=>s.active!==false);
   const classIds=(t.class_ids&&t.class_ids.length>0)?t.class_ids:(t.class_id?[t.class_id]:[]);
   if(classIds.length>0) students=students.filter(s=>classIds.includes(s.class_id));
+  // Init passing/filter/class-filter state per test — passing mark is seeded from
+  // the persisted value (localStorage) on first load so a refresh never resets it.
+  if(!testsState.passing) testsState.passing={};
+  if(testsState.passing[t.id]===undefined){
+    const persisted=_loadPassingMarks();
+    testsState.passing[t.id]=(persisted[t.id]!==undefined)?persisted[t.id]:60;
+  }
+  if(!testsState.gradeFilter) testsState.gradeFilter={};
+  if(!testsState.gradeFilter[t.id]) testsState.gradeFilter[t.id]='all';
+  if(!testsState.classFilter) testsState.classFilter={};
+  if(testsState.classFilter[t.id]===undefined) testsState.classFilter[t.id]='';
+  // Classes this test actually covers — used to build the class-filter dropdown
+  // below, and to further narrow the visible student list when one is chosen.
+  const filterableClasses=classIds.length?classIds.map(id=>clsById[id]).filter(Boolean):state.classes.slice();
+  if(testsState.classFilter[t.id]) students=students.filter(s=>s.class_id===testsState.classFilter[t.id]);
   // Sort alphabetically by English name, falling back to Hebrew name
   students=students.slice().sort((a,b)=>{
     const na=(a.english_name||a.hebrew_name||'').toLowerCase();
@@ -3870,11 +3891,6 @@ async function renderGradeEntry(v){
   const byStudent={}; (scores||[]).forEach(r=>byStudent[r.student_id]=r);
   const clsNames=classIds.map(id=>clsById[id]?.name).filter(Boolean);
   const clsText=clsNames.length?clsNames.join(', '):'All classes';
-  // Init passing/filter state per test
-  if(!testsState.passing) testsState.passing={};
-  if(testsState.passing[t.id]===undefined) testsState.passing[t.id]=60;
-  if(!testsState.gradeFilter) testsState.gradeFilter={};
-  if(!testsState.gradeFilter[t.id]) testsState.gradeFilter[t.id]='all';
   const passingPct=testsState.passing[t.id];
   const isPoints=t.grade_type==='points'&&t.max_points;
 
@@ -3907,6 +3923,14 @@ async function renderGradeEntry(v){
       <div style="font-weight:800;font-size:17px">${esc(t.name)}</div>
       <div style="font-size:12px;color:var(--ink-faint)">${fmtTestDate(t.date)} · ${esc(clsText)}</div>
     </div>
+    ${filterableClasses.length>1?`<div class="controls" style="margin-bottom:8px">
+      <div class="ctl full"><span>Class</span>
+        <select id="testClassFilter">
+          <option value="">All classes</option>
+          ${filterableClasses.map(c=>`<option value="${c.id}" ${c.id===testsState.classFilter[t.id]?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+    </div>`:''}
     <div class="search" style="margin-bottom:8px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="testStuSearch" placeholder="Search students…">
@@ -3923,6 +3947,7 @@ async function renderGradeEntry(v){
         ${_filterBtn('failed','✗ Failed')}
         ${_filterBtn('unmarked','— Unmarked')}
       </div>
+      <button class="btn btn-soft btn-sm" id="testExportBtn" style="height:32px;padding:0 12px;font-size:12px;margin-left:auto">📄 Export</button>
     </div>
     <div class="zal-hint" style="margin:-4px 0 10px">Tap a score to edit · changes save automatically</div>
     <div id="gradeSummary" class="grade-summary"></div>
@@ -3936,11 +3961,20 @@ async function renderGradeEntry(v){
   // Search
   $('testStuSearch').oninput=e=>{ _applyGradeFilters(t, v, e.target.value.trim().toLowerCase()); };
 
-  // Passing % threshold
+  // Class filter — changes which students are rendered, so this triggers a
+  // full re-render of the grade-entry view rather than a show/hide toggle.
+  if($('testClassFilter')) $('testClassFilter').onchange=e=>{
+    testsState.classFilter[t.id]=e.target.value;
+    renderGradeEntry(v);
+  };
+
+  // Passing % threshold — persists to localStorage immediately so a page
+  // refresh never resets it (Feature 2: passing-mark persistence).
   $('passingPct').oninput=e=>{
     const val=parseInt(e.target.value);
     if(!isNaN(val)&&val>=0&&val<=100){
       testsState.passing[t.id]=val;
+      _savePassingMark(t.id, val);
       _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
     }
   };
@@ -3959,6 +3993,13 @@ async function renderGradeEntry(v){
       _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
     };
   });
+
+  // Export button — opens a small sheet to pick a heading + name format, then
+  // generates a printable pass/fail list from whichever rows are CURRENTLY
+  // VISIBLE. This means it automatically honors the search box, the
+  // Passed/Failed/Unmarked filter, and the class dropdown above — no need
+  // for a separate, redundant set of export-only filter options.
+  if($('testExportBtn')) $('testExportBtn').onclick=()=>openTestResultExportSheet(t, v);
 
   // ── Score inputs — save on every keystroke (debounced), not just on blur ──
   // Rationale: relying on 'change' alone means a hard page refresh performed
@@ -4040,6 +4081,202 @@ function _applyGradeFilters(t, v, searchQ){
     row.style.display=(searchOk&&filterOk)?'':'none';
   });
   _refreshGradeSummary(t, v);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TEST RESULT EXPORT — Feature 1
+   Mirrors the Shul-list export (openShulListSheet / generateShulList):
+   same printable card/header/date/title layout, names unnumbered, details
+   grouped cleanly to the right of each name. Exports whichever score rows
+   are currently visible, so it automatically respects the search box, the
+   Passed/Failed/Unmarked filter, and the class-filter dropdown already on
+   screen — no separate export-only filter UI needed.
+   ══════════════════════════════════════════════════════════════════════════ */
+function openTestResultExportSheet(t, v){
+  const passing=testsState.passing?.[t.id]??60;
+  const isPoints=t.grade_type==='points'&&t.max_points;
+  const rows=[...v.querySelectorAll('.score-row')].filter(r=>r.style.display!=='none');
+  if(!rows.length){ toast('No students to export — check your filters',true); return; }
+  const entries=rows.map(row=>{
+    const sid=row.dataset.sid;
+    const s=state.students.find(x=>x.id===sid); if(!s) return null;
+    const inp=row.querySelector('.score-inp');
+    const raw=inp?.value.trim();
+    let status='unmarked', scoreDisplay='';
+    if(raw){
+      const score=parseFloat(raw);
+      if(!isNaN(score)){
+        const pct=isPoints?(score/t.max_points*100):score;
+        status=pct>=passing?'pass':'fail';
+        scoreDisplay=isPoints?`${score}/${t.max_points}`:`${score}%`;
+      }
+    }
+    return {student:s, status, scoreDisplay};
+  }).filter(Boolean);
+  entries.sort((a,b)=>{
+    const na=(a.student.english_name||a.student.hebrew_name||'').toLowerCase();
+    const nb=(b.student.english_name||b.student.hebrew_name||'').toLowerCase();
+    return na<nb?-1:na>nb?1:0;
+  });
+  const passCount=entries.filter(e=>e.status==='pass').length;
+  const failCount=entries.filter(e=>e.status==='fail').length;
+  const unmarkedCount=entries.length-passCount-failCount;
+  openCustomSheet({
+    id:'__testExport__',
+    title:`Export results — ${entries.length} student${entries.length===1?'':'s'}`,
+    html:`<p class="muted" style="margin-bottom:8px">Generates a printable pass/fail list for "${esc(t.name)}". Use your browser's Print → Save as PDF.</p>
+      <div class="field"><label>Heading</label>
+        <textarea id="terHdr" class="inp" rows="2" style="resize:none">${esc(t.name)} — Results</textarea>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Names shown</label>
+        <div class="seg" id="terNameSeg">
+          <button class="seg-btn active" data-v="heb" type="button">Hebrew</button>
+          <button class="seg-btn" data-v="eng" type="button">English</button>
+          <button class="seg-btn" data-v="both" type="button">Both</button>
+        </div>
+      </div>
+      <label class="shul-opt"><input type="checkbox" id="terShowScore" checked> Show numeric score next to Pass/Fail</label>
+      <p class="muted" style="margin-top:10px;font-size:12.5px">${passCount} passed · ${failCount} failed${unmarkedCount>0?` · ${unmarkedCount} unmarked`:''} at the current ${passing}% passing mark.</p>
+      <button class="btn btn-primary btn-block" id="terGen" style="margin-top:14px">Generate list PDF</button>`,
+    onMount:()=>{
+      let nameFmt='heb';
+      $('terNameSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{ nameFmt=b.dataset.v; $('terNameSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b)); });
+      $('terGen').onclick=()=>{
+        const hdr=$('terHdr').value.trim()||`${t.name} — Results`;
+        const showScore=$('terShowScore').checked;
+        closeCustomSheet();
+        generateTestResultList(entries, hdr, nameFmt, showScore, t);
+      };
+    }
+  });
+}
+
+async function generateTestResultList(entries, heading, nameFmt, showScore, t){
+  if(!entries.length){ toast('No one to export',true); return; }
+  nameFmt=nameFmt||'heb';
+  toast('Generating list…');
+
+  const engDate=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  let hebDate=''; try{ hebDate=await fetchHebDate(todayStr()); }catch{}
+  const assetBase=location.origin+location.pathname.replace(/[^/]*$/, '');
+  const headerUrl=assetBase+'header.png';
+
+  const _sn=s=>s?s.replace(/[\u0591-\u05C7]/g,''):'';
+  const cleanHebDate=_sn(hebDate)
+    .replace(/^[\u05D0-\u05EA][\u05F3']+\s*/,'')
+    .replace(/(^|\s)ב([\u05D0-\u05EA])/g,'$1$2')
+    .trim();
+
+  const lastFirst=n=>{ if(!n) return ''; const p=n.trim().split(/\s+/); return p.length<2?n:p[p.length-1]+' '+p.slice(0,-1).join(' '); };
+  const nameCell=s=>{
+    const heb=esc(s.hebrew_name||''); const eng=esc(lastFirst(s.english_name||''));
+    if(nameFmt==='heb') return heb||eng;
+    if(nameFmt==='eng') return eng||heb;
+    return heb+(s.english_name?' '+esc(lastFirst(s.english_name)):'');
+  };
+
+  const n=entries.length, half=Math.ceil(n/2);
+  const colA=entries.slice(0,half), colB=entries.slice(half);
+
+  // Name once, Pass/Fail badge + score pushed to the right — same visual
+  // language as the Shul-list's .sess-toprow spacing fix.
+  const mkRow=(e)=>{
+    const badgeLbl=e.status==='pass'?'PASS':e.status==='fail'?'FAIL':'—';
+    const badgeCls=e.status==='pass'?'pass':e.status==='fail'?'fail':'unmarked';
+    const scoreHtml=(showScore&&e.scoreDisplay)?`<span class="test-score">${esc(e.scoreDisplay)}</span>`:'';
+    return `<div class="row test-row">
+      <span class="name">${nameCell(e.student)}</span>
+      <div class="test-right">${scoreHtml}<span class="test-badge ${badgeCls}">${badgeLbl}</span></div>
+    </div>`;
+  };
+  const leftRows=colA.map(mkRow).join('');
+  const rightRows=colB.map(mkRow).join('');
+
+  const hLen=heading.length;
+  const headingSize=hLen>100?'18px':hLen>70?'26px':hLen>45?'38px':hLen>25?'50px':'60px';
+  const headingLH=hLen>45?'1.30':'1.22';
+
+  const passCount=entries.filter(e=>e.status==='pass').length;
+  const failCount=entries.filter(e=>e.status==='fail').length;
+  const unmarkedCount=entries.length-passCount-failCount;
+  const summaryLine=`${passCount} passed · ${failCount} failed`+(unmarkedCount>0?` · ${unmarkedCount} unmarked`:'');
+
+  // ── CSS — mirrors generateShulList's card/header/date/title structure ─────
+  const css = `
+@page { margin: 0; size: letter portrait; }
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif;
+  background: #c5d6eb !important;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  display: block; min-height: 100vh; padding: 24px;
+}
+.card {
+  background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  width: 100%; max-width: 720px; margin: 0 auto; border-radius: 24px;
+  box-shadow: none; outline: none; border: none; position: relative;
+  overflow: hidden; min-height: calc(100vh - 48px);
+}
+.card-inner { padding: 18px 40px 28px; position: relative; z-index: 1; }
+.header-wrap { position: relative; display: flex; justify-content: center; align-items: flex-start; width: 100%; margin-bottom: 8px; min-height: 72px; }
+.header-img { max-height: 88px; width: auto; object-fit: contain; display: block; }
+.bh { position: absolute; top: 0; right: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; font-family: 'Times New Roman',Times,serif; white-space: nowrap; letter-spacing: .4px; }
+.divider { border:none; height:2px; background:#1e3a8a; margin:0 0 8px; display:block; }
+.date-row { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 10px; }
+.eng-date { font-size:13px; font-weight:600; color:#2c4880; letter-spacing:.2px; text-align:left; }
+.heb-date { font-size:13px; font-weight:600; color:#2c4880; text-align:right; direction:rtl; unicode-bidi:isolate; }
+.title { text-align: center; font-family: Georgia,'Times New Roman',Times,serif; font-weight: 400; color: #111111; margin-bottom: 10px; word-wrap: break-word; overflow-wrap: break-word; }
+.summary-line { text-align:center; font-size:13px; color:#4a5568; margin-bottom:14px; font-weight:600; }
+.list-grid { display:flex; flex-direction:row; gap:28px; align-items:flex-start; }
+.col { flex:1; min-width:0; }
+.row {
+  display: flex; flex-direction: row; align-items: baseline; justify-content: space-between;
+  direction: ltr; padding: 7px 0; border-bottom: 1px solid #e2e8f4; gap: 10px;
+}
+.name { font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
+.test-right { display:flex; align-items:baseline; gap:8px; flex-shrink:0; white-space:nowrap; }
+.test-score { font-size:0.82em; color:#666666; font-weight:600; }
+.test-badge { font-size:0.76em; font-weight:800; padding:2px 9px; border-radius:999px; letter-spacing:.3px; }
+.test-badge.pass { background:#E3FBF4; color:#0e9f76; }
+.test-badge.fail { background:#FCE4E8; color:#c0392b; }
+.test-badge.unmarked { background:#eef0f5; color:#888888; }
+@media print {
+  @page { margin: 0; size: letter portrait; }
+  html { height:auto; background:#c5d6eb!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  body { background:#c5d6eb!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; padding:18px!important; margin:0!important; min-height:auto!important; height:auto!important; display:block!important; width:100%!important; box-sizing:border-box!important; }
+  .card { background:#ffffff!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; border-radius:0!important; max-width:100%!important; width:100%!important; min-height:auto!important; height:auto!important; box-shadow:none!important; outline:none!important; border:none!important; overflow:visible!important; }
+  .card-inner { padding:14px 36px 20px!important; background:#ffffff!important; }
+  .list-grid { page-break-inside:auto; }
+  .row { page-break-inside:avoid; break-inside:avoid; }
+  .page-break { page-break-after: always; break-after: page; }
+  .no-print { display: none !important; }
+}`;
+
+  const body = `<div class="card">
+  <div class="card-inner">
+    <div class="header-wrap">
+      <span class="bh">&#x05D1;&#x05F4;&#x05D4;</span>
+      <img class="header-img" src="${headerUrl}" alt="YKP Header">
+    </div>
+    <hr class="divider">
+    ${(engDate||cleanHebDate)?`<div class="date-row">
+      ${engDate?`<span class="eng-date">${esc(engDate)}</span>`:'<span></span>'}
+      ${cleanHebDate?`<span class="heb-date">${esc(cleanHebDate)}</span>`:''}
+    </div>`:''}
+    <div class="title" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>
+    <div class="summary-line">${summaryLine}</div>
+    <div class="list-grid">
+      <div class="col">${leftRows}</div>
+      <div class="col">${rightRows}</div>
+    </div>
+  </div>
+</div>`;
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Test Results</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,'_blank');
+  if(!w) toast('Allow pop-ups to generate the PDF',true);
 }
 
 /* ---- Baal Peh sub-tab ---- */
