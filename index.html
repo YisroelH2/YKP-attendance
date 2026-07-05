@@ -3867,28 +3867,54 @@ async function renderGradeEntry(v){
     };
   });
 
-  // Score inputs — save on change
-  v.querySelectorAll('.score-inp').forEach(inp=>{
-    inp.addEventListener('change', async()=>{
-      const sid=inp.dataset.sid;
-      const raw=inp.value.trim();
-      if(raw===''){
-        await sb.from('ykp_test_scores').delete().match({test_id:t.id,student_id:sid});
-        const pctEl=v.querySelector(`[data-pct="${sid}"]`); if(pctEl)pctEl.textContent='';
-        _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
-        return;
-      }
-      const score=parseFloat(raw);
-      if(isNaN(score)){return;}
-      const {error}=await sb.from('ykp_test_scores').upsert({test_id:t.id,student_id:sid,score},{onConflict:'test_id,student_id'});
-      if(error){toast('Save failed',true);return;}
-      if(isPoints){
-        const pctEl=v.querySelector(`[data-pct="${sid}"]`);
-        if(pctEl) pctEl.textContent=` (${Math.round(score/t.max_points*100)}%)`;
-      }
+  // ── Score inputs — save on every keystroke (debounced), not just on blur ──
+  // Rationale: relying on 'change' alone means a hard page refresh performed
+  // BEFORE the field loses focus never fires 'change', so the score is typed
+  // but never written to Supabase — that's the exact refresh-data-loss bug.
+  // A debounced 'input' listener guarantees the write fires ~350ms after the
+  // last keystroke regardless of whether the user ever taps away.
+  const _scoreSaveTimers=new WeakMap(); // per-input debounce timer, avoids cross-row collisions
+  async function _saveScoreNow(inp){
+    const sid=inp.dataset.sid;
+    const raw=inp.value.trim();
+    if(raw===''){
+      const {error}=await sb.from('ykp_test_scores').delete().match({test_id:t.id,student_id:sid});
+      if(error){ console.error('Test score delete failed:',error); toast('Save failed — check connection',true); return; }
+      const pctEl=v.querySelector(`[data-pct="${sid}"]`); if(pctEl)pctEl.textContent='';
       _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
+      return;
+    }
+    const score=parseFloat(raw);
+    if(isNaN(score)) return;
+    const {error}=await sb.from('ykp_test_scores').upsert({test_id:t.id,student_id:sid,score},{onConflict:'test_id,student_id'});
+    if(error){ console.error('Test score save failed:',error); toast('Save failed — check connection',true); return; }
+    if(isPoints){
+      const pctEl=v.querySelector(`[data-pct="${sid}"]`);
+      if(pctEl) pctEl.textContent=` (${Math.round(score/t.max_points*100)}%)`;
+    }
+    _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
+  }
+  v.querySelectorAll('.score-inp').forEach(inp=>{
+    // Debounced save — fires while typing, no blur required
+    inp.addEventListener('input', ()=>{
+      clearTimeout(_scoreSaveTimers.get(inp));
+      _scoreSaveTimers.set(inp, setTimeout(()=>_saveScoreNow(inp), 350));
+    });
+    // Immediate save on blur/Enter — cancels any pending debounce so we don't double-write
+    inp.addEventListener('change', ()=>{
+      clearTimeout(_scoreSaveTimers.get(inp));
+      _saveScoreNow(inp);
     });
   });
+  // Best-effort: flush any input still mid-debounce if the tab is closed/refreshed/backgrounded.
+  // Not 100% guaranteed on all mobile browsers, but meaningfully reduces the data-loss window.
+  const _flushPendingScores=()=>{
+    v.querySelectorAll('.score-inp').forEach(inp=>{
+      if(_scoreSaveTimers.get(inp)){ clearTimeout(_scoreSaveTimers.get(inp)); _saveScoreNow(inp); }
+    });
+  };
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) _flushPendingScores(); });
+  window.addEventListener('pagehide', _flushPendingScores);
 }
 
 // ── Apply search + pass/fail filter to score rows ────────────────────────────
