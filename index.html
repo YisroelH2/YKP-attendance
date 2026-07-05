@@ -51,6 +51,7 @@
 body{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea,[contenteditable="true"]{-webkit-user-select:text;-moz-user-select:text;user-select:text}
 html,body{margin:0;height:100%}
+html{touch-action:manipulation} /* block browser double-tap-zoom globally */
 body{
   font-family:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   background:var(--bg); color:var(--ink);
@@ -917,12 +918,18 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 <script>
 
-// ── iPad / iPadOS double-tap zoom prevention ──────────────────────────
+// ── iOS / iPadOS double-tap zoom prevention ───────────────────────────────
+// Primary guard: touch-action:manipulation on <html> (see CSS) tells the
+// browser not to handle double-tap-zoom. JS below is a secondary fallback for
+// older iOS and ensures the seating grid never triggers a zoom.
 (function(){
   let _lt=0;
   document.addEventListener('touchend',function(e){
+    const tgt=e.target;
+    // Never suppress on form controls — keyboards/pickers must still work
+    if(tgt.tagName==='INPUT'||tgt.tagName==='SELECT'||tgt.tagName==='TEXTAREA'||tgt.isContentEditable) return;
     const now=Date.now();
-    if(now-_lt<320) e.preventDefault();
+    if(now-_lt<350) e.preventDefault();
     _lt=now;
   },{passive:false});
   document.addEventListener('dblclick',function(e){
@@ -1933,7 +1940,7 @@ function renderStudents(selMode, sel){
     <div class="cardhead" style="margin-bottom:12px">
       <h2 style="font-size:16px;margin:0">${state.students.length} students</h2>
       <div style="display:flex;gap:8px">
-        ${!selMode?`<button class="btn btn-soft btn-sm" id="addStudent">+ Add</button>`:''}
+        ${(!selMode && !state.isTeacher)?`<button class="btn btn-soft btn-sm" id="addStudent">+ Add</button>`:''}
         ${!selMode?`<button class="btn btn-soft btn-sm" id="rcOpen">📄 Reports</button>`:''}
         <button class="btn btn-soft btn-sm" id="selToggle">${selMode?'Cancel':'Select'}</button>
       </div>
@@ -2601,6 +2608,15 @@ function editStudent(id){
     onSave:async v=>{
       const rec={hebrew_name:(v.hebrew_name||'').trim(),english_name:(v.english_name||'').trim()||null,class_id:v.class_id||null,bunk:(v.bunk||'').trim()||null,parent_email:(v.parent_email||'').trim()||null};
       if(!rec.hebrew_name){toast('Hebrew name required',true);return;}
+      // Duplicate guard — only fires when adding a new student
+      if(!s){
+        const dup=state.students.find(x=>{
+          const sameHeb=rec.hebrew_name&&(x.hebrew_name||'').trim().toLowerCase()===rec.hebrew_name.toLowerCase();
+          const sameEng=rec.english_name&&(x.english_name||'').trim().toLowerCase()===rec.english_name.toLowerCase();
+          return sameHeb||sameEng;
+        });
+        if(dup){toast(`⚠ "${dup.hebrew_name||dup.english_name}" already exists — check the student list before adding.`,true);return;}
+      }
       const r = s ? await sb.from('students').update(rec).eq('id',s.id)
                   : await sb.from('students').insert({...rec,active:true});
       if(r.error){toast('Save failed: '+r.error.message,true);return;}
@@ -4434,7 +4450,6 @@ async function generateShulList(entries,heading,showReason,nameFmt){
   // ── Asset URLs (absolute from app origin so blob: URL can load them) ──────
   const assetBase = location.origin + location.pathname.replace(/[^/]*$/, '');
   const headerUrl = assetBase + 'header.png';
-  const wmUrl     = assetBase + 'watermark.png';
 
   // ── Hebrew date sanitization ──────────────────────────────────────────────
   // 1. Strip all nikud / cantillation (U+0591–U+05C7)
@@ -4477,20 +4492,38 @@ async function generateShulList(entries,heading,showReason,nameFmt){
     return `<span class="reason-wrap">${topHtml}${noteHtml}</span>`;
   };
 
-  // ── Column split — operates on entries (one per selected record) ──────────
-  const n    = entries.length;
+  // ── Group by student — each name appears exactly once ────────────────────
+  const groupedMap=new Map();
+  entries.forEach(e=>{
+    if(!groupedMap.has(e.student.id)) groupedMap.set(e.student.id,{student:e.student,keys:[]});
+    groupedMap.get(e.student.id).keys.push(e.key);
+  });
+  const grouped=[...groupedMap.values()];
+  const n    = grouped.length;
   const half = Math.ceil(n/2);
-  const colA = entries.slice(0,half);
-  const colB = entries.slice(half);
+  const colA = grouped.slice(0,half);
+  const colB = grouped.slice(half);
 
-  // Each row carries the entry so reasonCell gets its specific key
-  const mkRow = (entry,idx) => {
-    const s=entry.student;
-    return `<div class="row"><span class="num">${idx}</span><span class="name">${nameCell(s)}</span>${reasonCell(s,entry.key)}</div>`;
+  // Each grouped entry may carry multiple session keys
+  const mkRow = (group) => {
+    const s=group.student;
+    const cls=state.classes.find(c=>c.id===s.class_id);
+    const clsHtml=cls?`<span class="reason-cls">${esc(cls.name)}</span>`:'';
+    let sessHtml='';
+    if(showReason&&group.keys.length){
+      sessHtml=group.keys.map(key=>{
+        const rec=reasonByKey[key]; if(!rec) return '';
+        const sesH=rec.sesName?`<span class="reason-ses">${esc(rec.sesName)}</span>`:'';
+        const rsnH=rec.lbl?`<span class="reason-lbl">${esc(rec.lbl)}</span>`:'';
+        const noteH=rec.note?`<span class="reason-note">${esc(rec.note)}</span>`:'';
+        return `<div class="sess-line">${clsHtml}${sesH}${rsnH}${noteH}</div>`;
+      }).filter(Boolean).join('');
+    }
+    return `<div class="row"><span class="name">${nameCell(s)}</span>${sessHtml?`<div class="sessions">${sessHtml}</div>`:''}</div>`;
   };
 
-  const leftRows  = colA.map((e,i)=>mkRow(e,i+1)).join('');
-  const rightRows = colB.map((e,i)=>mkRow(e,half+i+1)).join('');
+  const leftRows  = colA.map(g=>mkRow(g)).join('');
+  const rightRows = colB.map(g=>mkRow(g)).join('');
 
   // Heading font-size: calibrated so ~60-char text wraps to 2 lines
   const hLen        = heading.length;
@@ -4599,38 +4632,21 @@ body {
 .list-grid { display:flex; flex-direction:row; gap:28px; align-items:flex-start; }
 .col       { flex:1; min-width:0; }
 
-/* ── Student row: readable spacing, flows naturally across pages ─────────── */
+/* ── Student row: name once, sessions indented below ─────────────────────── */
 .row {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   direction: ltr;
-  align-items: baseline;
-  gap: 7px;
-  padding: 7px 0;          /* 7 px top+bottom: readable without crowding      */
+  padding: 7px 0;
   border-bottom: 1px solid #e2e8f4;
 }
-.num    { flex:0 0 20px; text-align:right; font-size:10.5px; font-weight:600; color:#8facc8; line-height:1; }
-.name   { flex:1; font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
-.reason-wrap { display:inline-flex; flex-direction:column; gap:2px; align-items:flex-start; margin-left:6px; flex-shrink:0 }
-.reason-top  { display:inline-flex; gap:5px; align-items:baseline; flex-wrap:wrap }
-.reason-cls  { font-style:italic; color:#888888; font-size:0.85em; font-weight:400; white-space:nowrap }
-.reason-ses  { color:#4f6ab8; font-size:0.85em; font-weight:600; white-space:nowrap }
-.reason-lbl  { color:#c0392b; font-size:0.85em; font-weight:700; white-space:nowrap }
-.reason-note { color:#555555; font-size:0.82em; font-weight:400; font-style:italic; line-height:1.3 }
-
-/* ── Watermark: fixed so it appears on every printed page ───────────────── */
-/* Lives outside .card in the HTML — overflow on card cannot clip it        */
-.wm {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 60%;
-  height: auto;
-  z-index: 0;
-  pointer-events: none;
-  display: block;
-  mix-blend-mode: multiply;
-}
+.name     { font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
+.sessions { margin-top:3px; padding-left:10px; border-left:2px solid #dde6f3; display:flex; flex-direction:column; gap:2px; }
+.sess-line{ display:flex; gap:5px; align-items:baseline; flex-wrap:wrap; }
+.reason-cls  { font-style:italic; color:#888888; font-size:0.82em; font-weight:400; white-space:nowrap }
+.reason-ses  { color:#4f6ab8; font-size:0.82em; font-weight:600; white-space:nowrap }
+.reason-lbl  { color:#c0392b; font-size:0.82em; font-weight:700; white-space:nowrap }
+.reason-note { color:#555555; font-size:0.80em; font-weight:400; font-style:italic; line-height:1.3; display:block; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    @media print
@@ -4655,25 +4671,8 @@ body {
   }
   .row { page-break-inside:avoid!important; break-inside:avoid!important; }
   .list-grid { page-break-inside:auto; }
-  .wm { position:fixed!important; bottom:0!important; right:0!important;
-    width:55%!important; height:auto!important; mix-blend-mode:multiply!important; }
   .card-inner { padding:14px 36px 20px!important; background:#ffffff!important; }
 
-  /* Watermark stamps on every page — position:fixed is scoped to page in print */
-  .wm {
-    position: fixed !important;
-    bottom: 0 !important;
-    right: 0 !important;
-    width: 130px !important;
-    height: auto !important;
-    opacity: 0.85 !important;
-    mix-blend-mode: multiply !important;
-    filter: contrast(1.02) !important;
-    background: none !important;
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-  }
 
   /* Utility classes */
   .page-break { page-break-after: always; break-after: page; }
@@ -4683,9 +4682,6 @@ body {
   .list-grid { page-break-inside: auto; }
   .row       { page-break-inside: avoid; break-inside: avoid; }
 }`;
-
-  // ── Watermark ─────────────────────────────────────────────────────────────
-  const wm = `<img class="wm" src="${wmUrl}" alt="" loading="eager">`;
 
   // ── Body HTML ─────────────────────────────────────────────────────────────
   const body = `<div class="card">
@@ -4719,9 +4715,7 @@ body {
   </div>
 </div>
 
-<!-- 6. Watermark lives OUTSIDE .card so position:fixed in @media print
-        is not clipped by .card's overflow — stamps on every printed page -->
-${wm}`;
+`;
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
@@ -4895,7 +4889,6 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#c5d6eb;
     ${cleanHeb?`<div style="direction:rtl;unicode-bidi:isolate">${cleanHeb}</div>`:''}
   </div>
 </div>
-<img class="wm" src="${base}watermark.png" alt="">
 </body></html>`;
   const url=URL.createObjectURL(new Blob([doc],{type:'text/html'}));
   const w=window.open(url,'_blank');
