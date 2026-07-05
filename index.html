@@ -403,6 +403,36 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   -webkit-overflow-scrolling:touch;
 }
 .multi-sel-pop.hidden{display:none}
+/* ── Searchable combobox — replaces native <select> for long lists (e.g.
+   Class/Student pickers with 150+ names) with a filter-as-you-type panel ── */
+.combo{position:relative;width:100%}
+.combo input.combo-input{
+  width:100%;height:44px;padding:0 34px 0 12px;border-radius:var(--r-md);
+  border:1px solid var(--line);background:var(--surface);box-shadow:var(--sh-1);
+  font-size:14px;color:var(--ink);font-family:inherit;
+  -webkit-appearance:none;appearance:none;
+}
+.combo input.combo-input:focus{outline:none;border-color:var(--accent)}
+.combo-clear{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:26px;height:26px;border:none;background:var(--surface-2,#f1f3fb);border-radius:50%;
+  color:var(--ink-faint);font-size:13px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1;padding:0;
+}
+.combo-panel{
+  position:absolute;z-index:50;top:calc(100% + 4px);left:0;right:0;
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.15);
+  max-height:260px;overflow-y:auto;padding:4px 0;
+  -webkit-overflow-scrolling:touch;
+}
+.combo-panel.hidden{display:none}
+.combo-opt{padding:10px 14px;font-size:13.5px;cursor:pointer;border-bottom:1px solid var(--line);color:var(--ink)}
+.combo-opt:last-child{border-bottom:none}
+.combo-opt:hover,.combo-opt.active{background:var(--surface-2,#f1f3fb)}
+.combo-opt-main{font-weight:600}
+.combo-opt-sub{font-size:11.5px;color:var(--ink-faint);margin-top:1px}
+.combo-empty{padding:14px;text-align:center;font-size:13px;color:var(--ink-faint)}
 .mopt{
   display:flex;align-items:center;gap:9px;
   padding:9px 14px;font-size:13.5px;cursor:pointer;
@@ -4412,20 +4442,135 @@ async function _renderBpLeaderboard(container, classId){
   }).join('');
 }
 
+// ── Reusable searchable combobox — replaces native <select> for long lists ──
+// Filter-as-you-type (fuzzy or substring), Up/Down/Enter/Escape keyboard nav,
+// click-outside-to-close, and a "✕" clear button. Used by the Baal Peh tab's
+// Class/Student pickers, but written generically so it can be reused
+// elsewhere without duplicating this logic.
+//
+// A single shared, self-cleaning registry of "close on outside click"
+// checkers is used instead of each mount adding its own document-level
+// listener — that would otherwise pile up a new listener every time the tab
+// re-renders (same leak class as the old per-render flush listeners fixed
+// earlier in this app). Each checker prunes itself the first time it notices
+// its own input has been removed from the DOM (e.g. after a re-render), so
+// growth is always bounded to "at most one extra click's worth."
+const _comboCloseCheckers=new Set();
+document.addEventListener('pointerdown', e=>{
+  _comboCloseCheckers.forEach(fn=>fn(e));
+});
+
+function _mountCombobox(opts){
+  const {inputId, panelId, clearId, items, getLabel, getSubLabel, placeholder, selectedId, onSelect, fuzzy}=opts;
+  const input=$(inputId), panel=$(panelId), clearBtn=$(clearId);
+  if(!input||!panel||!clearBtn) return;
+
+  let filtered=items.slice();
+  let activeIdx=-1;
+  let selected=selectedId?items.find(it=>String(it.id)===String(selectedId))||null:null;
+
+  const syncDisplay=()=>{
+    input.value=selected?getLabel(selected):'';
+    clearBtn.style.display=selected?'flex':'none';
+  };
+  syncDisplay();
+  input.placeholder=placeholder;
+
+  function renderPanel(){
+    if(!filtered.length){
+      panel.innerHTML=`<div class="combo-empty">No matches</div>`;
+    } else {
+      panel.innerHTML=filtered.map((it,i)=>{
+        const sub=getSubLabel?getSubLabel(it):'';
+        return `<div class="combo-opt${i===activeIdx?' active':''}" data-i="${i}">
+          <div class="combo-opt-main">${esc(getLabel(it)||'')}</div>
+          ${sub?`<div class="combo-opt-sub">${esc(sub)}</div>`:''}
+        </div>`;
+      }).join('');
+    }
+    panel.querySelectorAll('.combo-opt').forEach(el=>{
+      // pointerdown (not click) fires before the input's blur — this is what
+      // lets a tap/click on an option register cleanly on both desktop and
+      // mobile touch, instead of racing against blur closing the panel first.
+      el.addEventListener('pointerdown', ev=>{
+        ev.preventDefault();
+        pick(filtered[Number(el.dataset.i)]);
+      });
+    });
+  }
+
+  function filterNow(q){
+    if(!q){ filtered=items.slice(); activeIdx=filtered.length?0:-1; renderPanel(); return; }
+    if(fuzzy){
+      filtered=items
+        .map(it=>({it,score:Math.max(_fuzzyScore(getLabel(it)||'',q), getSubLabel?_fuzzyScore(getSubLabel(it)||'',q):0)}))
+        .filter(x=>x.score>0)
+        .sort((a,b)=>b.score-a.score)
+        .map(x=>x.it);
+    } else {
+      const ql=q.toLowerCase();
+      filtered=items.filter(it=>(getLabel(it)||'').toLowerCase().includes(ql));
+    }
+    activeIdx=filtered.length?0:-1;
+    renderPanel();
+  }
+
+  function openPanel(){ filterNow(input.value.trim()); panel.classList.remove('hidden'); }
+  function closePanel(){ panel.classList.add('hidden'); activeIdx=-1; }
+
+  function pick(it){
+    selected=it||null;
+    syncDisplay();
+    closePanel();
+    onSelect(it?it.id:'');
+  }
+
+  function scrollActiveIntoView(){
+    const el=panel.querySelector('.combo-opt.active');
+    if(el) el.scrollIntoView({block:'nearest'});
+  }
+
+  input.addEventListener('focus', openPanel);
+  input.addEventListener('click', openPanel);
+  input.addEventListener('input', e=>filterNow(e.target.value.trim()));
+  input.addEventListener('keydown', e=>{
+    if(panel.classList.contains('hidden') && (e.key==='ArrowDown'||e.key==='ArrowUp')){ openPanel(); return; }
+    if(e.key==='ArrowDown'){ e.preventDefault(); if(filtered.length){ activeIdx=(activeIdx+1)%filtered.length; renderPanel(); scrollActiveIntoView(); } }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); if(filtered.length){ activeIdx=(activeIdx-1+filtered.length)%filtered.length; renderPanel(); scrollActiveIntoView(); } }
+    else if(e.key==='Enter'){ e.preventDefault(); if(activeIdx>=0 && filtered[activeIdx]) pick(filtered[activeIdx]); }
+    else if(e.key==='Escape'){ closePanel(); syncDisplay(); input.blur(); }
+  });
+  clearBtn.onclick=e=>{ e.stopPropagation(); pick(null); input.focus(); openPanel(); };
+
+  const closer=e=>{
+    if(!document.contains(input)){ _comboCloseCheckers.delete(closer); return; } // self-prune once stale
+    const wrap=input.closest('.combo');
+    if(wrap && !wrap.contains(e.target)){ closePanel(); syncDisplay(); }
+  };
+  _comboCloseCheckers.add(closer);
+}
+
 async function renderBaalPeh(){
   const wrap=$('testSubView');
   const h=testsState.bp||(testsState.bp={classId:'',studentId:''});
   const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
-  const stuOpts=`<option value="">All students</option>${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
   wrap.innerHTML=`
     <div id="bpLeaderboard" class="bp-leaderboard"><div class="hist-empty" style="padding:18px">Loading leaderboard…</div></div>
     <div class="controls">
       <div class="ctl full"><span>Class</span>
-        <select id="bpClass">
-          <option value="">All classes</option>
-          ${state.classes.map(c=>`<option value="${c.id}" ${c.id===h.classId?'selected':''}>${esc(c.name)}</option>`).join('')}
-        </select></div>
-      <div class="ctl full"><span>Student</span><select id="bpStudent">${stuOpts}</select></div>
+        <div class="combo" id="bpClassCombo">
+          <input type="text" class="combo-input" id="bpClassInput" autocomplete="off" placeholder="All classes">
+          <button type="button" class="combo-clear" id="bpClassClear" style="display:none">✕</button>
+          <div class="combo-panel hidden" id="bpClassPanel"></div>
+        </div>
+      </div>
+      <div class="ctl full"><span>Student</span>
+        <div class="combo" id="bpStudentCombo">
+          <input type="text" class="combo-input" id="bpStudentInput" autocomplete="off" placeholder="All students">
+          <button type="button" class="combo-clear" id="bpStudentClear" style="display:none">✕</button>
+          <div class="combo-panel hidden" id="bpStudentPanel"></div>
+        </div>
+      </div>
     </div>
     <button class="btn btn-primary btn-block" id="bpLogBtn" style="margin-bottom:10px">+ Log session</button>
     <div class="search" style="margin-bottom:10px">
@@ -4434,8 +4579,20 @@ async function renderBaalPeh(){
     </div>
     <div class="zal-hint" style="margin:-2px 0 8px">Long-press a session to edit or delete it</div>
     <div id="bpList"><div class="hist-empty">Loading…</div></div>`;
-  $('bpClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; renderBaalPeh(); };
-  $('bpStudent').onchange=e=>{ h.studentId=e.target.value; loadBaalPehList(); };
+
+  _mountCombobox({
+    inputId:'bpClassInput', panelId:'bpClassPanel', clearId:'bpClassClear',
+    items:state.classes, getLabel:c=>c.name, placeholder:'All classes',
+    selectedId:h.classId, fuzzy:false,
+    onSelect:id=>{ h.classId=id||''; h.studentId=''; renderBaalPeh(); }
+  });
+  _mountCombobox({
+    inputId:'bpStudentInput', panelId:'bpStudentPanel', clearId:'bpStudentClear',
+    items:forClass, getLabel:s=>s.english_name||s.hebrew_name,
+    getSubLabel:s=>(s.english_name&&s.hebrew_name)?s.hebrew_name:'',
+    placeholder:'All students', selectedId:h.studentId, fuzzy:true,
+    onSelect:id=>{ h.studentId=id||''; loadBaalPehList(); }
+  });
   $('bpLogBtn').onclick=()=>openBpSheet();
   $('bpSearch').oninput=e=>{
     const q=e.target.value.trim().toLowerCase();
@@ -5637,3 +5794,4 @@ function _renderSthGrid(studentId){
 </div>
 </body>
 </html>
+   
