@@ -1245,6 +1245,7 @@ async function enterApp(){
   await loadAll();
   applyRoleUI();      // restrict UI after data is ready
   if(state.isTester) switchView('tests');
+  if(state.isLearningTeacher) switchView('tests');
   if(!state.schedule) state.schedule={date:todayStr()};
   // Handle tap-from-widget navigation
   const _wNav=localStorage.getItem('widget_nav');
@@ -1268,17 +1269,35 @@ async function enterApp(){
    3. DATA
    ========================================================= */
 async function loadRole(){
-  state.isTeacher=false; state.isTester=false; state.role='staff'; state.teacherClassIds=null;
+  state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.role='staff'; state.teacherClassIds=null;
   if(!state.user?.id) return;
   try{
     const {data}=await sb.from('profiles').select('role').eq('id',state.user.id).maybeSingle();
     state.role=data?.role||'staff';
     state.isTeacher=(state.role==='teacher');
     state.isTester=(state.role==='tester');
-  }catch(_){ state.role='staff'; state.isTeacher=false; state.isTester=false; }
+    // learning_teacher: staff who ONLY run Gemarah Baal Peh testing sessions —
+    // see applyRoleUI() / switchView() for the Tests-only lockdown this drives.
+    state.isLearningTeacher=(state.role==='learning_teacher');
+  }catch(_){ state.role='staff'; state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; }
 }
 
 function applyRoleUI(){
+  // ── Learning Teacher role: Tests tab ONLY (Gemarah Baal Peh testing only) ──
+  // Mirrors the Tester lockdown below exactly — same nav-button removal and
+  // same defensive removal of the mark/zal sub-views (not just the schedule/
+  // history/students/setup top-level nav tabs), so no widget-notification
+  // deep-link or other switchView() call can slip them into a view outside
+  // Tests. See also the switchView() coercion for the redirect-proof layer.
+  if(state.isLearningTeacher){
+    document.querySelectorAll('.navbtn').forEach(b=>{
+      if(b.dataset.view!=='tests') b.remove();
+    });
+    ['schedule','mark','zal','history','students','setup'].forEach(n=>{
+      const el=$('view-'+n); if(el) el.remove();
+    });
+    return;
+  }
   // ── Tester role: Tests tab ONLY, everything else stripped from the nav ──
   if(state.isTester){
     document.querySelectorAll('.navbtn').forEach(b=>{
@@ -1388,6 +1407,7 @@ async function loadMarks(sessionId=state.sessionId){
 function switchView(v){
   if(state.isTeacher && v==='setup') v='schedule'; // teachers have no setup access
   if(state.isTester) v='tests'; // testers are locked to Tests only
+  if(state.isLearningTeacher) v='tests'; // learning teachers are locked to Tests only
   state.view=v;
   // Leaving the Zal-override flow? Clear the flag (but keep it when bouncing between mark<->zal during override).
   if(v!=='zal' && v!=='mark') state.zal.fromClassSession=null;
@@ -5794,4 +5814,3 @@ function _renderSthGrid(studentId){
 </div>
 </body>
 </html>
-   
