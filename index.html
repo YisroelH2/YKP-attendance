@@ -252,8 +252,27 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .score-unit{font-size:13px;color:var(--ink-faint);font-weight:600;white-space:nowrap;min-width:28px}
 .score-pct{font-size:12px;color:var(--ink-faint);min-width:38px;text-align:right}
 .bp-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 13px;margin-bottom:7px;box-shadow:var(--sh-1)}
-.bp-meta{font-size:12px;color:var(--ink-faint);margin-top:3px}
+.bp-meta{font-size:12px;color:var(--ink-faint);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bp-txt{font-size:14px;font-weight:600;line-height:1.4}
+/* ── Baal Peh: structured Daf tracking ── */
+.bp-dafs{display:flex;flex-wrap:wrap;gap:4px}
+.bp-daf-pill{display:inline-block;background:var(--surface-2,#f1f3fb);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:800;color:var(--accent)}
+.bp-note{font-size:12.5px;color:var(--ink-soft);font-style:italic;margin-top:4px;line-height:1.35}
+.bp-progress-badge{font-size:10.5px;font-weight:800;background:var(--surface-2,#f1f3fb);color:var(--ink-soft);border-radius:999px;padding:1px 7px}
+.bp-progress-badge.complete{background:linear-gradient(90deg,#fff6d8,#ffe9a8);color:#8a6d00}
+.daf-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:4px}
+.daf-chip{height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-soft);font-weight:800;font-size:13px;cursor:pointer}
+.daf-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.bp-leaderboard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-1);margin-bottom:14px;max-height:280px;overflow-y:auto}
+.bp-lb-title{display:flex;align-items:center;gap:6px;padding:10px 13px;font-weight:800;font-size:14px;border-bottom:1px solid var(--line);background:var(--surface-2,#f1f3fb);position:sticky;top:0}
+.bp-lb-row{display:flex;align-items:center;gap:10px;padding:8px 13px;border-bottom:1px solid var(--line)}
+.bp-lb-row:last-child{border-bottom:none}
+.bp-lb-row.complete{background:linear-gradient(90deg,rgba(255,215,0,.12),transparent)}
+.bp-lb-rank{width:20px;text-align:center;font-weight:800;font-size:12.5px;color:var(--ink-faint);flex-shrink:0}
+.bp-lb-name{flex:1;min-width:0;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bp-lb-bar-wrap{width:56px;height:6px;background:var(--line);border-radius:99px;overflow:hidden;flex-shrink:0}
+.bp-lb-bar{height:100%;background:var(--accent);border-radius:99px}
+.bp-lb-frac{font-size:11.5px;font-weight:800;color:var(--accent);min-width:40px;text-align:right;flex-shrink:0}
 .tests-back{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;color:var(--accent);margin-bottom:12px;cursor:pointer;width:fit-content}
 .tests-back svg{width:18px;height:18px}
 .grade-type-toggle{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 14px}
@@ -4338,12 +4357,78 @@ body {
 }
 
 /* ---- Baal Peh sub-tab ---- */
+// Structured Daf tracking for Gemorah Meseches Brochos, Perek Zayin.
+// NOTE ON STORAGE: rather than requiring a Supabase schema migration, the
+// existing `ykp_baal_peh.material` text column now stores a JSON string
+// like {"dafim":["45a","45b"],"note":"fluent"}. Old free-text entries from
+// before this system existed simply fail JSON.parse and are shown as-is via
+// the legacy fallback path — nothing is deleted or broken, they just don't
+// count toward the 14-daf structured progress total.
+const BAAL_PEH_DAFIM=['45a','45b','46a','46b','47a','47b','48a','48b','49a','49b','50a','50b','51a','51b'];
+
+function _parseBpEntry(material){
+  try{
+    const obj=JSON.parse(material);
+    if(obj && typeof obj==='object' && Array.isArray(obj.dafim)){
+      return {dafim:obj.dafim.filter(d=>BAAL_PEH_DAFIM.includes(d)), note:obj.note||''};
+    }
+  }catch(_){}
+  return {dafim:[], note:material||''}; // legacy free-text entry
+}
+
+// Aggregates every logged session per student into a Set of unique Dafim.
+// Using a Set is what guarantees "if a Daf is logged twice, it doesn't
+// artificially inflate their total count" — Set membership is inherently
+// deduplicated, so re-testing the same Daf on a later date never double-counts.
+async function _computeBpProgress(){
+  const {data}=await sb.from('ykp_baal_peh').select('student_id,material');
+  const rows=data||[];
+  const stuById={}; state.students.forEach(s=>stuById[s.id]=s); // already teacher-scoped upstream
+  const progress={};
+  rows.forEach(r=>{
+    if(!stuById[r.student_id]) return;
+    const {dafim}=_parseBpEntry(r.material);
+    if(!progress[r.student_id]) progress[r.student_id]=new Set();
+    dafim.forEach(d=>progress[r.student_id].add(d));
+  });
+  return progress; // {student_id: Set<daf>}
+}
+
+// Renders the scrollable Leaderboard widget: ranked by unique-daf count
+// descending, with a crown for anyone who has reached the full 14/14.
+async function _renderBpLeaderboard(container, classId){
+  if(!container) return;
+  const progress=await _computeBpProgress();
+  let students=state.students.filter(s=>s.active!==false);
+  if(classId) students=students.filter(s=>(s.class_id||'__none__')===classId);
+  const total=BAAL_PEH_DAFIM.length;
+  const rows=students.map(s=>({student:s, count:(progress[s.id]||new Set()).size}))
+    .filter(r=>r.count>0)
+    .sort((a,b)=>b.count-a.count || (a.student.english_name||a.student.hebrew_name||'').localeCompare(b.student.english_name||b.student.hebrew_name||''));
+  if(!rows.length){
+    container.innerHTML=`<div class="bp-lb-title">🏆 Leaderboard</div><div class="hist-empty" style="padding:18px">No progress logged yet.</div>`;
+    return;
+  }
+  container.innerHTML=`<div class="bp-lb-title">🏆 Leaderboard</div>`+rows.map((r,i)=>{
+    const complete=r.count===total;
+    const pct=Math.round(r.count/total*100);
+    const name=esc(r.student.english_name||r.student.hebrew_name);
+    return `<div class="bp-lb-row ${complete?'complete':''}">
+      <div class="bp-lb-rank">${i+1}</div>
+      <div class="bp-lb-name">${name}${complete?' <span title="Eligible for reward">👑</span>':''}</div>
+      <div class="bp-lb-bar-wrap"><div class="bp-lb-bar" style="width:${pct}%"></div></div>
+      <div class="bp-lb-frac">${r.count}/${total}</div>
+    </div>`;
+  }).join('');
+}
+
 async function renderBaalPeh(){
   const wrap=$('testSubView');
   const h=testsState.bp||(testsState.bp={classId:'',studentId:''});
   const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
   const stuOpts=`<option value="">All students</option>${forClass.map(s=>`<option value="${s.id}" ${s.id===h.studentId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
   wrap.innerHTML=`
+    <div id="bpLeaderboard" class="bp-leaderboard"><div class="hist-empty" style="padding:18px">Loading leaderboard…</div></div>
     <div class="controls">
       <div class="ctl full"><span>Class</span>
         <select id="bpClass">
@@ -4369,6 +4454,7 @@ async function renderBaalPeh(){
       row.style.display=(!q||txt.includes(q)||row.textContent.includes(e.target.value.trim()))?'':'none';
     });
   };
+  _renderBpLeaderboard($('bpLeaderboard'), h.classId);
   await loadBaalPehList();
 }
 
@@ -4387,12 +4473,26 @@ async function loadBaalPehList(){
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
   const list=$('bpList'); if(!list)return;
   if(!filt.length){ list.innerHTML=`<div class="hist-empty">No sessions logged yet.</div>`; return; }
-  const stuById2={}; state.students.forEach(s=>stuById2[s.id]=s);
+
+  // Per-student TOTAL progress (unique dafim across every session they've ever
+  // had logged, not just the filtered rows shown here) so the badge next to
+  // each name always reflects their true overall count out of 14.
+  const progress=await _computeBpProgress();
+  const total=BAAL_PEH_DAFIM.length;
+
   list.innerHTML=filt.map(r=>{
-    const s=stuById2[r.student_id];
+    const s=stuById[r.student_id];
+    const {dafim,note}=_parseBpEntry(r.material);
+    const dafHtml=dafim.length
+      ? `<div class="bp-dafs">${dafim.map(d=>`<span class="bp-daf-pill">${esc(d)}</span>`).join('')}</div>`
+      : `<div class="bp-txt" dir="auto">${esc(r.material||'')}</div>`; // legacy free-text fallback
+    const count=(progress[r.student_id]||new Set()).size;
+    const complete=count===total;
+    const badge=s?`<span class="bp-progress-badge${complete?' complete':''}">${count}/${total} Dafim${complete?' 👑':''}</span>`:'';
     return `<div class="bp-row" data-id="${r.id}">
-      <div class="bp-txt" dir="auto">${esc(r.material)}</div>
-      <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} · ${r.date}</div>
+      ${dafHtml}
+      ${note?`<div class="bp-note" dir="auto">${esc(note)}</div>`:''}
+      <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} ${badge} · ${r.date}</div>
     </div>`;
   }).join('');
   // long-press a row to edit it
@@ -4417,10 +4517,17 @@ function openBpSheet(existing){
   let optStudents=forClass;
   if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=state.students.find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
   const stuOpts=`<option value="">Select student…</option>${optStudents.map(s=>`<option value="${s.id}" ${s.id===selId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
+  const existingParsed=editing?_parseBpEntry(existing.material):{dafim:[],note:''};
   openCustomSheet({id:'__bp__',title:editing?'Edit Baal Peh session':'Log Baal Peh session',html:`
     <div class="field"><label>Student</label><select id="bpStu" class="inp">${stuOpts}</select></div>
     <div class="field"><label>Date</label><input id="bpDate" class="inp" type="date" value="${editing?existing.date:todayStr()}"></div>
-    <div class="field"><label>Material / what they know</label><textarea id="bpMat" class="inp" rows="3" placeholder="e.g. Bava Metzia 5b–7a, fluent" style="height:auto;resize:vertical">${editing?esc(existing.material):''}</textarea></div>
+    <div class="field">
+      <label>Dafim tested — Meseches Brochos, Perek Zayin</label>
+      <div class="daf-grid" id="bpDafGrid">
+        ${BAAL_PEH_DAFIM.map(d=>`<button type="button" class="daf-chip ${existingParsed.dafim.includes(d)?'active':''}" data-d="${d}">${d}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="bpNote" class="inp" rows="2" placeholder="e.g. fluent, still shaky on Rashi" style="height:auto;resize:vertical">${esc(existingParsed.note)}</textarea></div>
     <div class="row2">
       <button class="btn btn-ghost" id="bpCancel" style="flex:1">Cancel</button>
       <button class="btn btn-primary" id="bpSave" style="flex:1">${editing?'Save changes':'Save'}</button>
@@ -4428,25 +4535,35 @@ function openBpSheet(existing){
     ${(editing&&!state.isTeacher)?`<button class="btn btn-block" id="bpDelete" style="margin-top:8px;background:var(--attn-bg);color:var(--attn);border:1px solid var(--attn)">Delete this session</button>`:''}`,
     onMount(){
       $('bpCancel').onclick=closeCustomSheet;
+      $('bpDafGrid').querySelectorAll('.daf-chip').forEach(chip=>{
+        chip.onclick=()=>chip.classList.toggle('active');
+      });
       $('bpSave').onclick=async()=>{
         const sid=$('bpStu').value; if(!sid){toast('Select a student',true);return;}
-        const mat=$('bpMat').value.trim(); if(!mat){toast('Enter material',true);return;}
+        const selected=[...$('bpDafGrid').querySelectorAll('.daf-chip.active')].map(c=>c.dataset.d);
+        if(!selected.length){toast('Select at least one Daf',true);return;}
+        const note=$('bpNote').value.trim();
+        // Stored as JSON inside the existing `material` column — no schema
+        // migration needed. Duplicate Dafim across sessions are handled at
+        // read-time via Set-based dedup (see _computeBpProgress), so
+        // re-logging the same Daf here is fine and never inflates the count.
+        const material=JSON.stringify({dafim:selected, note});
         if(editing){
-          const {error}=await sb.from('ykp_baal_peh').update({student_id:sid,date:$('bpDate').value,material:mat}).eq('id',existing.id);
+          const {error}=await sb.from('ykp_baal_peh').update({student_id:sid,date:$('bpDate').value,material}).eq('id',existing.id);
           if(error){toast('Could not save',true);return;}
           toast('Updated');
         } else {
-          const {error}=await sb.from('ykp_baal_peh').insert({student_id:sid,date:$('bpDate').value,material:mat});
+          const {error}=await sb.from('ykp_baal_peh').insert({student_id:sid,date:$('bpDate').value,material});
           if(error){toast('Could not save',true);return;}
           if(h.studentId===sid||!h.studentId){ h.studentId=sid; }
         }
-        closeCustomSheet(); loadBaalPehList();
+        closeCustomSheet(); renderBaalPeh();
       };
       if($('bpDelete')) $('bpDelete').onclick=async()=>{
         if(!confirm('Delete this Baal Peh session? This cannot be undone.'))return;
         const {error}=await sb.from('ykp_baal_peh').delete().eq('id',existing.id);
         if(error){toast('Could not delete',true);return;}
-        toast('Deleted'); closeCustomSheet(); loadBaalPehList();
+        toast('Deleted'); closeCustomSheet(); renderBaalPeh();
       };
     }
   });
