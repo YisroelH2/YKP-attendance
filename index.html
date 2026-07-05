@@ -2657,7 +2657,7 @@ function editStudent(id){
           const sameEng=rec.english_name&&(x.english_name||'').trim().toLowerCase()===rec.english_name.toLowerCase();
           return sameHeb||sameEng;
         });
-        if(dup){toast(`⚠ "${dup.hebrew_name||dup.english_name}" already exists — check the student list before adding.`,true);return;}
+        if(dup){toast('This student already exists in the system. Please contact the Director to have them assigned to your class view.',true);return;}
       }
       const r = s ? await sb.from('students').update(rec).eq('id',s.id)
                   : await sb.from('students').insert({...rec,active:true});
@@ -4216,8 +4216,9 @@ async function generateTestResultList(entries, heading, nameFmt, showScore, show
   const headerUrl=assetBase+'header.png';
 
   const _sn=s=>s?s.replace(/[\u0591-\u05C7]/g,''):'';
+  // Keep the day-of-month token (e.g. "כ׳" for the 20th) — only strip
+  // nikud/cantillation and the prepositional ב before the month name.
   const cleanHebDate=_sn(hebDate)
-    .replace(/^[\u05D0-\u05EA][\u05F3']+\s*/,'')
     .replace(/(^|\s)ב([\u05D0-\u05EA])/g,'$1$2')
     .trim();
 
@@ -4881,11 +4882,11 @@ async function generateShulList(entries,heading,showReason,nameFmt){
 
   // ── Hebrew date sanitization ──────────────────────────────────────────────
   // 1. Strip all nikud / cantillation (U+0591–U+05C7)
-  // 2. Remove leading day-of-month notation like "ד׳ " or "ד' "
-  // 3. Remove prepositional ב before month name
+  // 2. Remove prepositional ב before month name
+  // (The day-of-month, e.g. "ד׳", is intentionally KEPT — see the print
+  // header dynamic-date fix. Previously a 3rd step here stripped it.)
   const _sn = s => s ? s.replace(/[\u0591-\u05C7]/g,'') : '';
   const cleanHebDate = _sn(hebDate)
-    .replace(/^[\u05D0-\u05EA][\u05F3']+\s*/,'')   // strip "ד׳ " day prefix
     .replace(/(^|\s)ב([\u05D0-\u05EA])/g,'$1$2')   // strip ב month prefix
     .trim();
 
@@ -5271,7 +5272,8 @@ async function exportRafflePdf(winner){
   const ts=new Date().toLocaleString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
   let hebDate=''; try{ hebDate=await fetchHebDate(todayStr()); }catch{}
   const _sn=s=>s?s.replace(/[\u0591-\u05C7]/g,''):'';
-  const cleanHeb=_sn(hebDate).replace(/^[\u05D0-\u05EA][\u05F3']+\s*/,'')
+  // Day-of-month kept intentionally (see print header dynamic-date fix)
+  const cleanHeb=_sn(hebDate)
     .replace(/(^|\s)ב([\u05D0-\u05EA])/g,'$1$2').trim();
   const wName=esc(winner.hebrew_name||winner.english_name||'—');
   const enName=winner.english_name&&winner.hebrew_name?`<div class="sub">${esc(winner.english_name)}</div>`:'';
