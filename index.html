@@ -1022,6 +1022,30 @@ let toastT;
 function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='toast',2600);}
 
 /* =========================================================
+   GLOBAL AUTO-FLUSH SAFETY NET
+   ---------------------------------------------------------
+   Any input that saves on a debounce (types, then waits ~N ms before
+   writing to Supabase) has a window where a refresh, tab switch, or app
+   close happens BEFORE the timer fires — and the typed value is lost.
+   Rather than each feature wiring its own beforeunload/visibilitychange/
+   pagehide listeners (easy to forget one, easy to duplicate-register on
+   re-render), every debounced field registers a single "flush now"
+   callback here under a stable key. One shared set of page-lifecycle
+   listeners drains all of them. Call registerPendingFlush(key, fn) every
+   time you (re)schedule a debounce timer, and clearPendingFlush(key)
+   once the value has been saved another way (explicit Save button, etc).
+   ========================================================= */
+const _pendingFlushes=new Map();
+function registerPendingFlush(key,flushFn){ _pendingFlushes.set(key,flushFn); }
+function clearPendingFlush(key){ _pendingFlushes.delete(key); }
+function flushAllPending(){
+  _pendingFlushes.forEach(fn=>{ try{ fn(); }catch(_){} });
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) flushAllPending(); });
+window.addEventListener('pagehide', flushAllPending);
+window.addEventListener('beforeunload', flushAllPending);
+
+/* =========================================================
    2. BOOT
    ========================================================= */
 // Tell password managers (Bitwarden/LastPass/1Password) to leave every field alone
@@ -1095,7 +1119,19 @@ function wireEvents(){
   $('sheetSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{setSheetStatus(b.dataset.s);autoSaveSheet();});
   $('attnRow').onclick=()=>{state.sheetFlag=!state.sheetFlag;$('sheetFlag').classList.toggle('on',state.sheetFlag);autoSaveSheet();};
   let _sheetSaveTimer=null;
-  const debouncedAutoSave=()=>{clearTimeout(_sheetSaveTimer);_sheetSaveTimer=setTimeout(autoSaveSheet,600);};
+  // Debounced save for the attendance-detail sheet's Late-minutes and Note fields.
+  // Registers with the global flush registry on every keystroke so a refresh,
+  // tab switch, or app close mid-debounce still writes the latest value —
+  // this is the same class of bug the Tests-tab fix addressed.
+  const debouncedAutoSave=()=>{
+    const snapshot=_buildSheetRec(); // capture NOW — the sheet may switch students before the timer fires
+    clearTimeout(_sheetSaveTimer);
+    _sheetSaveTimer=setTimeout(()=>{ _sheetSaveTimer=null; clearPendingFlush('sheet'); autoSaveSheet(snapshot); },600);
+    registerPendingFlush('sheet', ()=>{
+      if(_sheetSaveTimer){ clearTimeout(_sheetSaveTimer); _sheetSaveTimer=null; }
+      autoSaveSheet(snapshot);
+    });
+  };
   $('sheetLate').oninput=debouncedAutoSave;
   $('sheetNote').oninput=debouncedAutoSave;
   $('sheetSave').onclick = saveSheet;
@@ -1891,29 +1927,33 @@ function closeSheet(){
   $('sheet').classList.remove('show');$('sheetBg').classList.remove('show');
   setTimeout(()=>$('sheetBg').classList.add('hidden'),240);
 }
-async function autoSaveSheet(){
-  const s=state.sheetStudent; if(!s) return;
+// Builds the attendance record from the sheet's CURRENT live state/DOM values.
+// Used both for immediate saves and to take a point-in-time snapshot for the
+// debounced flush (see wireEvents), so a save triggered by a page-lifecycle
+// event always writes what was actually typed, not whatever is on screen by
+// the time the timer fires.
+function _buildSheetRec(){
+  const s=state.sheetStudent; if(!s) return null;
   const ses=state.sheetSession||state.sessionId;
-  const d=state.date;
-  const rerender=state.sheetRerender||renderGrid;
-  const rec={student_id:s.id,session_id:ses,date:d,status:state.sheetStatus,
+  return {student_id:s.id,session_id:ses,date:state.date,status:state.sheetStatus,
     late_minutes:state.sheetStatus==='late'?(parseInt($('sheetLate').value)||0):null,
     note:$('sheetNote').value.trim()||null, flagged:state.sheetFlag,
     marked_by:state.user.id, marked_at:new Date().toISOString()};
-  state.marks[s.id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
+}
+async function autoSaveSheet(snapshot){
+  const rec=snapshot||_buildSheetRec(); if(!rec) return;
+  const ses=rec.session_id;
+  const rerender=state.sheetRerender||renderGrid;
+  state.marks[rec.student_id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
   rerender();
   await writeAtt(rec,async()=>{await loadMarks(ses);rerender();});
 }
 async function saveSheet(){
-  const s=state.sheetStudent; if(!s)return;
-  const ses=state.sheetSession||state.sessionId;
-  const d=state.date;
+  const rec=_buildSheetRec(); if(!rec)return;
+  const ses=rec.session_id;
   const rerender=state.sheetRerender||renderGrid;
-  const rec={student_id:s.id,session_id:ses,date:d,status:state.sheetStatus,
-    late_minutes:state.sheetStatus==='late'?(parseInt($('sheetLate').value)||0):null,
-    note:$('sheetNote').value.trim()||null, flagged:state.sheetFlag,
-    marked_by:state.user.id, marked_at:new Date().toISOString()};
-  state.marks[s.id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
+  state.marks[rec.student_id]={status:rec.status,late_minutes:rec.late_minutes,note:rec.note,flagged:rec.flagged};
+  clearPendingFlush('sheet');
   closeSheet(); rerender();
   await writeAtt(rec,async()=>{await loadMarks(ses);rerender();});
 }
@@ -1922,6 +1962,7 @@ async function clearSheet(){
   const ses=state.sheetSession||state.sessionId;
   const d=state.date;
   const rerender=state.sheetRerender||renderGrid;
+  clearPendingFlush('sheet');
   delete state.marks[s.id]; closeSheet(); rerender();
   await deleteAtt({student_id:s.id,session_id:ses,date:d},async()=>{await loadMarks(ses);rerender();});
 }
@@ -2249,7 +2290,8 @@ async function openPhotoEditor(id){
           const up=await sb.storage.from('photos').upload(path,b,{upsert:true,contentType:'image/jpeg'});
           URL.revokeObjectURL(objectUrl);
           if(up.error){ toast('Upload failed: '+up.error.message,true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
-          await sb.from('students').update({photo_path:path}).eq('id',id);
+          const dbUp=await sb.from('students').update({photo_path:path}).eq('id',id);
+          if(dbUp.error){ toast('Photo uploaded but could not be linked — try again',true); $('peSave').disabled=false; $('peSave').textContent='Save'; return; }
           const stu2=state.students.find(s=>s.id===id); if(stu2)stu2.photo_path=path;
           // Use a local blob URL immediately — bypasses CDN cache entirely so the
           // correct edited photo shows right away without waiting for cache expiry.
@@ -2622,7 +2664,11 @@ function editStudent(id){
       if(r.error){toast('Save failed: '+r.error.message,true);return;}
       closeForm(); await loadAll(); renderStudents(); toast('Saved');
     },
-    onDelete: (s&&!state.isTeacher)?async()=>{await sb.from('students').delete().eq('id',s.id);closeForm();await loadAll();renderStudents();toast('Student deleted');}:null,
+    onDelete: (s&&!state.isTeacher)?async()=>{
+      const {error}=await sb.from('students').delete().eq('id',s.id);
+      if(error){ toast('Delete failed — check connection',true); return; }
+      closeForm();await loadAll();renderStudents();toast('Student deleted');
+    }:null,
   });
   // Inject photo section at top of formBody when editing an existing student
   if(s){
@@ -2654,8 +2700,9 @@ async function reorderClass(fromIdx,toIdx){
   const cls=state.classes;
   if(toIdx<0||toIdx>=cls.length)return;
   [cls[fromIdx],cls[toIdx]]=[cls[toIdx],cls[fromIdx]];
-  await Promise.all(cls.map((c,i)=>sb.from('classes').update({sort_order:i+1}).eq('id',c.id)));
   renderSetup();
+  const results=await Promise.all(cls.map((c,i)=>sb.from('classes').update({sort_order:i+1}).eq('id',c.id)));
+  if(results.some(r=>r.error)){ toast('Reorder failed — check connection',true); await loadAll(); renderSetup(); }
 }
 function editClass(id){
   const c=id?state.classes.find(x=>x.id===id):null;
@@ -2676,7 +2723,11 @@ function editClass(id){
       if(r.error){toast('Save failed: '+r.error.message,true);return;}
       closeForm(); await loadAll(); renderSetup(); toast('Saved');
     },
-    onDelete: c?async()=>{await sb.from('classes').delete().eq('id',c.id);closeForm();await loadAll();renderSetup();toast('Class deleted — its students are now unassigned');}:null,
+    onDelete: c?async()=>{
+      const {error}=await sb.from('classes').delete().eq('id',c.id);
+      if(error){ toast('Delete failed — check connection',true); return; }
+      closeForm();await loadAll();renderSetup();toast('Class deleted — its students are now unassigned');
+    }:null,
   });
 }
 function _renderSesCal(container){
@@ -2767,7 +2818,8 @@ async function editSession(id){
       closeForm(); state.sessionId=s?state.sessionId:null; await loadAll(); renderSetup(); if($('calScroll'))renderSchedule(); toast('Saved');
     },
     onDelete:s?async()=>{
-      await sb.from('sessions').delete().eq('id',s.id);
+      const {error}=await sb.from('sessions').delete().eq('id',s.id);
+      if(error){ toast('Delete failed — check connection',true); return; }
       closeForm();state.sessionId=null;await loadAll();renderSetup();if($('calScroll'))renderSchedule();toast('Session deleted');
     }:null,
   });
@@ -3132,15 +3184,26 @@ async function newArrangement(){
   state.zal.arrangementId=data.id; state.zal.mode='edit'; state.zal.tool='seat';
   await loadZal(); await fillGrid(); renderZal();
 }
-async function renameArrangement(){ const a=curArr(); const n=prompt('Rename arrangement:',a.name); if(!n||!n.trim())return; await sb.from('arrangements').update({name:n.trim()}).eq('id',a.id); a.name=n.trim(); renderZal(); }
-async function deleteArrangement(){ const a=curArr(); if(!confirm(`Delete "${a.name}" and its whole layout?`))return; await sb.from('arrangements').delete().eq('id',a.id); state.zal.arrangementId=null; await loadZal(); renderZal(); }
+async function renameArrangement(){
+  const a=curArr(); const n=prompt('Rename arrangement:',a.name); if(!n||!n.trim())return;
+  const {error}=await sb.from('arrangements').update({name:n.trim()}).eq('id',a.id);
+  if(error){ toast('Save failed — check connection',true); return; }
+  a.name=n.trim(); renderZal();
+}
+async function deleteArrangement(){
+  const a=curArr(); if(!confirm(`Delete "${a.name}" and its whole layout?`))return;
+  const {error}=await sb.from('arrangements').delete().eq('id',a.id);
+  if(error){ toast('Delete failed — check connection',true); return; }
+  state.zal.arrangementId=null; await loadZal(); renderZal();
+}
 async function setGrid(dr,dc){
   const a=curArr();
   a.grid_rows=Math.max(1,Math.min(20,(a.grid_rows||5)+dr));
   a.grid_cols=Math.max(1,Math.min(20,(a.grid_cols||10)+dc));
-  await sb.from('arrangements').update({grid_rows:a.grid_rows,grid_cols:a.grid_cols}).eq('id',a.id);
+  const {error}=await sb.from('arrangements').update({grid_rows:a.grid_rows,grid_cols:a.grid_cols}).eq('id',a.id);
+  if(error){ toast('Save failed — check connection',true); return; }
   const oob=zalData.tables.filter(t=>t.grid_row>=a.grid_rows||t.grid_col>=a.grid_cols);
-  for(const t of oob) await sb.from('zal_tables').delete().eq('id',t.id);
+  for(const t of oob){ const r=await sb.from('zal_tables').delete().eq('id',t.id); if(r.error) toast('Save failed — check connection',true); }
   await loadZalLayout(); renderZal();
 }
 async function fillGrid(){
@@ -3152,7 +3215,8 @@ async function fillGrid(){
   const {data,error}=await sb.from('zal_tables').insert(add).select();
   if(error){toast('Fill failed: '+error.message,true);return;}
   const seats=[]; (data||[]).forEach(t=>{seats.push({table_id:t.id,slot:0});seats.push({table_id:t.id,slot:1});});
-  await sb.from('seats').insert(seats);
+  const seatIns=await sb.from('seats').insert(seats);
+  if(seatIns.error) toast('Tables saved, but seats failed — reopen this view to retry',true);
   await loadZalLayout(); renderZalGrid();
 }
 async function addTableCell(r,c){
@@ -3192,19 +3256,34 @@ async function _doAddTableCell(r,c,type){
     const {data,error}=await sb.from('zal_tables').insert(toAdd.map(([rr,cc])=>({arrangement_id:state.zal.arrangementId,grid_row:rr,grid_col:cc}))).select();
     if(error){toast('Failed: '+error.message,true);return;}
     const seats=[]; (data||[]).forEach(t=>{seats.push({table_id:t.id,slot:0});seats.push({table_id:t.id,slot:1});});
-    if(seats.length) await sb.from('seats').insert(seats);
+    if(seats.length){ const r=await sb.from('seats').insert(seats); if(r.error) toast('Table saved, but seats failed — reopen this view to retry',true); }
   } else {
     const {data,error}=await sb.from('zal_tables').insert({arrangement_id:state.zal.arrangementId,grid_row:r,grid_col:c}).select().single();
     if(error){toast('Failed: '+error.message,true);return;}
     const seats=[{table_id:data.id,slot:0}];
     if(type==='paired') seats.push({table_id:data.id,slot:1});
-    await sb.from('seats').insert(seats);
+    const r=await sb.from('seats').insert(seats);
+    if(r.error) toast('Table saved, but seats failed — reopen this view to retry',true);
   }
   await loadZalLayout(); renderZalGrid();
 }
-async function deleteTableCell(tid){ await sb.from('zal_tables').delete().eq('id',tid); await loadZalLayout(); renderZalGrid(); }
-async function cycleSide(){ const a=curArr(); const o=['top','right','bottom','left']; const n=o[(o.indexOf(a.front_side||'top')+1)%4]; a.front_side=n; await sb.from('arrangements').update({front_side:n}).eq('id',a.id); renderZal(); }
-async function cycleFront(){ const a=curArr(); const o=['aron','bimah','door']; const n=o[(o.indexOf(a.front_kind||'aron')+1)%3]; a.front_kind=n; await sb.from('arrangements').update({front_kind:n}).eq('id',a.id); renderZal(); }
+async function deleteTableCell(tid){
+  const {error}=await sb.from('zal_tables').delete().eq('id',tid);
+  if(error){ toast('Delete failed — check connection',true); return; }
+  await loadZalLayout(); renderZalGrid();
+}
+async function cycleSide(){
+  const a=curArr(); const o=['top','right','bottom','left']; const n=o[(o.indexOf(a.front_side||'top')+1)%4];
+  const prev=a.front_side; a.front_side=n; renderZal();
+  const {error}=await sb.from('arrangements').update({front_side:n}).eq('id',a.id);
+  if(error){ a.front_side=prev; toast('Save failed — check connection',true); renderZal(); }
+}
+async function cycleFront(){
+  const a=curArr(); const o=['aron','bimah','door']; const n=o[(o.indexOf(a.front_kind||'aron')+1)%3];
+  const prev=a.front_kind; a.front_kind=n; renderZal();
+  const {error}=await sb.from('arrangements').update({front_kind:n}).eq('id',a.id);
+  if(error){ a.front_kind=prev; toast('Save failed — check connection',true); renderZal(); }
+}
 
 /* ---- seating + marking ---- */
 function onZalSeatTap(el){
@@ -3226,7 +3305,15 @@ async function assignSeat(seatId, studentId){
     if(old){ old.student_id=prev; writes.push([old.id,prev]); }
   } else { seat.student_id=null; writes.push([seatId,null]); }
   closePicker(); renderZalGrid();
-  for(const [id,sid] of writes) await sb.from('seats').update({student_id:sid}).eq('id',id);
+  let failed=false;
+  for(const [id,sid] of writes){
+    const {error}=await sb.from('seats').update({student_id:sid}).eq('id',id);
+    if(error) failed=true;
+  }
+  if(failed){
+    toast('Seat save failed — check connection',true);
+    await loadZalLayout(); renderZalGrid(); // resync UI with the true DB state
+  }
 }
 // Repaint ONE seat in place (fast) instead of rebuilding the whole hall on every tap
 function paintSeat(studentId){
@@ -3306,9 +3393,15 @@ function openZalPicker(seatId){
 }
 async function assignStaffSeat(seatId, makeStaff){
   const seat=zalData.seats.find(s=>s.id===seatId); if(!seat)return;
+  const prevStaff=seat.is_staff, prevStudent=seat.student_id;
   seat.is_staff=makeStaff; if(makeStaff) seat.student_id=null;
   closePicker(); renderZalGrid();
-  await sb.from('seats').update({is_staff:makeStaff,student_id:makeStaff?null:seat.student_id}).eq('id',seatId);
+  const {error}=await sb.from('seats').update({is_staff:makeStaff,student_id:makeStaff?null:seat.student_id}).eq('id',seatId);
+  if(error){
+    seat.is_staff=prevStaff; seat.student_id=prevStudent;
+    toast('Save failed — check connection',true);
+    renderZalGrid();
+  }
 }
 
 /* ---- generic student picker ---- */
@@ -3894,11 +3987,22 @@ async function renderGradeEntry(v){
     }
     _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
   }
+  // Best-effort: flush any input still mid-debounce if the tab is closed/refreshed/backgrounded.
+  // Registered under a stable per-test key in the shared flush registry (see top of file)
+  // instead of adding a fresh document/window listener on every render of this view —
+  // renderGradeEntry can be called repeatedly (filter changes, re-navigation), and raw
+  // addEventListener calls here would otherwise pile up a new listener each time.
+  const _flushPendingScores=()=>{
+    v.querySelectorAll('.score-inp').forEach(inp=>{
+      if(_scoreSaveTimers.get(inp)){ clearTimeout(_scoreSaveTimers.get(inp)); _saveScoreNow(inp); }
+    });
+  };
   v.querySelectorAll('.score-inp').forEach(inp=>{
     // Debounced save — fires while typing, no blur required
     inp.addEventListener('input', ()=>{
       clearTimeout(_scoreSaveTimers.get(inp));
       _scoreSaveTimers.set(inp, setTimeout(()=>_saveScoreNow(inp), 350));
+      registerPendingFlush('test-scores-'+t.id, _flushPendingScores);
     });
     // Immediate save on blur/Enter — cancels any pending debounce so we don't double-write
     inp.addEventListener('change', ()=>{
@@ -3906,15 +4010,6 @@ async function renderGradeEntry(v){
       _saveScoreNow(inp);
     });
   });
-  // Best-effort: flush any input still mid-debounce if the tab is closed/refreshed/backgrounded.
-  // Not 100% guaranteed on all mobile browsers, but meaningfully reduces the data-loss window.
-  const _flushPendingScores=()=>{
-    v.querySelectorAll('.score-inp').forEach(inp=>{
-      if(_scoreSaveTimers.get(inp)){ clearTimeout(_scoreSaveTimers.get(inp)); _saveScoreNow(inp); }
-    });
-  };
-  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) _flushPendingScores(); });
-  window.addEventListener('pagehide', _flushPendingScores);
 }
 
 // ── Apply search + pass/fail filter to score rows ────────────────────────────
@@ -4065,7 +4160,8 @@ function openBpSheet(existing){
 /* generic custom sheet (for Tests forms that don't need the attendance-status seg) */
 async function deleteTest(tid){
   if(!confirm('Delete this test and all its scores?\nThis cannot be undone.')) return;
-  await sb.from('ykp_test_scores').delete().eq('test_id',tid);
+  const scoreDel=await sb.from('ykp_test_scores').delete().eq('test_id',tid);
+  if(scoreDel.error){ toast('Delete failed — check connection',true); return; }
   const {error}=await sb.from('ykp_tests').delete().eq('id',tid);
   if(error){toast('Could not delete test',true);return;}
   toast('Test deleted');
@@ -4192,18 +4288,28 @@ function updateOfflineBar(){
   }else{ bar.classList.add('hidden'); }
 }
 async function writeAtt(rec,onFail,isBatch){
-  const op=navigator.onLine?await sb.from('attendance').upsert(Array.isArray(rec)?rec:[rec],{onConflict:'student_id,session_id,date'}):null;
-  if(!navigator.onLine||op?.error){
-    const recs=Array.isArray(rec)?rec:[rec];
-    recs.forEach(r=>enqueue({op:'upsert',data:r}));
+  const recs=Array.isArray(rec)?rec:[rec];
+  let failed=!navigator.onLine;
+  if(navigator.onLine){
+    try{
+      const op=await sb.from('attendance').upsert(recs,{onConflict:'student_id,session_id,date'});
+      if(op.error) failed=true;
+    }catch(e){ failed=true; } // network exception (not just a returned .error) — still must not lose the mark
   }
+  if(failed) recs.forEach(r=>enqueue({op:'upsert',data:r}));
 }
 async function deleteAtt(match,onFail){
   // remove any pending upsert for this slot from queue
   const key=match.student_id+'|'+match.session_id+'|'+match.date;
   setQueue(getQueue().filter(x=>x._key!==key));
-  const op=navigator.onLine?await sb.from('attendance').delete().match(match):null;
-  if(!navigator.onLine||op?.error) enqueue({op:'delete',match});
+  let failed=!navigator.onLine;
+  if(navigator.onLine){
+    try{
+      const op=await sb.from('attendance').delete().match(match);
+      if(op.error) failed=true;
+    }catch(e){ failed=true; }
+  }
+  if(failed) enqueue({op:'delete',match});
   updateOfflineBar();
 }
 async function syncQueue(){
@@ -4212,8 +4318,10 @@ async function syncQueue(){
   let failed=[];
   for(const item of q){
     let err;
-    if(item.op==='upsert'){const r=await sb.from('attendance').upsert(item.data,{onConflict:'student_id,session_id,date'});err=r.error;}
-    else if(item.op==='delete'){const r=await sb.from('attendance').delete().match(item.match);err=r.error;}
+    try{
+      if(item.op==='upsert'){const r=await sb.from('attendance').upsert(item.data,{onConflict:'student_id,session_id,date'});err=r.error;}
+      else if(item.op==='delete'){const r=await sb.from('attendance').delete().match(item.match);err=r.error;}
+    }catch(e){ err=e; }
     if(err) failed.push(item);
   }
   setQueue(failed);
@@ -4398,9 +4506,9 @@ async function generateReportCards(studentIds,from,to){
 
 /* ===================== SHUL LIST (hang-up PDF) ===================== */
 const SHUL_PRESETS=[
-  'The following boys please come to the Shul during first activity',
-  'The following boys please report to the learning director',
-  'The following boys please see the Rosh during first seder'
+  'The following Bochurim please come to the Shul during first activity',
+  'The following Bochurim please report to the learning director',
+  'The following Bochurim please see the Rosh during first seder'
 ];
 function openShulListSheet(){
   const h=state.history;
@@ -4421,7 +4529,7 @@ function openShulListSheet(){
   const uniqueCount=new Set(entries.map(e=>e.student.id)).size;
   openCustomSheet({
     id:'__shul__',
-    title:`Shul list — ${uniqueCount} ${uniqueCount===1?'boy':'boys'}`,
+    title:`Shul list — ${uniqueCount} ${uniqueCount===1?'Bochur':'Bochurim'}`,
     html:`<p class="muted" style="margin-bottom:8px">Pick a heading, then generate a printable list to hang up. Use your browser's Print → Save as PDF.</p>
       <div class="field"><label>Heading</label>
         <textarea id="shulHdr" class="inp" rows="2" style="resize:none">${esc(SHUL_PRESETS[0])}</textarea>
@@ -4542,7 +4650,10 @@ async function generateShulList(entries,heading,showReason,nameFmt){
         const sesH=rec.sesName?`<span class="reason-ses">${esc(rec.sesName)}</span>`:'';
         const rsnH=rec.lbl?`<span class="reason-lbl">${esc(rec.lbl)}</span>`:'';
         const noteH=rec.note?`<span class="reason-note">${esc(rec.note)}</span>`:'';
-        return `<div class="sess-line">${clsHtml}${sesH}${rsnH}${noteH}</div>`;
+        // Teacher's name stays left; Session name + status are grouped and pushed
+        // to the right edge of the row via .sess-toprow's justify-content:space-between.
+        const rightGroup=(sesH||rsnH)?`<span class="sess-right">${sesH}${rsnH}</span>`:'';
+        return `<div class="sess-line"><div class="sess-toprow">${clsHtml}${rightGroup}</div>${noteH}</div>`;
       }).filter(Boolean).join('');
     }
     return `<div class="row"><span class="name">${nameCell(s)}</span>${sessHtml?`<div class="sessions">${sessHtml}</div>`:''}</div>`;
@@ -4667,8 +4778,11 @@ body {
   border-bottom: 1px solid #e2e8f4;
 }
 .name     { font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
-.sessions { margin-top:3px; padding-left:10px; border-left:2px solid #dde6f3; display:flex; flex-direction:column; gap:2px; }
-.sess-line{ display:flex; gap:5px; align-items:baseline; flex-wrap:wrap; }
+.sessions { margin-top:3px; padding-left:10px; border-left:2px solid #dde6f3; display:flex; flex-direction:column; gap:4px; }
+.sess-line{ display:flex; flex-direction:column; gap:1px; }
+/* Top row: teacher's name (left) ◄──────────► session name + status (right) */
+.sess-toprow{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.sess-right{ display:flex; align-items:baseline; gap:5px; flex-shrink:0; white-space:nowrap; }
 .reason-cls  { font-style:italic; color:#888888; font-size:0.82em; font-weight:400; white-space:nowrap }
 .reason-ses  { color:#4f6ab8; font-size:0.82em; font-weight:600; white-space:nowrap }
 .reason-lbl  { color:#c0392b; font-size:0.82em; font-weight:700; white-space:nowrap }
