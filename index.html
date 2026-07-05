@@ -3707,7 +3707,7 @@ function openNewTestSheet(){
   });
 }
 
-// ── Test grade summary: marked count + average ────────────────────────────────
+// ── Test grade summary: marked count + average + pass/fail ─────────────────
 function _refreshGradeSummary(t, container){
   const el=(container||document).querySelector('#gradeSummary');
   if(!el) return;
@@ -3721,6 +3721,9 @@ function _refreshGradeSummary(t, container){
   const avg=scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : null;
   const isPoints=t.grade_type==='points' && t.max_points;
   const avgMain=avg===null?'—':(isPoints?avg.toFixed(1):avg.toFixed(1)+'%');
+  const passing=testsState.passing?.[t.id]??60;
+  let passCount=0,failCount=0;
+  scores.forEach(score=>{ const pct=isPoints?(score/t.max_points*100):score; if(pct>=passing)passCount++; else failCount++; });
   el.innerHTML=`
     <div class="gs-chip">
       <div class="gs-val">${marked.length}<span style="font-size:13px;font-weight:600;color:var(--ink-faint)"> / ${visible.length}</span></div>
@@ -3735,7 +3738,11 @@ function _refreshGradeSummary(t, container){
     <div class="gs-chip">
       <div class="gs-val">${avg===null?'—':Math.round(avg/t.max_points*100)+'%'}</div>
       <div class="gs-lbl">Avg %</div>
-    </div>`:''}`;
+    </div>`:''}
+    ${scores.length?`<div class="gs-divider"></div>
+    <div class="gs-chip"><div class="gs-val" style="color:var(--on)">${passCount}</div><div class="gs-lbl">Passed</div></div>
+    <div class="gs-divider"></div>
+    <div class="gs-chip"><div class="gs-val" style="color:var(--attn)">${failCount}</div><div class="gs-lbl">Failed</div></div>`:''}`;
 }
 
 async function renderGradeEntry(v){
@@ -3744,24 +3751,43 @@ async function renderGradeEntry(v){
   let students=state.students.filter(s=>s.active!==false);
   const classIds=(t.class_ids&&t.class_ids.length>0)?t.class_ids:(t.class_id?[t.class_id]:[]);
   if(classIds.length>0) students=students.filter(s=>classIds.includes(s.class_id));
+  // Sort alphabetically by English name, falling back to Hebrew name
+  students=students.slice().sort((a,b)=>{
+    const na=(a.english_name||a.hebrew_name||'').toLowerCase();
+    const nb=(b.english_name||b.hebrew_name||'').toLowerCase();
+    return na<nb?-1:na>nb?1:0;
+  });
   const {data:scores}=await sb.from('ykp_test_scores').select('*').eq('test_id',t.id);
   const byStudent={}; (scores||[]).forEach(r=>byStudent[r.student_id]=r);
   const clsNames=classIds.map(id=>clsById[id]?.name).filter(Boolean);
   const clsText=clsNames.length?clsNames.join(', '):'All classes';
+  // Init passing/filter state per test
+  if(!testsState.passing) testsState.passing={};
+  if(testsState.passing[t.id]===undefined) testsState.passing[t.id]=60;
+  if(!testsState.gradeFilter) testsState.gradeFilter={};
+  if(!testsState.gradeFilter[t.id]) testsState.gradeFilter[t.id]='all';
+  const passingPct=testsState.passing[t.id];
+  const isPoints=t.grade_type==='points'&&t.max_points;
 
   let rows='';
   students.forEach(s=>{
     const sc=byStudent[s.id];
     const val=sc!=null?sc.score:'';
     const unit=t.grade_type==='percent'?'%':'/'+t.max_points;
-    const pct=sc!=null&&t.grade_type==='points'&&t.max_points?` (${Math.round(sc.score/t.max_points*100)}%)`:'';
-    rows+=`<div class="score-row">
+    const pct=sc!=null&&isPoints?` (${Math.round(sc.score/t.max_points*100)}%)`:'';
+    rows+=`<div class="score-row" data-sid="${s.id}">
       <div class="score-name"><div class="score-heb" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>${(s.english_name&&s.hebrew_name)?`<div class="score-eng-sub">${esc(s.english_name)}</div>`:''}</div>
       <input class="score-inp" data-sid="${s.id}" type="number" min="0" max="${t.grade_type==='percent'?100:t.max_points}" inputmode="decimal" placeholder="–" value="${val}">
       <span class="score-unit">${unit}</span>
       <span class="score-pct" data-pct="${s.id}">${pct}</span>
     </div>`;
   });
+
+  const _filterBtn=(f,lbl)=>{
+    const active=testsState.gradeFilter[t.id]===f;
+    const col=f==='passed'?'var(--on)':f==='failed'?'var(--attn)':f==='unmarked'?'var(--ink-faint)':'var(--accent)';
+    return `<button class="grade-filter-btn" data-f="${f}" style="height:32px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:700;border:1.5px solid ${active?col:'var(--line)'};background:${active?'color-mix(in srgb,'+col+' 15%,transparent)':'var(--surface)'};color:${active?col:'var(--ink-soft)'};white-space:nowrap">${lbl}</button>`;
+  };
 
   v.innerHTML=`
     <div class="tests-back" id="testsBack">
@@ -3772,9 +3798,22 @@ async function renderGradeEntry(v){
       <div style="font-weight:800;font-size:17px">${esc(t.name)}</div>
       <div style="font-size:12px;color:var(--ink-faint)">${fmtTestDate(t.date)} · ${esc(clsText)}</div>
     </div>
-    <div class="search" style="margin-bottom:10px">
+    <div class="search" style="margin-bottom:8px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="testStuSearch" placeholder="Search students…">
+    </div>
+    <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:4px 10px;box-shadow:var(--sh-1);flex-shrink:0">
+        <span style="font-size:12px;font-weight:600;color:var(--ink-soft);white-space:nowrap">Passing:</span>
+        <input id="passingPct" type="number" min="0" max="100" value="${passingPct}" style="width:40px;height:26px;border:none;background:transparent;font-size:14px;font-weight:800;color:var(--accent);text-align:center;padding:0;-webkit-appearance:none">
+        <span style="font-size:12px;color:var(--ink-faint);font-weight:600">%</span>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${_filterBtn('all','All')}
+        ${_filterBtn('passed','✓ Passed')}
+        ${_filterBtn('failed','✗ Failed')}
+        ${_filterBtn('unmarked','— Unmarked')}
+      </div>
     </div>
     <div class="zal-hint" style="margin:-4px 0 10px">Tap a score to edit · changes save automatically</div>
     <div id="gradeSummary" class="grade-summary"></div>
@@ -3784,35 +3823,86 @@ async function renderGradeEntry(v){
   $('testsBack').onclick=()=>{ testsState.activeTest=null; renderTests(); };
   _refreshGradeSummary(t, v);
   if($('testDelBtn')) $('testDelBtn').onclick=()=>deleteTest(t.id);
-  $('testStuSearch').oninput=e=>{
-    const q=e.target.value.trim().toLowerCase();
-    v.querySelectorAll('.score-row').forEach(row=>{
-      const name=row.querySelector('.score-name')?.textContent||'';
-      row.style.display=(!q||name.toLowerCase().includes(q)||name.includes(e.target.value.trim()))?'':'none';
-    });
-    _refreshGradeSummary(t, v);
+
+  // Search
+  $('testStuSearch').oninput=e=>{ _applyGradeFilters(t, v, e.target.value.trim().toLowerCase()); };
+
+  // Passing % threshold
+  $('passingPct').oninput=e=>{
+    const val=parseInt(e.target.value);
+    if(!isNaN(val)&&val>=0&&val<=100){
+      testsState.passing[t.id]=val;
+      _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
+    }
   };
+
+  // Filter buttons
+  v.querySelectorAll('.grade-filter-btn').forEach(btn=>{
+    btn.onclick=()=>{
+      testsState.gradeFilter[t.id]=btn.dataset.f;
+      v.querySelectorAll('.grade-filter-btn').forEach(b=>{
+        const f=b.dataset.f; const active=f===testsState.gradeFilter[t.id];
+        const col=f==='passed'?'var(--on)':f==='failed'?'var(--attn)':f==='unmarked'?'var(--ink-faint)':'var(--accent)';
+        b.style.borderColor=active?col:'var(--line)';
+        b.style.background=active?'color-mix(in srgb,'+col+' 15%,transparent)':'var(--surface)';
+        b.style.color=active?col:'var(--ink-soft)';
+      });
+      _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
+    };
+  });
+
+  // Score inputs — save on change
   v.querySelectorAll('.score-inp').forEach(inp=>{
     inp.addEventListener('change', async()=>{
       const sid=inp.dataset.sid;
       const raw=inp.value.trim();
       if(raw===''){
         await sb.from('ykp_test_scores').delete().match({test_id:t.id,student_id:sid});
-        const pctEl=$(`[data-pct="${sid}"]`); if(pctEl)pctEl.textContent='';
-        _refreshGradeSummary(t, v);
+        const pctEl=v.querySelector(`[data-pct="${sid}"]`); if(pctEl)pctEl.textContent='';
+        _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
         return;
       }
       const score=parseFloat(raw);
       if(isNaN(score)){return;}
       const {error}=await sb.from('ykp_test_scores').upsert({test_id:t.id,student_id:sid,score},{onConflict:'test_id,student_id'});
       if(error){toast('Save failed',true);return;}
-      if(t.grade_type==='points'&&t.max_points){
+      if(isPoints){
         const pctEl=v.querySelector(`[data-pct="${sid}"]`);
         if(pctEl) pctEl.textContent=` (${Math.round(score/t.max_points*100)}%)`;
       }
-      _refreshGradeSummary(t, v);
+      _applyGradeFilters(t, v, $('testStuSearch').value.trim().toLowerCase());
     });
   });
+}
+
+// ── Apply search + pass/fail filter to score rows ────────────────────────────
+function _applyGradeFilters(t, v, searchQ){
+  const passing=testsState.passing?.[t.id]??60;
+  const filter=testsState.gradeFilter?.[t.id]||'all';
+  const isPoints=t.grade_type==='points'&&t.max_points;
+  v.querySelectorAll('.score-row').forEach(row=>{
+    // Search
+    const name=row.querySelector('.score-name')?.textContent||'';
+    const searchOk=!searchQ||name.toLowerCase().includes(searchQ);
+    // Pass/fail filter
+    let filterOk=true;
+    if(filter!=='all'){
+      const inp=row.querySelector('.score-inp');
+      const val=inp?.value.trim();
+      if(filter==='unmarked'){
+        filterOk=!val;
+      } else {
+        if(!val){ filterOk=false; }
+        else {
+          const score=parseFloat(val);
+          const pct=isPoints?(score/t.max_points*100):score;
+          filterOk=filter==='passed'?pct>=passing:pct<passing;
+        }
+      }
+    }
+    row.style.display=(searchOk&&filterOk)?'':'none';
+  });
+  _refreshGradeSummary(t, v);
 }
 
 /* ---- Baal Peh sub-tab ---- */
