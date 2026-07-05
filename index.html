@@ -3834,21 +3834,28 @@ function fmtTestDate(iso){
 
 async function renderTests(){
   const v=$('view-tests');
+  // learning_teacher: hard-locked to Baal Peh — this coercion (mirroring the
+  // switchView() pattern used for isTester/isLearningTeacher) guarantees no
+  // stray testsState.sub or leftover testsState.activeTest can ever route
+  // this role into the regular Tests grading UI, which is what talks to
+  // ykp_tests / ykp_test_scores.
+  if(state.isLearningTeacher){ testsState.sub='baal'; testsState.activeTest=null; }
   if(testsState.activeTest) { await renderGradeEntry(v); return; }
   v.innerHTML=`
-    <div class="subtabs">
-      <button class="subtab ${testsState.sub==='tests'?'active':''}" id="stTests">Tests</button>
+    <div class="subtabs" style="${state.isLearningTeacher?'grid-template-columns:1fr':''}">
+      ${state.isLearningTeacher?'':`<button class="subtab ${testsState.sub==='tests'?'active':''}" id="stTests">Tests</button>`}
       <button class="subtab ${testsState.sub==='baal'?'active':''}" id="stBaal">Baal Peh</button>
     </div>
     <div id="testSubView"></div>`;
-  $('stTests').onclick=()=>{ testsState.sub='tests'; renderTests(); };
+  if($('stTests')) $('stTests').onclick=()=>{ testsState.sub='tests'; renderTests(); };
   $('stBaal').onclick=()=>{ testsState.sub='baal'; renderTests(); };
-  if(testsState.sub==='tests') await renderTestsList();
+  if(testsState.sub==='tests' && !state.isLearningTeacher) await renderTestsList();
   else await renderBaalPeh();
 }
 
 /* ---- Tests sub-tab ---- */
 async function renderTestsList(){
+  if(state.isLearningTeacher) return; // never touches ykp_tests for this role
   const wrap=$('testSubView');
   const {data:tests}=await sb.from('ykp_tests').select('*').order('date',{ascending:false});
   const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
@@ -3873,6 +3880,7 @@ async function renderTestsList(){
 }
 
 function openNewTestSheet(){
+  if(state.isLearningTeacher) return; // never touches ykp_tests for this role
   let gt='percent';
   const clsChecks=state.classes.map(c=>`<label class="consent-check" style="margin:4px 0"><input type="checkbox" class="ntCls" value="${c.id}"> ${esc(c.name)}</label>`).join('');
   openCustomSheet({id:'__newTest__',title:'New test',html:`
@@ -3949,6 +3957,7 @@ function _refreshGradeSummary(t, container){
 }
 
 async function renderGradeEntry(v){
+  if(state.isLearningTeacher) return; // never touches ykp_test_scores for this role
   const t=testsState.activeTest;
   const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
   let students=state.students.filter(s=>s.active!==false);
@@ -4762,6 +4771,7 @@ function openBpSheet(existing){
 
 /* generic custom sheet (for Tests forms that don't need the attendance-status seg) */
 async function deleteTest(tid){
+  if(state.isLearningTeacher) return; // never touches ykp_tests/ykp_test_scores for this role
   if(!confirm('Delete this test and all its scores?\nThis cannot be undone.')) return;
   const scoreDel=await sb.from('ykp_test_scores').delete().eq('test_id',tid);
   if(scoreDel.error){ toast('Delete failed — check connection',true); return; }
@@ -5033,6 +5043,7 @@ function _loadHtml2canvas(){
 function _parentEmails(stu){ return (stu.parent_email||'').split(/[;,]/).map(e=>e.trim()).filter(Boolean); }
 // One-tap: render this student's card to an image and hand it to the phone's share sheet
 async function shareReportToParent(stu,from,to){
+  if(state.isLearningTeacher){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
   toast('Preparing report card…');
   const ids=[stu.id], ytdFrom=getYtdStart(to);
   let host=null;
@@ -5083,6 +5094,7 @@ async function shareReportToParent(stu,from,to){
   }
 }
 async function generateReportCards(studentIds,from,to){
+  if(state.isLearningTeacher){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
   if(!studentIds.length){toast('No students',true);return;}
   toast('Generating report cards…');
   const ytdFrom=getYtdStart(to);
