@@ -4358,38 +4358,28 @@ body {
 
 /* ---- Baal Peh sub-tab ---- */
 // Structured Daf tracking for Gemorah Meseches Brochos, Perek Zayin.
-// NOTE ON STORAGE: rather than requiring a Supabase schema migration, the
-// existing `ykp_baal_peh.material` text column now stores a JSON string
-// like {"dafim":["45a","45b"],"note":"fluent"}. Old free-text entries from
-// before this system existed simply fail JSON.parse and are shown as-is via
-// the legacy fallback path — nothing is deleted or broken, they just don't
-// count toward the 14-daf structured progress total.
+// STORAGE: fully relational (see baal_peh_migration.sql). Each "Log session"
+// action creates one row in ykp_baal_peh_sessions (student_id, date, note),
+// and one row per selected Daf in the ykp_baal_peh_dafim junction table
+// (session_id, student_id, daf). The ykp_baal_peh_progress /
+// ykp_baal_peh_summary SQL views do the de-duplication at the database
+// level — re-testing the same Daf across multiple sessions is fine and
+// preserved for history, but a student's unique-mastery count (GROUP BY in
+// the view) never double-counts it.
 const BAAL_PEH_DAFIM=['45a','45b','46a','46b','47a','47b','48a','48b','49a','49b','50a','50b','51a','51b'];
 
-function _parseBpEntry(material){
-  try{
-    const obj=JSON.parse(material);
-    if(obj && typeof obj==='object' && Array.isArray(obj.dafim)){
-      return {dafim:obj.dafim.filter(d=>BAAL_PEH_DAFIM.includes(d)), note:obj.note||''};
-    }
-  }catch(_){}
-  return {dafim:[], note:material||''}; // legacy free-text entry
-}
-
-// Aggregates every logged session per student into a Set of unique Dafim.
-// Using a Set is what guarantees "if a Daf is logged twice, it doesn't
-// artificially inflate their total count" — Set membership is inherently
-// deduplicated, so re-testing the same Daf on a later date never double-counts.
+// Reads the pre-aggregated ykp_baal_peh_progress view (one row per unique
+// student+daf pair, already de-duplicated by the view's GROUP BY) and shapes
+// it into {student_id: Set<daf>} for the leaderboard / badge renderers.
 async function _computeBpProgress(){
-  const {data}=await sb.from('ykp_baal_peh').select('student_id,material');
+  const {data}=await sb.from('ykp_baal_peh_progress').select('student_id,daf');
   const rows=data||[];
   const stuById={}; state.students.forEach(s=>stuById[s.id]=s); // already teacher-scoped upstream
   const progress={};
   rows.forEach(r=>{
     if(!stuById[r.student_id]) return;
-    const {dafim}=_parseBpEntry(r.material);
     if(!progress[r.student_id]) progress[r.student_id]=new Set();
-    dafim.forEach(d=>progress[r.student_id].add(d));
+    progress[r.student_id].add(r.daf);
   });
   return progress; // {student_id: Set<daf>}
 }
@@ -4460,7 +4450,13 @@ async function renderBaalPeh(){
 
 async function loadBaalPehList(){
   const h=testsState.bp||{};
-  let q=sb.from('ykp_baal_peh').select('*').order('date',{ascending:false}).order('created_at',{ascending:false});
+  // Embed the junction table via PostgREST's foreign-key relationship
+  // (ykp_baal_peh_dafim.session_id -> ykp_baal_peh_sessions.id), aliased as
+  // `dafim`, so each session comes back with its list of tested Dafim
+  // already attached — no separate N+1 query needed.
+  let q=sb.from('ykp_baal_peh_sessions')
+    .select('*, dafim:ykp_baal_peh_dafim(daf)')
+    .order('date',{ascending:false}).order('created_at',{ascending:false});
   if(h.studentId) q=q.eq('student_id',h.studentId);
   const {data}=await q; const rows=data||[];
   const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
@@ -4482,16 +4478,16 @@ async function loadBaalPehList(){
 
   list.innerHTML=filt.map(r=>{
     const s=stuById[r.student_id];
-    const {dafim,note}=_parseBpEntry(r.material);
+    const dafim=(r.dafim||[]).map(x=>x.daf).sort();
     const dafHtml=dafim.length
       ? `<div class="bp-dafs">${dafim.map(d=>`<span class="bp-daf-pill">${esc(d)}</span>`).join('')}</div>`
-      : `<div class="bp-txt" dir="auto">${esc(r.material||'')}</div>`; // legacy free-text fallback
+      : '';
     const count=(progress[r.student_id]||new Set()).size;
     const complete=count===total;
     const badge=s?`<span class="bp-progress-badge${complete?' complete':''}">${count}/${total} Dafim${complete?' 👑':''}</span>`:'';
     return `<div class="bp-row" data-id="${r.id}">
       ${dafHtml}
-      ${note?`<div class="bp-note" dir="auto">${esc(note)}</div>`:''}
+      ${r.note?`<div class="bp-note" dir="auto">${esc(r.note)}</div>`:''}
       <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} ${badge} · ${r.date}</div>
     </div>`;
   }).join('');
@@ -4517,17 +4513,20 @@ function openBpSheet(existing){
   let optStudents=forClass;
   if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=state.students.find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
   const stuOpts=`<option value="">Select student…</option>${optStudents.map(s=>`<option value="${s.id}" ${s.id===selId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
-  const existingParsed=editing?_parseBpEntry(existing.material):{dafim:[],note:''};
+  // `existing` (when editing) comes from loadBaalPehList's embedded query, so
+  // it already carries `.dafim` (array of {daf}) and a real `.note` column.
+  const existingDafim=editing?(existing.dafim||[]).map(x=>x.daf):[];
+  const existingNote=editing?(existing.note||''):'';
   openCustomSheet({id:'__bp__',title:editing?'Edit Baal Peh session':'Log Baal Peh session',html:`
     <div class="field"><label>Student</label><select id="bpStu" class="inp">${stuOpts}</select></div>
     <div class="field"><label>Date</label><input id="bpDate" class="inp" type="date" value="${editing?existing.date:todayStr()}"></div>
     <div class="field">
       <label>Dafim tested — Meseches Brochos, Perek Zayin</label>
       <div class="daf-grid" id="bpDafGrid">
-        ${BAAL_PEH_DAFIM.map(d=>`<button type="button" class="daf-chip ${existingParsed.dafim.includes(d)?'active':''}" data-d="${d}">${d}</button>`).join('')}
+        ${BAAL_PEH_DAFIM.map(d=>`<button type="button" class="daf-chip ${existingDafim.includes(d)?'active':''}" data-d="${d}">${d}</button>`).join('')}
       </div>
     </div>
-    <div class="field"><label>Notes (optional)</label><textarea id="bpNote" class="inp" rows="2" placeholder="e.g. fluent, still shaky on Rashi" style="height:auto;resize:vertical">${esc(existingParsed.note)}</textarea></div>
+    <div class="field"><label>Notes (optional)</label><textarea id="bpNote" class="inp" rows="2" placeholder="e.g. fluent, still shaky on Rashi" style="height:auto;resize:vertical">${esc(existingNote)}</textarea></div>
     <div class="row2">
       <button class="btn btn-ghost" id="bpCancel" style="flex:1">Cancel</button>
       <button class="btn btn-primary" id="bpSave" style="flex:1">${editing?'Save changes':'Save'}</button>
@@ -4542,26 +4541,41 @@ function openBpSheet(existing){
         const sid=$('bpStu').value; if(!sid){toast('Select a student',true);return;}
         const selected=[...$('bpDafGrid').querySelectorAll('.daf-chip.active')].map(c=>c.dataset.d);
         if(!selected.length){toast('Select at least one Daf',true);return;}
-        const note=$('bpNote').value.trim();
-        // Stored as JSON inside the existing `material` column — no schema
-        // migration needed. Duplicate Dafim across sessions are handled at
-        // read-time via Set-based dedup (see _computeBpProgress), so
-        // re-logging the same Daf here is fine and never inflates the count.
-        const material=JSON.stringify({dafim:selected, note});
+        const note=$('bpNote').value.trim()||null;
+        const date=$('bpDate').value;
+
         if(editing){
-          const {error}=await sb.from('ykp_baal_peh').update({student_id:sid,date:$('bpDate').value,material}).eq('id',existing.id);
-          if(error){toast('Could not save',true);return;}
+          // Update the session row itself, then replace its dafim entirely:
+          // delete the old junction rows for this session and insert the
+          // freshly-selected set. Simpler and safer than diffing old vs new.
+          const upd=await sb.from('ykp_baal_peh_sessions').update({student_id:sid,date,note}).eq('id',existing.id);
+          if(upd.error){toast('Could not save',true);return;}
+          const del=await sb.from('ykp_baal_peh_dafim').delete().eq('session_id',existing.id);
+          if(del.error){toast('Saved session, but could not update Dafim — please retry',true);return;}
+          const ins=await sb.from('ykp_baal_peh_dafim').insert(selected.map(d=>({session_id:existing.id,student_id:sid,daf:d})));
+          if(ins.error){toast('Saved session, but could not save Dafim — please retry',true);return;}
           toast('Updated');
         } else {
-          const {error}=await sb.from('ykp_baal_peh').insert({student_id:sid,date:$('bpDate').value,material});
-          if(error){toast('Could not save',true);return;}
+          // Two-step insert: create the session row first (need its
+          // generated id for the junction rows), then insert the dafim.
+          // If the second step fails, roll back the session row so we never
+          // leave an orphan session with zero Dafim attached.
+          const sess=await sb.from('ykp_baal_peh_sessions').insert({student_id:sid,date,note}).select().single();
+          if(sess.error){toast('Could not save',true);return;}
+          const ins=await sb.from('ykp_baal_peh_dafim').insert(selected.map(d=>({session_id:sess.data.id,student_id:sid,daf:d})));
+          if(ins.error){
+            await sb.from('ykp_baal_peh_sessions').delete().eq('id',sess.data.id); // rollback
+            toast('Could not save Dafim — please retry',true); return;
+          }
           if(h.studentId===sid||!h.studentId){ h.studentId=sid; }
         }
         closeCustomSheet(); renderBaalPeh();
       };
       if($('bpDelete')) $('bpDelete').onclick=async()=>{
         if(!confirm('Delete this Baal Peh session? This cannot be undone.'))return;
-        const {error}=await sb.from('ykp_baal_peh').delete().eq('id',existing.id);
+        // ON DELETE CASCADE on ykp_baal_peh_dafim.session_id automatically
+        // removes the associated Dafim rows — no separate cleanup needed.
+        const {error}=await sb.from('ykp_baal_peh_sessions').delete().eq('id',existing.id);
         if(error){toast('Could not delete',true);return;}
         toast('Deleted'); closeCustomSheet(); renderBaalPeh();
       };
