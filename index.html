@@ -263,6 +263,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .daf-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:4px}
 .daf-chip{height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-soft);font-weight:800;font-size:13px;cursor:pointer}
 .daf-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.daf-chip.mastered:not(.active){border-color:#d4af37;box-shadow:inset 0 0 0 1.5px #d4af37}
+.daf-chip.mastered:not(.active)::after{content:'✓';font-size:9px;vertical-align:super;margin-left:2px;color:#d4af37}
 .bp-leaderboard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-1);margin-bottom:14px;max-height:280px;overflow-y:auto}
 .bp-lb-title{display:flex;align-items:center;gap:6px;padding:10px 13px;font-weight:800;font-size:14px;border-bottom:1px solid var(--line);background:var(--surface-2,#f1f3fb);position:sticky;top:0}
 .bp-lb-row{display:flex;align-items:center;gap:10px;padding:8px 13px;border-bottom:1px solid var(--line)}
@@ -4677,16 +4679,23 @@ async function loadBaalPehList(){
       <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} ${badge} · ${r.date}</div>
     </div>`;
   }).join('');
-  // long-press a row to edit it
+  // long-press a row to edit it — touch events are more reliable across
+  // iOS/Android than pointer events, plus explicit right-click support for desktop
   list.querySelectorAll('.bp-row').forEach(row=>{
     const rec=filt.find(r=>String(r.id)===row.dataset.id);
+    if(!rec) return;
     let lpt, moved=false;
-    const start=()=>{ moved=false; lpt=setTimeout(()=>{ if(!moved){ if(navigator.vibrate)navigator.vibrate(8); openBpSheet(rec); } },500); };
+    const start=()=>{ moved=false; lpt=setTimeout(()=>{ if(!moved){ if(navigator.vibrate)navigator.vibrate(8); openBpSheet(rec); } },550); };
     const cancel=()=>clearTimeout(lpt);
-    row.addEventListener('pointerdown',start);
-    row.addEventListener('pointerup',cancel);
-    row.addEventListener('pointermove',()=>{moved=true;clearTimeout(lpt);});
-    row.addEventListener('pointercancel',cancel);
+    row.addEventListener('touchstart',start,{passive:true});
+    row.addEventListener('touchend',cancel,{passive:true});
+    row.addEventListener('touchmove',()=>{moved=true;clearTimeout(lpt);},{passive:true});
+    row.addEventListener('touchcancel',cancel,{passive:true});
+    row.addEventListener('contextmenu',e=>{
+      e.preventDefault();
+      if(navigator.vibrate)navigator.vibrate(8);
+      openBpSheet(rec);
+    },{passive:false});
   });
 }
 
@@ -4720,50 +4729,105 @@ function openBpSheet(existing){
     ${(editing&&!state.isTeacher)?`<button class="btn btn-block" id="bpDelete" style="margin-top:8px;background:var(--attn-bg);color:var(--attn);border:1px solid var(--attn)">Delete this session</button>`:''}`,
     onMount(){
       $('bpCancel').onclick=closeCustomSheet;
+
+      // Highlight chips the student has ALREADY mastered (from any prior
+      // session) with a gold ring + checkmark, so re-testing is a visible,
+      // deliberate choice rather than an accidental double-log.
+      (async()=>{
+        if(!selId) return;
+        const progress=await _computeBpProgress();
+        const mastered=progress[selId]||new Set();
+        $('bpDafGrid').querySelectorAll('.daf-chip').forEach(chip=>{
+          if(mastered.has(chip.dataset.d) && !existingDafim.includes(chip.dataset.d)){
+            chip.classList.add('mastered');
+          }
+        });
+      })();
+
       $('bpDafGrid').querySelectorAll('.daf-chip').forEach(chip=>{
         chip.onclick=()=>chip.classList.toggle('active');
       });
-      $('bpSave').onclick=async()=>{
-        const sid=$('bpStu').value; if(!sid){toast('Select a student',true);return;}
-        const selected=[...$('bpDafGrid').querySelectorAll('.daf-chip.active')].map(c=>c.dataset.d);
-        if(!selected.length){toast('Select at least one Daf',true);return;}
-        const note=$('bpNote').value.trim()||null;
-        const date=$('bpDate').value;
 
-        if(editing){
-          // Update the session row itself, then replace its dafim entirely:
-          // delete the old junction rows for this session and insert the
-          // freshly-selected set. Simpler and safer than diffing old vs new.
-          const upd=await sb.from('ykp_baal_peh_sessions').update({student_id:sid,date,note}).eq('id',existing.id);
-          if(upd.error){toast('Could not save',true);return;}
-          const del=await sb.from('ykp_baal_peh_dafim').delete().eq('session_id',existing.id);
-          if(del.error){toast('Saved session, but could not update Dafim — please retry',true);return;}
-          const ins=await sb.from('ykp_baal_peh_dafim').insert(selected.map(d=>({session_id:existing.id,student_id:sid,daf:d})));
-          if(ins.error){toast('Saved session, but could not save Dafim — please retry',true);return;}
-          toast('Updated');
-        } else {
-          // Two-step insert: create the session row first (need its
-          // generated id for the junction rows), then insert the dafim.
-          // If the second step fails, roll back the session row so we never
-          // leave an orphan session with zero Dafim attached.
-          const sess=await sb.from('ykp_baal_peh_sessions').insert({student_id:sid,date,note}).select().single();
-          if(sess.error){toast('Could not save',true);return;}
-          const ins=await sb.from('ykp_baal_peh_dafim').insert(selected.map(d=>({session_id:sess.data.id,student_id:sid,daf:d})));
-          if(ins.error){
-            await sb.from('ykp_baal_peh_sessions').delete().eq('id',sess.data.id); // rollback
-            toast('Could not save Dafim — please retry',true); return;
+      $('bpSave').onclick=async()=>{
+        const saveBtn=$('bpSave');
+        // ── Guard against double-submit: the #1 cause of duplicate sessions ──
+        // (tapping Save twice because the UI felt unresponsive on a slow network)
+        if(saveBtn.disabled) return;
+        saveBtn.disabled=true;
+        const origLabel=saveBtn.textContent;
+        saveBtn.textContent='Saving…';
+
+        try{
+          const sid=$('bpStu').value; if(!sid){toast('Select a student',true);return;}
+          const selected=[...$('bpDafGrid').querySelectorAll('.daf-chip.active')].map(c=>c.dataset.d);
+          if(!selected.length){toast('Select at least one Daf',true);return;}
+          const note=$('bpNote').value.trim()||null;
+          const date=$('bpDate').value;
+
+          // Soft-confirm on retests: doesn't block (re-testing is a valid,
+          // intentional workflow) but stops SILENT accidental duplicates.
+          const progress=await _computeBpProgress();
+          const mastered=progress[sid]||new Set();
+          const alreadyDone=selected.filter(d=>mastered.has(d) && !existingDafim.includes(d));
+          if(alreadyDone.length){
+            const ok=confirm(`${alreadyDone.join(', ')} already logged as mastered for this student.\n\nLog as a retest anyway?`);
+            if(!ok) return;
           }
-          if(h.studentId===sid||!h.studentId){ h.studentId=sid; }
+
+          if(editing){
+            const upd=await sb.from('ykp_baal_peh_sessions')
+              .update({student_id:sid,date,note,logged_by_uid:state.user.id})
+              .eq('id',existing.id);
+            if(upd.error) throw new Error(upd.error.message||'Could not save session');
+            const del=await sb.from('ykp_baal_peh_dafim').delete().eq('session_id',existing.id);
+            if(del.error) throw new Error('Saved session, but could not update Dafim — please retry');
+            const ins=await sb.from('ykp_baal_peh_dafim').insert(selected.map(d=>({session_id:existing.id,student_id:sid,daf:d})));
+            if(ins.error) throw new Error('Saved session, but could not save Dafim — please retry');
+            toast('Updated');
+          } else {
+            const sess=await sb.from('ykp_baal_peh_sessions')
+              .insert({student_id:sid,date,note,logged_by_uid:state.user.id})
+              .select().single();
+            if(sess.error) throw new Error(sess.error.message||'Could not save session');
+            // Defensive: if RLS or PostgREST silently returns no row despite
+            // no thrown error, stop here instead of crashing on sess.data.id
+            // (this was the likely cause of "logged but nothing changed").
+            if(!sess.data || !sess.data.id) throw new Error('Session saved but no ID returned — please refresh and check');
+            const ins=await sb.from('ykp_baal_peh_dafim').insert(selected.map(d=>({session_id:sess.data.id,student_id:sid,daf:d})));
+            if(ins.error){
+              await sb.from('ykp_baal_peh_sessions').delete().eq('id',sess.data.id); // rollback orphan
+              throw new Error('Could not save Dafim — please retry');
+            }
+            if(h.studentId===sid||!h.studentId){ h.studentId=sid; }
+            toast('Saved');
+          }
+
+          closeCustomSheet();
+          // Lighter refresh than a full renderBaalPeh(): re-fetch the list +
+          // leaderboard directly so the progress badge updates immediately
+          // without resetting search/filter state.
+          await loadBaalPehList();
+          await _renderBpLeaderboard($('bpLeaderboard'), h.classId);
+        } catch(err){
+          // No more silent failures — every error path now surfaces a toast.
+          toast(err.message||'Something went wrong — please try again', true);
+        } finally {
+          saveBtn.disabled=false;
+          saveBtn.textContent=origLabel;
         }
-        closeCustomSheet(); renderBaalPeh();
       };
+
       if($('bpDelete')) $('bpDelete').onclick=async()=>{
         if(!confirm('Delete this Baal Peh session? This cannot be undone.'))return;
-        // ON DELETE CASCADE on ykp_baal_peh_dafim.session_id automatically
-        // removes the associated Dafim rows — no separate cleanup needed.
-        const {error}=await sb.from('ykp_baal_peh_sessions').delete().eq('id',existing.id);
-        if(error){toast('Could not delete',true);return;}
-        toast('Deleted'); closeCustomSheet(); renderBaalPeh();
+        try{
+          const {error}=await sb.from('ykp_baal_peh_sessions').delete().eq('id',existing.id);
+          if(error) throw new Error(error.message||'Could not delete');
+          toast('Deleted'); closeCustomSheet();
+          await loadBaalPehList();
+          await _renderBpLeaderboard($('bpLeaderboard'), h.classId);
+        }catch(err){
+          toast(err.message||'Could not delete', true);
+        }
       };
     }
   });
