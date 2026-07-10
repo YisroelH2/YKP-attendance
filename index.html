@@ -252,6 +252,11 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .score-unit{font-size:13px;color:var(--ink-faint);font-weight:600;white-space:nowrap;min-width:28px}
 .score-pct{font-size:12px;color:var(--ink-faint);min-width:38px;text-align:right}
 .bp-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 13px;margin-bottom:7px;box-shadow:var(--sh-1)}
+.bp-row.selectable{cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:flex-start;gap:10px}
+.bp-row.selectable:active{transform:scale(.99)}
+.bp-row.selectable .bp-row-content{flex:1;min-width:0}
+.bp-row.sel{border-color:var(--accent);background:linear-gradient(135deg,#EEF2FF,#F5F3FF);box-shadow:0 0 0 1.5px var(--accent)}
+.bp-row.sel .hist-check{background:var(--accent);border-color:var(--accent)}
 .bp-meta{font-size:12px;color:var(--ink-faint);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bp-txt{font-size:14px;font-weight:600;line-height:1.4}
 /* ── Baal Peh: structured Daf tracking ── */
@@ -4615,6 +4620,7 @@ async function renderBaalPeh(){
     </div>
     <div class="hist-actions" id="bpActions">
       <button class="btn btn-soft btn-sm" id="bpSelToggle">${h.selMode?'Cancel selection':'✓ Select'}</button>
+      ${h.selMode?`<button class="btn btn-soft btn-sm" id="bpSelAll">Select all shown</button>`:''}
       ${h.selMode?`<button class="btn btn-primary btn-sm" id="bpExportSel" style="display:${h.sel.size?'':'none'}">Export Selected (${h.sel.size})</button>`:''}
     </div>
     <div class="zal-hint" style="margin:-2px 0 8px">${h.selMode?'Tap a card to add it to the export list':'Long-press a session to edit or delete it'}</div>
@@ -4643,6 +4649,14 @@ async function renderBaalPeh(){
     });
   };
   $('bpSelToggle').onclick=()=>{ h.selMode=!h.selMode; if(!h.selMode)h.sel.clear(); renderBaalPeh(); };
+  if($('bpSelAll')) $('bpSelAll').onclick=()=>{
+    const ids=(bpRows||[]).map(r=>String(r.id));
+    const allSelected=ids.length>0 && ids.every(id=>h.sel.has(id));
+    if(allSelected){ ids.forEach(id=>h.sel.delete(id)); } else { ids.forEach(id=>h.sel.add(id)); }
+    loadBaalPehList();
+    const btn=$('bpExportSel'); if(btn){ btn.style.display=h.sel.size?'':'none'; btn.textContent=`Export Selected (${h.sel.size})`; }
+    $('bpSelAll').textContent=allSelected?'Select all shown':'Unselect all';
+  };
   if($('bpExportSel')) $('bpExportSel').onclick=()=>openBpShulListSheet();
   _renderBpLeaderboard($('bpLeaderboard'), h.classId);
   await loadBaalPehList();
@@ -4689,15 +4703,16 @@ async function loadBaalPehList(){
     const complete=count===total;
     const badge=s?`<span class="bp-progress-badge${complete?' complete':''}">${count}/${total} Dafim${complete?' 👑':''}</span>`:'';
     const isSel=h.selMode&&h.sel.has(String(r.id));
-    return `<div class="bp-row${h.selMode?' selectable':''}${isSel?' sel':''}" data-id="${r.id}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        ${h.selMode?`<div class="hist-check" style="margin-top:2px">${isSel?CHECK_SVG:''}</div>`:''}
-        <div style="flex:1;min-width:0">
-          ${dafHtml}
+    const cardBody=`${dafHtml}
           ${r.note?`<div class="bp-note" dir="auto">${esc(r.note)}</div>`:''}
-          <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} ${badge} · ${r.date}</div>
-        </div>
-      </div>
+          <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} ${badge} · ${r.date}</div>`;
+    if(!h.selMode) return `<div class="bp-row" data-id="${r.id}">${cardBody}</div>`;
+    // In select mode the whole card (not just the checkbox) is the tap target —
+    // .bp-row.selectable is a flex row so there's no dead space between the
+    // checkbox and the content for a tap to land in and silently do nothing.
+    return `<div class="bp-row selectable${isSel?' sel':''}" data-id="${r.id}">
+      <div class="hist-check" style="margin-top:2px">${isSel?CHECK_SVG:''}</div>
+      <div class="bp-row-content">${cardBody}</div>
     </div>`;
   }).join('');
   // In select mode, tapping a card toggles it for export instead of editing.
