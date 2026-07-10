@@ -3738,6 +3738,7 @@ async function renderHistory(){
       ${h.selMode?`<button class="btn btn-soft btn-sm" id="hSelAll">Select all shown</button>`:''}
       ${h.selMode?`<button class="btn btn-primary btn-sm" id="hExportList">Export list (${h.sel.size})</button>`:''}
       ${h.selMode?`<button class="btn btn-soft btn-sm" id="hRaffle">🎲 Raffle</button>`:''}
+      ${h.selMode?`<button class="btn btn-soft btn-sm" id="hDeductFlagged" style="border:1px solid var(--attn);color:var(--attn)">🚩 Unselect Flagged</button>`:''}
     </div>
     <div class="zal-hint" style="margin:-4px 0 8px">${h.selMode?'Tap records to add them to the list':'Tap a record to edit it'}</div>
     <div id="histList"></div>`;
@@ -3792,6 +3793,16 @@ async function renderHistory(){
   };
   if($('hExportList')) $('hExportList').onclick=()=>openShulListSheet();
   if($('hRaffle')) $('hRaffle').onclick=()=>openRaffle();
+  if($('hDeductFlagged')) $('hDeductFlagged').onclick=()=>{
+    const flaggedKeys=new Set();
+    (histRows||[]).forEach(r=>{ if(r.flagged) flaggedKeys.add(r.student_id+'|'+r.session_id+'|'+r.date); });
+    let removed=0;
+    h.sel.forEach(key=>{ if(flaggedKeys.has(key)){ h.sel.delete(key); removed++; } });
+    if(!removed){ toast('No flagged students in selection'); return; }
+    renderHistList(histRows||[]);
+    const btn=$('hExportList'); if(btn)btn.textContent=`Export list (${h.sel.size})`;
+    toast(`Removed ${removed} flagged student${removed===1?'':'s'}`);
+  };
   $('hStatusTabs').querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
     const s=t.dataset.s;
     if(s==='attention') h.flagged=!h.flagged;
