@@ -4428,6 +4428,7 @@ body {
 // preserved for history, but a student's unique-mastery count (GROUP BY in
 // the view) never double-counts it.
 const BAAL_PEH_DAFIM=['45a','45b','46a','46b','47a','47b','48a','48b','49a','49b','50a','50b','51a','51b'];
+let bpRows=[]; // the currently-rendered (filtered) Baal Peh session rows — used by the Export Selected sheet
 
 // Reads the pre-aggregated ykp_baal_peh_progress view (one row per unique
 // student+daf pair, already de-duplicated by the view's GROUP BY) and shapes
@@ -4583,7 +4584,8 @@ function _mountCombobox(opts){
 
 async function renderBaalPeh(){
   const wrap=$('testSubView');
-  const h=testsState.bp||(testsState.bp={classId:'',studentId:''});
+  const h=testsState.bp||(testsState.bp={classId:'',studentId:'',date:'',selMode:false,sel:new Set()});
+  if(!h.sel) h.sel=new Set();
   const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
   wrap.innerHTML=`
     <div id="bpLeaderboard" class="bp-leaderboard"><div class="hist-empty" style="padding:18px">Loading leaderboard…</div></div>
@@ -4602,13 +4604,20 @@ async function renderBaalPeh(){
           <div class="combo-panel hidden" id="bpStudentPanel"></div>
         </div>
       </div>
+      <div class="ctl full"><span>Day</span>
+        <input type="date" class="inp" id="bpDateFilter" value="${h.date||''}">
+      </div>
     </div>
     <button class="btn btn-primary btn-block" id="bpLogBtn" style="margin-bottom:10px">+ Log session</button>
     <div class="search" style="margin-bottom:10px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="bpSearch" placeholder="Search by name or material…">
     </div>
-    <div class="zal-hint" style="margin:-2px 0 8px">Long-press a session to edit or delete it</div>
+    <div class="hist-actions" id="bpActions">
+      <button class="btn btn-soft btn-sm" id="bpSelToggle">${h.selMode?'Cancel selection':'✓ Select'}</button>
+      ${h.selMode?`<button class="btn btn-primary btn-sm" id="bpExportSel" style="display:${h.sel.size?'':'none'}">Export Selected (${h.sel.size})</button>`:''}
+    </div>
+    <div class="zal-hint" style="margin:-2px 0 8px">${h.selMode?'Tap a card to add it to the export list':'Long-press a session to edit or delete it'}</div>
     <div id="bpList"><div class="hist-empty">Loading…</div></div>`;
 
   _mountCombobox({
@@ -4624,6 +4633,7 @@ async function renderBaalPeh(){
     placeholder:'All students', selectedId:h.studentId, fuzzy:true,
     onSelect:id=>{ h.studentId=id||''; loadBaalPehList(); }
   });
+  $('bpDateFilter').onchange=e=>{ h.date=e.target.value||''; loadBaalPehList(); };
   $('bpLogBtn').onclick=()=>openBpSheet();
   $('bpSearch').oninput=e=>{
     const q=e.target.value.trim().toLowerCase();
@@ -4632,6 +4642,8 @@ async function renderBaalPeh(){
       row.style.display=(!q||txt.includes(q)||row.textContent.includes(e.target.value.trim()))?'':'none';
     });
   };
+  $('bpSelToggle').onclick=()=>{ h.selMode=!h.selMode; if(!h.selMode)h.sel.clear(); renderBaalPeh(); };
+  if($('bpExportSel')) $('bpExportSel').onclick=()=>openBpShulListSheet();
   _renderBpLeaderboard($('bpLeaderboard'), h.classId);
   await loadBaalPehList();
 }
@@ -4655,14 +4667,17 @@ async function loadBaalPehList(){
     filt=filt.filter(r=>tStuIds.has(r.student_id));
   }
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
+  if(h.date) filt=filt.filter(r=>r.date===h.date);
+  bpRows=filt; // keep the currently-rendered rows around for export lookup
   const list=$('bpList'); if(!list)return;
-  if(!filt.length){ list.innerHTML=`<div class="hist-empty">No sessions logged yet.</div>`; return; }
+  if(!filt.length){ list.innerHTML=`<div class="hist-empty">${h.date?'No sessions logged on this day.':'No sessions logged yet.'}</div>`; return; }
 
   // Per-student TOTAL progress (unique dafim across every session they've ever
   // had logged, not just the filtered rows shown here) so the badge next to
   // each name always reflects their true overall count out of 14.
   const progress=await _computeBpProgress();
   const total=BAAL_PEH_DAFIM.length;
+  const CHECK_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
 
   list.innerHTML=filt.map(r=>{
     const s=stuById[r.student_id];
@@ -4673,15 +4688,37 @@ async function loadBaalPehList(){
     const count=(progress[r.student_id]||new Set()).size;
     const complete=count===total;
     const badge=s?`<span class="bp-progress-badge${complete?' complete':''}">${count}/${total} Dafim${complete?' 👑':''}</span>`:'';
-    return `<div class="bp-row" data-id="${r.id}">
-      ${dafHtml}
-      ${r.note?`<div class="bp-note" dir="auto">${esc(r.note)}</div>`:''}
-      <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} ${badge} · ${r.date}</div>
+    const isSel=h.selMode&&h.sel.has(String(r.id));
+    return `<div class="bp-row${h.selMode?' selectable':''}${isSel?' sel':''}" data-id="${r.id}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        ${h.selMode?`<div class="hist-check" style="margin-top:2px">${isSel?CHECK_SVG:''}</div>`:''}
+        <div style="flex:1;min-width:0">
+          ${dafHtml}
+          ${r.note?`<div class="bp-note" dir="auto">${esc(r.note)}</div>`:''}
+          <div class="bp-meta">${s?esc(s.english_name||s.hebrew_name):'Unknown'} ${badge} · ${r.date}</div>
+        </div>
+      </div>
     </div>`;
   }).join('');
+  // In select mode, tapping a card toggles it for export instead of editing.
+  if(h.selMode){
+    list.querySelectorAll('.bp-row').forEach(row=>{
+      row.onclick=()=>{
+        const id=row.dataset.id;
+        if(h.sel.has(id)) h.sel.delete(id); else h.sel.add(id);
+        row.classList.toggle('sel',h.sel.has(id));
+        const chk=row.querySelector('.hist-check');
+        if(chk) chk.innerHTML=h.sel.has(id)?CHECK_SVG:'';
+        const btn=$('bpExportSel');
+        if(btn){ btn.style.display=h.sel.size?'':'none'; btn.textContent=`Export Selected (${h.sel.size})`; }
+      };
+    });
+  }
   // long-press a row to edit it — touch events are more reliable across
   // iOS/Android than pointer events, plus explicit right-click support for desktop
+  // (disabled while in select mode, so a long-press can't fight a tap-to-select)
   list.querySelectorAll('.bp-row').forEach(row=>{
+    if(h.selMode) return;
     const rec=filt.find(r=>String(r.id)===row.dataset.id);
     if(!rec) return;
     let lpt, moved=false;
@@ -4699,6 +4736,52 @@ async function loadBaalPehList(){
   });
 }
 
+// ── Export Selected — mirrors History's "Export list" flow (openShulListSheet),
+// sourced from the Baal Peh selection (testsState.bp.sel) instead of attendance
+// records, but feeding the very same generateShulList() print/PDF engine.
+function openBpShulListSheet(){
+  const h=testsState.bp||{};
+  if(!h.sel||!h.sel.size){ toast('Select some sessions first',true); return; }
+  const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
+  const entries=[];
+  (bpRows||[]).forEach(r=>{
+    if(h.sel.has(String(r.id))){ const s=stuById[r.student_id]; if(s) entries.push({student:s,key:String(r.id)}); }
+  });
+  entries.sort((a,b)=>{
+    const na=(a.student.english_name||a.student.hebrew_name||'').toLowerCase();
+    const nb=(b.student.english_name||b.student.hebrew_name||'').toLowerCase();
+    return na<nb?-1:na>nb?1:0;
+  });
+  const uniqueCount=new Set(entries.map(e=>e.student.id)).size;
+  openCustomSheet({
+    id:'__bpShul__',
+    title:`Shul list — ${uniqueCount} ${uniqueCount===1?'Bochur':'Bochurim'}`,
+    html:`<p class="muted" style="margin-bottom:8px">Pick a heading, then generate a printable list to hang up. Use your browser's Print → Save as PDF.</p>
+      <div class="field"><label>Heading</label>
+        <textarea id="bpShulHdr" class="inp" rows="2" style="resize:none">${esc(SHUL_PRESETS[0])}</textarea>
+      </div>
+      <div class="shul-presets">${SHUL_PRESETS.map((p,i)=>`<button class="shul-chip" data-i="${i}" type="button">${esc(p.length>34?p.slice(0,32)+'…':p)}</button>`).join('')}</div>
+      <div class="field" style="margin-top:12px"><label>Names shown</label>
+        <div class="seg" id="bpShulNameSeg">
+          <button class="seg-btn active" data-v="heb" type="button">Hebrew</button>
+          <button class="seg-btn" data-v="eng" type="button">English</button>
+          <button class="seg-btn" data-v="both" type="button">Both</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="bpShulGen" style="margin-top:14px">Generate list PDF</button>`,
+    onMount:()=>{
+      let nameFmt='heb';
+      document.querySelectorAll('.shul-chip').forEach(b=>b.onclick=()=>{ $('bpShulHdr').value=SHUL_PRESETS[+b.dataset.i]; });
+      $('bpShulNameSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{ nameFmt=b.dataset.v; $('bpShulNameSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b)); });
+      $('bpShulGen').onclick=()=>{
+        const hdr=$('bpShulHdr').value.trim()||SHUL_PRESETS[0];
+        closeCustomSheet();
+        generateShulList(entries,hdr,false,nameFmt);
+      };
+    }
+  });
+}
+
 function openBpSheet(existing){
   const h=testsState.bp||{};
   const editing=!!existing;
@@ -4707,13 +4790,18 @@ function openBpSheet(existing){
   // make sure the editing student appears even if filtered out
   let optStudents=forClass;
   if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=state.students.find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
-  const stuOpts=`<option value="">Select student…</option>${optStudents.map(s=>`<option value="${s.id}" ${s.id===selId?'selected':''}>${esc(s.english_name||s.hebrew_name)}</option>`).join('')}`;
   // `existing` (when editing) comes from loadBaalPehList's embedded query, so
   // it already carries `.dafim` (array of {daf}) and a real `.note` column.
   const existingDafim=editing?(existing.dafim||[]).map(x=>x.daf):[];
   const existingNote=editing?(existing.note||''):'';
   openCustomSheet({id:'__bp__',title:editing?'Edit Baal Peh session':'Log Baal Peh session',html:`
-    <div class="field"><label>Student</label><select id="bpStu" class="inp">${stuOpts}</select></div>
+    <div class="field"><label>Student</label>
+      <div class="combo" id="bpStuCombo">
+        <input type="text" class="combo-input" id="bpStuInput" autocomplete="off" placeholder="Select student…">
+        <button type="button" class="combo-clear" id="bpStuClear" style="display:none">✕</button>
+        <div class="combo-panel hidden" id="bpStuPanel"></div>
+      </div>
+    </div>
     <div class="field"><label>Date</label><input id="bpDate" class="inp" type="date" value="${editing?existing.date:todayStr()}"></div>
     <div class="field">
       <label>Dafim tested — Meseches Brochos, Perek Zayin</label>
@@ -4729,6 +4817,17 @@ function openBpSheet(existing){
     ${(editing&&!state.isTeacher)?`<button class="btn btn-block" id="bpDelete" style="margin-top:8px;background:var(--attn-bg);color:var(--attn);border:1px solid var(--attn)">Delete this session</button>`:''}`,
     onMount(){
       $('bpCancel').onclick=closeCustomSheet;
+
+      // Filter-as-you-type student picker, replacing the old native <select> —
+      // reuses the same fuzzy combobox the dashboard's Class/Student filters use.
+      let bpSelStudentId=selId||'';
+      _mountCombobox({
+        inputId:'bpStuInput', panelId:'bpStuPanel', clearId:'bpStuClear',
+        items:optStudents, getLabel:s=>s.english_name||s.hebrew_name,
+        getSubLabel:s=>(s.english_name&&s.hebrew_name)?s.hebrew_name:'',
+        placeholder:'Select student…', selectedId:selId, fuzzy:true,
+        onSelect:id=>{ bpSelStudentId=id||''; }
+      });
 
       // Highlight chips the student has ALREADY mastered (from any prior
       // session) with a gold ring + checkmark, so re-testing is a visible,
@@ -4758,7 +4857,7 @@ function openBpSheet(existing){
         saveBtn.textContent='Saving…';
 
         try{
-          const sid=$('bpStu').value; if(!sid){toast('Select a student',true);return;}
+          const sid=bpSelStudentId; if(!sid){toast('Select a student',true);return;}
           const selected=[...$('bpDafGrid').querySelectorAll('.daf-chip.active')].map(c=>c.dataset.d);
           if(!selected.length){toast('Select at least one Daf',true);return;}
           const note=$('bpNote').value.trim()||null;
