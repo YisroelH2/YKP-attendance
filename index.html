@@ -5015,9 +5015,12 @@ function openRCSheet(single){
       <div class="field" id="rcWeekWrap" style="display:none"><label>Week containing</label>
         <input type="date" id="rcSheetWeek" class="inp" value="${todayStr()}" max="${todayStr()}">
       </div>
+      <label class="shul-opt"><input type="checkbox" id="rcTestOnly"> Test scores only (skip attendance)</label>
       <button class="btn btn-primary btn-block" id="rcSheetGen" style="margin-top:14px">Generate PDF</button>
       ${isSingle?`<button class="btn btn-soft btn-block" id="rcShareParent" style="margin-top:8px">📤 Send report card to parent</button>
-        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">${single.parent_email?('One tap — opens your share sheet with the card attached, ready to send to '+esc(single.parent_email)+' (or via WhatsApp).'):'Tip: add a parent email in this student’s profile so you know where to send it.'}</div>`:''}`,
+        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">${single.parent_email?('One tap — opens your share sheet with the card attached, ready to send to '+esc(single.parent_email)+' (or via WhatsApp).'):'Tip: add a parent email in this student’s profile so you know where to send it.'}</div>`
+      :`<button class="btn btn-soft btn-block" id="rcSendQueue" style="margin-top:8px">📤 Send to parents, one at a time</button>
+        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Steps through this group one student at a time, so each report card only ever goes to that student's own parent.</div>`}`,
     onMount:()=>{
       let ptype='month';
       $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
@@ -5026,10 +5029,28 @@ function openRCSheet(single){
         $('rcMonthWrap').style.display=ptype==='month'?'':'none';
         $('rcWeekWrap').style.display=ptype==='week'?'':'none';
       });
+      function computeIds(){
+        if(isSingle) return [single.id];
+        const clsId=$('stuFilterClass')?.value||'';
+        const q=($('stuSearch')?.value||'').trim().toLowerCase();
+        let stus=state.students;
+        if(clsId) stus=stus.filter(s=>clsId==='__none__'?!s.class_id:s.class_id===clsId);
+        if(q) stus=stus.filter(s=>((s.hebrew_name||'')+(s.english_name||'')).toLowerCase().includes(q));
+        if(!stus.length){toast('No students match',true);return null;}
+        return stus.map(s=>s.id);
+      }
       if($('rcShareParent')) $('rcShareParent').onclick=async()=>{
         const p=computePeriod(); if(!p)return;
+        const testOnly=$('rcTestOnly').checked;
         closeCustomSheet();
-        await shareReportToParent(single,p.from,p.to);
+        await shareReportToParent(single,p.from,p.to,testOnly);
+      };
+      if($('rcSendQueue')) $('rcSendQueue').onclick=()=>{
+        const p=computePeriod(); if(!p)return;
+        const ids=computeIds(); if(!ids)return;
+        const testOnly=$('rcTestOnly').checked;
+        closeCustomSheet();
+        startSendQueue(ids,p.from,p.to,testOnly);
       };
       function computePeriod(){
         let from,to;
@@ -5051,20 +5072,10 @@ function openRCSheet(single){
       }
       $('rcSheetGen').onclick=async()=>{
         const p=computePeriod(); if(!p)return;
-        const from=p.from, to=p.to;
-        let ids;
-        if(isSingle){ ids=[single.id]; }
-        else {
-          const clsId=$('stuFilterClass')?.value||'';
-          const q=($('stuSearch')?.value||'').trim().toLowerCase();
-          let stus=state.students;
-          if(clsId) stus=stus.filter(s=>clsId==='__none__'?!s.class_id:s.class_id===clsId);
-          if(q) stus=stus.filter(s=>((s.hebrew_name||'')+(s.english_name||'')).toLowerCase().includes(q));
-          if(!stus.length){toast('No students match',true);return;}
-          ids=stus.map(s=>s.id);
-        }
+        const ids=computeIds(); if(!ids)return;
+        const testOnly=$('rcTestOnly').checked;
         closeCustomSheet();
-        await generateReportCards(ids,from,to);
+        await generateReportCards(ids,p.from,p.to,testOnly);
       };
     }
   });
@@ -5167,7 +5178,7 @@ function _rcPeriodLabel(from,to){
   if(from<='2000-12-31') return `All time · through ${fmt(to)}`;
   return `${fmt(from)} – ${fmt(to)}`;
 }
-function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk){
+function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk,testOnly){
   const cls=state.classes.find(c=>c.id===student.class_id);
   const stu_scores=scores.filter(sc=>sc.student_id===student.id);
   let testHTML='';
@@ -5181,11 +5192,12 @@ function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk){
     if(rows)testHTML=`<p class="rc-sec">Test Marks – ציוני מבחנים</p>
       <table class="rc-tbl"><thead><tr><th>Test</th><th>Date</th><th>Score</th><th>%</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
+  if(testOnly&&!testHTML) testHTML=`<p class="muted" style="text-align:center;margin-top:16px">No test scores on file for this student.</p>`;
   return `<div class="rc-page${brk?' brk':''}">
     <div class="rc-bh">ב"ה</div>
     <div class="rc-head">
       <img class="rc-logo" src="${LOGO_RC}" alt="YKP">
-      <div class="rc-inst"><div class="rc-iname">YKP – Yeshivas Kayitz Program</div><div class="rc-isub">Attendance Report</div></div>
+      <div class="rc-inst"><div class="rc-iname">YKP – Yeshivas Kayitz Program</div><div class="rc-isub">${testOnly?'Test Scores':'Attendance Report'}</div></div>
     </div>
     <hr class="rc-rule">
     <div class="rc-for">Report for:</div>
@@ -5193,8 +5205,8 @@ function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk){
     ${student.english_name&&student.hebrew_name?`<div class="rc-ename">${student.english_name}</div>`:''}
     ${cls?`<div class="rc-cls">${esc(cls.name)}${cls.teacher?' · '+esc(cls.teacher):''}</div>`:''}
     <div class="rc-period">${_rcPeriodLabel(from,to)}</div>
-    ${buildAttTable(student,sessions,mAtt,'Shmiras Hasdorim Totals:')}
-    ${buildAttTable(student,sessions,yAtt,'Shmiras Hasdorim Year-to-Date:')}
+    ${testOnly?'':buildAttTable(student,sessions,mAtt,'Shmiras Hasdorim Totals:')}
+    ${testOnly?'':buildAttTable(student,sessions,yAtt,'Shmiras Hasdorim Year-to-Date:')}
     ${testHTML}
   </div>`;
 }
@@ -5231,7 +5243,7 @@ function _loadHtml2canvas(){
 }
 function _parentEmails(stu){ return (stu.parent_email||'').split(/[;,]/).map(e=>e.trim()).filter(Boolean); }
 // One-tap: render this student's card to an image and hand it to the phone's share sheet
-async function shareReportToParent(stu,from,to){
+async function shareReportToParent(stu,from,to,testOnly){
   if(state.isLearningTeacher){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
   toast('Preparing report card…');
   const ids=[stu.id], ytdFrom=getYtdStart(to);
@@ -5246,7 +5258,7 @@ async function shareReportToParent(stu,from,to){
     const testIds=tests.map(t=>t.id);
     let scores=[];
     if(testIds.length){const r4=await sb.from('ykp_test_scores').select('*').in('test_id',testIds).in('student_id',ids);scores=r4.data||[];}
-    const cardHtml=buildRCPage(stu,state.sessions,mAtt,yAtt,tests,scores,from,to,false);
+    const cardHtml=buildRCPage(stu,state.sessions,mAtt,yAtt,tests,scores,from,to,false,testOnly);
     host=document.createElement('div');
     host.style.cssText='position:fixed;left:-99999px;top:0;width:720px;background:#fff;z-index:-1';
     host.innerHTML='<style>'+RC_CSS+'</style>'+cardHtml;
@@ -5282,7 +5294,7 @@ async function shareReportToParent(stu,from,to){
     toast('Could not prepare report card: '+(err.message||err),true);
   }
 }
-async function generateReportCards(studentIds,from,to){
+async function generateReportCards(studentIds,from,to,testOnly){
   if(state.isLearningTeacher){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
   if(!studentIds.length){toast('No students',true);return;}
   toast('Generating report cards…');
@@ -5298,7 +5310,7 @@ async function generateReportCards(studentIds,from,to){
   if(testIds.length){const r4=await sb.from('ykp_test_scores').select('*').in('test_id',testIds).in('student_id',studentIds);scores=r4.data||[];}
   const cards=studentIds.map((sid,i)=>{
     const s=state.students.find(x=>x.id===sid);if(!s)return'';
-    return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0);
+    return buildRCPage(s,state.sessions,mAtt,yAtt,tests,scores,from,to,i>0,testOnly);
   }).join('');
   const css=RC_CSS;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>YKP Report Cards – ${from}</title><style>${css}</style></head><body>${cards}<script>window.onload=function(){setTimeout(function(){window.print();},600);}<\/script></body></html>`;
@@ -5306,6 +5318,56 @@ async function generateReportCards(studentIds,from,to){
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
   if(!w)toast('Allow pop-ups to generate PDFs',true);
+}
+
+/* Step-through sender: walks a group of students one at a time so every report
+   card is addressed only to that one student's own parent (no BCC-everyone risk). */
+function startSendQueue(studentIds,from,to,testOnly){
+  const queue=studentIds.map(id=>state.students.find(s=>s.id===id)).filter(s=>s&&_parentEmails(s).length);
+  const missing=studentIds.length-queue.length;
+  if(!queue.length){ toast('None of these students have a parent email on file',true); return; }
+  openCustomSheet({
+    title:`Send report cards — ${queue.length} parent${queue.length!==1?'s':''}`,
+    html:`<p class="muted" style="margin-bottom:10px">You'll go one student at a time. Each report card is sent only to that student's own parent — nobody else sees it.${missing?`<br><br>${missing} student${missing!==1?'s':''} skipped (no parent email on file).`:''}</p>
+      <button class="btn btn-primary btn-block" id="sqStart">Start sending (${queue.length})</button>`,
+    onMount:()=>{ $('sqStart').onclick=()=>openSendQueueSheet(queue,0,from,to,testOnly,0); }
+  });
+}
+function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount){
+  if(idx>=queue.length){
+    openCustomSheet({
+      title:'Done sending',
+      html:`<p class="muted" style="text-align:center;padding:16px 0">Sent ${sentCount} of ${queue.length} report card${queue.length!==1?'s':''}.</p>
+        <button class="btn btn-primary btn-block" id="sqClose">Close</button>`,
+      onMount:()=>{ $('sqClose').onclick=closeCustomSheet; }
+    });
+    return;
+  }
+  const stu=queue[idx];
+  const emails=_parentEmails(stu);
+  const nm=stu.hebrew_name||stu.english_name||'Student';
+  openCustomSheet({
+    title:`Send to parent — ${idx+1} of ${queue.length}`,
+    html:`<div style="text-align:center;margin-bottom:14px">
+        <div style="font-weight:700;font-size:16px" dir="auto">${esc(nm)}</div>
+        <div class="muted" style="font-size:12.5px;margin-top:2px">${esc(emails.join(', '))}</div>
+      </div>
+      <p class="muted" style="font-size:11.5px;text-align:center;margin-bottom:14px">This report card will go only to ${esc(nm)}'s parent.</p>
+      <button class="btn btn-primary btn-block" id="sqSend">📤 Send to this parent</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-soft" style="flex:1" id="sqSkip">Skip</button>
+        <button class="btn btn-soft" style="flex:1" id="sqStop">Stop here</button>
+      </div>`,
+    onMount:()=>{
+      $('sqSend').onclick=async()=>{
+        $('sqSend').disabled=true; $('sqSend').textContent='Sending…';
+        await shareReportToParent(stu,from,to,testOnly);
+        openSendQueueSheet(queue,idx+1,from,to,testOnly,sentCount+1);
+      };
+      $('sqSkip').onclick=()=>openSendQueueSheet(queue,idx+1,from,to,testOnly,sentCount);
+      $('sqStop').onclick=closeCustomSheet;
+    }
+  });
 }
 
 /* ===================== SHUL LIST (hang-up PDF) ===================== */
