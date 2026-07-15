@@ -226,6 +226,12 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .shul-chip:active{transform:scale(.96)}
 .shul-opt{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);margin-top:12px;cursor:pointer}
 .shul-opt input{width:18px;height:18px}
+.rc-bar-track{height:10px;border-radius:6px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.rc-bar-fill{height:100%;background:var(--accent);transition:width .25s}
+.sq-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface-2);font-size:12.5px}
+.sq-row span:first-child{font-weight:600}
+.sq-row.ok span:last-child{color:#16a34a}
+.sq-row.fail span:last-child{color:var(--attn);text-align:right}
 
 /* ---------- tests ---------- */
 .subtabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px}
@@ -5328,9 +5334,15 @@ function startSendQueue(studentIds,from,to,testOnly){
   if(!queue.length){ toast('None of these students have a parent email on file',true); return; }
   openCustomSheet({
     title:`Send report cards — ${queue.length} parent${queue.length!==1?'s':''}`,
-    html:`<p class="muted" style="margin-bottom:10px">You'll go one student at a time. Each report card is sent only to that student's own parent — nobody else sees it.${missing?`<br><br>${missing} student${missing!==1?'s':''} skipped (no parent email on file).`:''}</p>
-      <button class="btn btn-primary btn-block" id="sqStart">Start sending (${queue.length})</button>`,
-    onMount:()=>{ $('sqStart').onclick=()=>openSendQueueSheet(queue,0,from,to,testOnly,0); }
+    html:`<p class="muted" style="margin-bottom:10px">${missing?`${missing} student${missing!==1?'s':''} will be skipped (no parent email on file).`:''}</p>
+      <button class="btn btn-primary btn-block" id="sabStart">⚡ Send all ${queue.length} at once (automatic)</button>
+      <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Generates every PDF, uploads it, and emails each parent automatically in the background. No manual steps — just watch the progress.</div>
+      <button class="btn btn-soft btn-block" id="sqStart" style="margin-top:14px">Send one at a time instead</button>
+      <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">You approve each send yourself before it goes out.</div>`,
+    onMount:()=>{
+      $('sqStart').onclick=()=>openSendQueueSheet(queue,0,from,to,testOnly,0);
+      $('sabStart').onclick=()=>runSendAllAtOnce(queue,from,to,testOnly);
+    }
   });
 }
 function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount){
@@ -5368,6 +5380,137 @@ function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount){
       $('sqStop').onclick=closeCustomSheet;
     }
   });
+}
+
+/* ===================== SEND ALL AT ONCE (backend batch email) ===================== */
+const REPORT_CARD_BUCKET='report-cards';
+const SEND_BULK_FN='send-bulk-report-cards';
+
+let _jspdfLoading=null;
+function _loadJsPDF(){
+  if(window.jspdf&&window.jspdf.jsPDF) return Promise.resolve();
+  if(_jspdfLoading) return _jspdfLoading;
+  _jspdfLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload=()=>res(); s.onerror=()=>rej(new Error('Could not load PDF tool (need internet)'));
+    document.head.appendChild(s);
+  });
+  return _jspdfLoading;
+}
+// Renders one student's card off-screen using the same buildRCPage/RC_CSS layout
+// used everywhere else, then rasterizes it so it can be turned into a PDF.
+async function _renderRCCanvas(stu,sessions,mAtt,yAtt,tests,scores,from,to,testOnly){
+  const cardHtml=buildRCPage(stu,sessions,mAtt,yAtt,tests,scores,from,to,false,testOnly);
+  const host=document.createElement('div');
+  host.style.cssText='position:fixed;left:-99999px;top:0;width:720px;background:#fff;z-index:-1';
+  host.innerHTML='<style>'+RC_CSS+'</style>'+cardHtml;
+  document.body.appendChild(host);
+  try{
+    await _loadHtml2canvas();
+    const target=host.querySelector('.rc-page')||host;
+    return await window.html2canvas(target,{scale:2,backgroundColor:'#fff',useCORS:true,logging:false});
+  } finally { document.body.removeChild(host); }
+}
+async function buildReportCardPdfBlob(stu,sessions,mAtt,yAtt,tests,scores,from,to,testOnly){
+  await _loadJsPDF();
+  const canvas=await _renderRCCanvas(stu,sessions,mAtt,yAtt,tests,scores,from,to,testOnly);
+  const imgData=canvas.toDataURL('image/png');
+  const pxToMm=px=>px*25.4/(96*2); // html2canvas was rendered at scale:2
+  const wMm=pxToMm(canvas.width), hMm=pxToMm(canvas.height);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:wMm>hMm?'landscape':'portrait',unit:'mm',format:[wMm,hMm]});
+  doc.addImage(imgData,'PNG',0,0,wMm,hMm);
+  return doc.output('blob');
+}
+// Program-year label (Sept–Aug), e.g. "year_2025" — not a Hebrew-calendar year.
+function _rcYearLabel(to){ return `year_${getYtdStart(to).slice(0,4)}`; }
+async function uploadReportCardPdf(stu,blob,to){
+  const path=`${_rcYearLabel(to)}/${stu.id}.pdf`;
+  const up=await sb.storage.from(REPORT_CARD_BUCKET).upload(path,blob,{upsert:true,contentType:'application/pdf'});
+  if(up.error) throw new Error(up.error.message||'Upload failed');
+  const {data,error}=await sb.storage.from(REPORT_CARD_BUCKET).createSignedUrl(path,60*60*24*7); // 7-day link
+  if(error) throw new Error(error.message||'Could not create download link');
+  return data.signedUrl;
+}
+function _rcProgressSheet(phase,i,total){
+  const pct=total?Math.round(i/total*100):0;
+  openCustomSheet({
+    title:'Sending report cards',
+    html:`<p class="muted" style="text-align:center;margin-bottom:10px">${esc(phase)}: ${i} of ${total}…</p>
+      <div class="rc-bar-track"><div class="rc-bar-fill" style="width:${pct}%"></div></div>
+      <p class="muted" style="font-size:11px;text-align:center;margin-top:10px">Please keep this tab open until it finishes.</p>`,
+    onMount:()=>{}
+  });
+}
+function _rcSummarySheet(uploadResults,sendById){
+  const rows=uploadResults.map(r=>{
+    const nm=esc(r.student.hebrew_name||r.student.english_name||'Student');
+    if(!r.ok) return `<div class="sq-row fail"><span dir="auto">${nm}</span><span>⚠ upload failed — ${esc(r.error||'')}</span></div>`;
+    const sr=sendById[r.student.id];
+    if(!sr) return `<div class="sq-row fail"><span dir="auto">${nm}</span><span>⚠ not sent</span></div>`;
+    return sr.success?`<div class="sq-row ok"><span dir="auto">${nm}</span><span>✓ sent</span></div>`
+                      :`<div class="sq-row fail"><span dir="auto">${nm}</span><span>⚠ ${esc(sr.error||'send failed')}</span></div>`;
+  }).join('');
+  const okCount=uploadResults.filter(r=>r.ok&&sendById[r.student.id]&&sendById[r.student.id].success).length;
+  openCustomSheet({
+    title:'Done',
+    html:`<p class="muted" style="text-align:center;margin-bottom:10px">Sent ${okCount} of ${uploadResults.length} report card${uploadResults.length!==1?'s':''}.</p>
+      <div style="max-height:280px;overflow:auto;display:flex;flex-direction:column;gap:4px">${rows}</div>
+      <button class="btn btn-primary btn-block" id="sabClose" style="margin-top:14px">Close</button>`,
+    onMount:()=>{ $('sabClose').onclick=closeCustomSheet; }
+  });
+}
+async function runSendAllAtOnce(queue,from,to,testOnly){
+  if(state.isLearningTeacher){ toast('Not available for this role',true); return; }
+  closeCustomSheet();
+  const ids=queue.map(s=>s.id), ytdFrom=getYtdStart(to);
+  toast('Preparing report cards…');
+  let mAtt=[],yAtt=[],tests=[],scores=[];
+  try{
+    const [r1,r2,r3]=await Promise.all([
+      sb.from('attendance').select('*').in('student_id',ids).gte('date',from).lte('date',to),
+      sb.from('attendance').select('*').in('student_id',ids).gte('date',ytdFrom).lte('date',to),
+      sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
+    ]);
+    mAtt=r1.data||[]; yAtt=r2.data||[]; tests=r3.data||[];
+    const testIds=tests.map(t=>t.id);
+    if(testIds.length){ const r4=await sb.from('ykp_test_scores').select('*').in('test_id',testIds).in('student_id',ids); scores=r4.data||[]; }
+  }catch(err){ toast('Could not load report data: '+(err.message||err),true); return; }
+
+  const uploadResults=[]; // {student, ok, url?, error?}
+  for(let i=0;i<queue.length;i++){
+    const stu=queue[i];
+    _rcProgressSheet('Generating & uploading',i+1,queue.length);
+    try{
+      const blob=await buildReportCardPdfBlob(stu,state.sessions,mAtt,yAtt,tests,scores,from,to,testOnly);
+      const url=await uploadReportCardPdf(stu,blob,to);
+      uploadResults.push({student:stu,ok:true,url});
+    }catch(err){
+      uploadResults.push({student:stu,ok:false,error:err.message||String(err)});
+    }
+  }
+
+  const toSend=uploadResults.filter(r=>r.ok);
+  const sendById={};
+  if(toSend.length){
+    _rcProgressSheet('Sending emails',toSend.length,toSend.length);
+    try{
+      const items=toSend.map(r=>({
+        studentId:r.student.id,
+        studentName:r.student.hebrew_name||r.student.english_name||'Student',
+        parentEmail:_parentEmails(r.student)[0],
+        pdfUrl:r.url,
+        fileName:'ReportCard-'+(r.student.english_name||r.student.hebrew_name||'student').replace(/[^a-z0-9]+/gi,'-')+'.pdf'
+      }));
+      const {data,error}=await sb.functions.invoke(SEND_BULK_FN,{body:{items}});
+      if(error) throw error;
+      (data&&data.results||[]).forEach(r=>{ sendById[r.studentId]=r; });
+    }catch(err){
+      toSend.forEach(r=>{ sendById[r.student.id]={success:false,error:err.message||String(err)}; });
+    }
+  }
+  _rcSummarySheet(uploadResults,sendById);
 }
 
 /* ===================== SHUL LIST (hang-up PDF) ===================== */
