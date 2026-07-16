@@ -987,7 +987,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.0.5';
+const APP_VERSION='8.0.6';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -3775,9 +3775,14 @@ async function renderHistory(){
     <div class="zal-hint" style="margin:-4px 0 8px">${h.selMode?'Tap records to add them to the list':'Tap a record to edit it'}</div>
     <div id="histList"></div>`;
 
-  $('hClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; h.limit=50; renderHistory(); };
+  // Deferred via setTimeout: these rebuild the whole view (incl. this same
+  // <select>) from inside its own native change event. Doing that rebuild
+  // synchronously leaves the list stuck showing stale rows on some mobile
+  // browsers (e.g. standalone PWA) until an unrelated tap forces a repaint —
+  // deferring one tick lets the native change event finish first.
+  $('hClass').onchange=e=>{ h.classId=e.target.value; h.studentId=''; h.limit=50; setTimeout(renderHistory,0); };
   $('hStudent').onchange=e=>{ h.studentId=e.target.value; h.limit=50; refreshHistList(); };
-  $('hPeriod').onchange=e=>{ h.period=e.target.value; h.limit=50; renderHistory(); };
+  $('hPeriod').onchange=e=>{ h.period=e.target.value; h.limit=50; setTimeout(renderHistory,0); };
   $('hSessionSel')?.onchange; // legacy — no longer present
   // ── Multi-select session dropdown ──────────────────────────────────────
   {
@@ -4110,9 +4115,11 @@ async function renderGradeEntry(v){
 
   // Class filter — changes which students are rendered, so this triggers a
   // full re-render of the grade-entry view rather than a show/hide toggle.
+  // Deferred one tick (see History's hClass fix) since this rebuild replaces
+  // this same <select> from inside its own native change event.
   if($('testClassFilter')) $('testClassFilter').onchange=e=>{
     testsState.classFilter[t.id]=e.target.value;
-    renderGradeEntry(v);
+    setTimeout(()=>renderGradeEntry(v),0);
   };
 
   // Passing % threshold — persists to localStorage immediately so a page
