@@ -5025,8 +5025,8 @@ function openRCSheet(single){
       <button class="btn btn-primary btn-block" id="rcSheetGen" style="margin-top:14px">Generate PDF</button>
       ${isSingle?`<button class="btn btn-soft btn-block" id="rcShareParent" style="margin-top:8px">📤 Send report card to parent</button>
         <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">${single.parent_email?('One tap — opens your share sheet with the card attached, ready to send to '+esc(single.parent_email)+' (or via WhatsApp).'):'Tip: add a parent email in this student’s profile so you know where to send it.'}</div>`
-      :`<button class="btn btn-soft btn-block" id="rcSendQueue" style="margin-top:8px">📤 Send to parents, one at a time</button>
-        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Steps through this group one student at a time, so each report card only ever goes to that student's own parent.</div>`}`,
+      :`<button class="btn btn-soft btn-block" id="rcSendQueue" style="margin-top:8px">📤 Send to parents…</button>
+        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Choose to send all at once automatically, or step through one at a time — each report card only ever goes to that student's own parent.</div>`}`,
     onMount:()=>{
       let ptype='month';
       $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
