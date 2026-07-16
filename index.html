@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="mobile-web-app-capable" content="yes" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <link rel="manifest" href="manifest.json" />
 <link rel="apple-touch-icon" href="icon-192.png" />
 <title>YKP Attendance</title>
@@ -979,6 +982,29 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 <input id="photoInput" type="file" accept="image/*" class="hidden" />
 
 <script>
+
+/* ── Build/version tag + cache-bust ──────────────────────────────────────
+   Bump APP_VERSION on every deploy that should be visually verifiable.
+   The badge below renders on every screen so you can confirm which build
+   a given device is actually running (helps catch stale-cache installs). */
+const APP_VERSION='8.0.0';
+(function(){
+  const b=document.createElement('div');
+  b.textContent='v'+APP_VERSION;
+  b.style.cssText='position:fixed;left:6px;bottom:2px;z-index:99999;font-size:9px;line-height:1;'
+    +'color:rgba(0,0,0,.28);background:transparent;pointer-events:none;font-family:monospace;'
+    +'padding:2px 4px;user-select:none';
+  document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(b));
+})();
+// Belt-and-suspenders: this app no longer registers a service worker, so make
+// sure any leftover one (and its cached shell) from an older build can't keep
+// intercepting requests and serving stale pages.
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});
+}
+if('caches' in window){
+  caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))).catch(()=>{});
+}
 
 // ── iOS / iPadOS double-tap zoom prevention ───────────────────────────────
 // Primary guard: touch-action:manipulation on <html> (see CSS) tells the
