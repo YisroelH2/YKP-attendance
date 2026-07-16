@@ -5210,6 +5210,36 @@ function _rcPeriodLabel(from,to){
   if(from<='2000-12-31') return `All time · through ${fmt(to)}`;
   return `${fmt(from)} – ${fmt(to)}`;
 }
+// Hebrew numeral letters (gematria) for a 1-999 number, e.g. 786 -> "תשפו"
+function _numToHebLetters(num){
+  const hundreds=['','ק','ר','ש','ת','תק','תר','תש','תת','תתק'];
+  const tens=['','י','כ','ל','מ','נ','ס','ע','פ','צ'];
+  const ones=['','א','ב','ג','ד','ה','ו','ז','ח','ט'];
+  let n=num%1000;
+  const h=Math.floor(n/100); n%=100;
+  const t=Math.floor(n/10), o=n%10;
+  let str=hundreds[h]||'';
+  if(t===1&&(o===5||o===6)) str+=(o===5?'טו':'טז'); // 15/16 avoid spelling the Divine Name
+  else str+=(tens[t]||'')+(ones[o]||'');
+  return str;
+}
+function _hebGershMarks(str){
+  if(!str) return str;
+  return str.length===1?str+"'":str.slice(0,-1)+'"'+str.slice(-1);
+}
+// {greg:'Wednesday, July 15, 2026', heb:'א׳ אב תשפ"ו'} for the given date
+function _rcHeaderDates(d){
+  const greg=d.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  let heb='';
+  try{
+    const parts=new Intl.DateTimeFormat('he-u-ca-hebrew',{day:'numeric',month:'long',year:'numeric'}).formatToParts(d);
+    const day=+parts.find(p=>p.type==='day').value;
+    const month=parts.find(p=>p.type==='month').value;
+    const year=+parts.find(p=>p.type==='year').value;
+    heb=`${_hebGershMarks(_numToHebLetters(day))} ${month} ${_hebGershMarks(_numToHebLetters(year))}`;
+  }catch(_){ /* Hebrew calendar not supported by this engine — leave blank */ }
+  return {greg,heb};
+}
 function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk,testOnly){
   const cls=state.classes.find(c=>c.id===student.class_id);
   const stu_scores=scores.filter(sc=>sc.student_id===student.id);
@@ -5225,13 +5255,33 @@ function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk,testOnl
       <table class="rc-tbl"><thead><tr><th>Test</th><th>Date</th><th>Score</th><th>%</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   if(testOnly&&!testHTML) testHTML=`<p class="muted" style="text-align:center;margin-top:16px">No test scores on file for this student.</p>`;
+  const {greg:_rcGreg,heb:_rcHeb}=_rcHeaderDates(new Date());
+  const rcHeader=`<table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family:'Heebo',Arial,sans-serif;color:#1e293b;max-width:600px;margin:0 auto">
+    <tr>
+      <td valign="middle" style="padding-bottom:15px">
+        <table border="0" cellpadding="0" cellspacing="0">
+          <tr>
+            <td valign="middle" style="padding-right:15px">
+              <img src="${LOGO_RC}" width="70" style="display:block;border:0;width:70px;height:auto" alt="YKP">
+            </td>
+            <td valign="middle">
+              <h1 style="margin:0;font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#0f172a;line-height:1.2">Yeshivas Kayitz Program</h1>
+              <p style="margin:2px 0 0 0;font-size:11px;font-weight:600;text-transform:uppercase;color:#475569;letter-spacing:.5px">Mechina Program</p>
+              <p style="margin:1px 0 0 0;font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px">8TH GRADE DIVISION 5786</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+      <td align="right" valign="top" style="font-size:12px;font-weight:bold;color:#0f172a;padding-bottom:15px">ב"ה</td>
+    </tr>
+    <tr><td colspan="2" style="border-top:2px solid #0f172a;padding-top:6px"></td></tr>
+    <tr>
+      <td align="left" style="font-size:12px;font-weight:bold;color:#0f172a">${_rcGreg}</td>
+      <td align="right" style="font-size:12px;font-weight:bold;color:#0f172a">${_rcHeb}</td>
+    </tr>
+  </table>`;
   return `<div class="rc-page${brk?' brk':''}">
-    <div class="rc-bh">ב"ה</div>
-    <div class="rc-head">
-      <img class="rc-logo" src="${LOGO_RC}" alt="YKP">
-      <div class="rc-inst"><div class="rc-iname">YKP – Yeshivas Kayitz Program</div><div class="rc-isub">${testOnly?'Test Scores':'Attendance Report'}</div></div>
-    </div>
-    <hr class="rc-rule">
+    ${rcHeader}
     <div class="rc-for">Report for:</div>
     <div class="rc-sname" dir="auto">${student.hebrew_name||student.english_name||''}</div>
     ${student.english_name&&student.hebrew_name?`<div class="rc-ename">${student.english_name}</div>`:''}
@@ -5244,11 +5294,6 @@ function buildRCPage(student,sessions,mAtt,yAtt,tests,scores,from,to,brk,testOnl
 }
 const RC_CSS=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;background:#fff}
 .rc-page{padding:18px 20px;max-width:720px;margin:0 auto}.brk{page-break-before:always}
-.rc-bh{text-align:right;font-size:12px;margin-bottom:5px}
-.rc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.rc-logo{height:54px;object-fit:contain}.rc-inst{text-align:right}
-.rc-iname{font-size:14px;font-weight:bold}.rc-isub{font-size:11px;color:#555;margin-top:2px}
-.rc-rule{border:none;border-top:2px solid #2b5299;margin:8px 0}
 .rc-for{text-align:center;font-size:12px;margin:12px 0 3px}
 .rc-sname{text-align:center;font-size:18px;font-weight:bold;margin-bottom:3px}
 .rc-ename{text-align:center;font-size:13px;color:#333}
