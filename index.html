@@ -260,6 +260,12 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .score-inp:focus{border-color:var(--accent);outline:none}
 .score-unit{font-size:13px;color:var(--ink-faint);font-weight:600;white-space:nowrap;min-width:28px}
 .score-pct{font-size:12px;color:var(--ink-faint);min-width:38px;text-align:right}
+.sent-badge{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);font-size:11px;font-weight:800;flex-shrink:0;line-height:1;padding:0}
+.sent-badge.sent-yes{border-color:#16a34a;color:#16a34a;background:color-mix(in srgb,#16a34a 12%,transparent)}
+.sent-badge.sent-no{color:var(--ink-faint)}
+.test-unsent-badge{font-size:10.5px;font-weight:800;background:var(--attn-bg);color:var(--attn);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.tests-gear{width:42px;height:42px;flex-shrink:0;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--ink-soft)}
+.tests-gear:active{transform:scale(.94)}
 .bp-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 13px;margin-bottom:7px;box-shadow:var(--sh-1)}
 .bp-row.selectable{cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:flex-start;gap:10px}
 .bp-row.selectable:active{transform:scale(.99)}
@@ -987,7 +993,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.0.8';
+const APP_VERSION='8.1.1';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -3915,23 +3921,54 @@ async function renderTestsList(){
   const {data:tests}=await sb.from('ykp_tests').select('*').order('date',{ascending:false});
   const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
   const rows=tests||[];
-  let html=`<button class="btn btn-primary btn-block" id="newTestBtn" style="margin-bottom:14px">+ New test</button>`;
+  const settings=_testSettings();
+
+  // ── Unsent-results reminder — batched across every test in one pair of
+  // queries (not one query per test) so this list stays fast. A score counts
+  // as "unsent" if it was marked more than reminderDays ago and the latest
+  // send row for that (test,student) pair isn't status:'success'.
+  const unsentByTest={};
+  if(rows.length){
+    const testIds=rows.map(t=>t.id);
+    const cutoff=new Date(Date.now()-settings.reminderDays*86400000).toISOString();
+    const [{data:oldScores},{data:sends}]=await Promise.all([
+      sb.from('ykp_test_scores').select('test_id,student_id,created_at').in('test_id',testIds).lte('created_at',cutoff),
+      sb.from('ykp_report_card_sends').select('test_id,student_id,status,created_at').in('test_id',testIds).not('test_id','is',null).order('created_at',{ascending:false})
+    ]);
+    const latestSend={}; // "testId|studentId" -> latest status
+    (sends||[]).forEach(r=>{ const k=r.test_id+'|'+r.student_id; if(!latestSend[k]) latestSend[k]=r.status; });
+    (oldScores||[]).forEach(r=>{
+      const k=r.test_id+'|'+r.student_id;
+      if(latestSend[k]==='success') return;
+      unsentByTest[r.test_id]=(unsentByTest[r.test_id]||0)+1;
+    });
+  }
+
+  let html=`<div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn btn-primary btn-block" id="newTestBtn" style="flex:1">+ New test</button>
+      <button class="tests-gear" id="testSettingsBtn" title="Test settings" type="button">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>`;
   if(!rows.length){ html+=`<div class="hist-empty">No tests yet. Tap "New test" to create one.</div>`; }
   else rows.forEach(t=>{
     const ids=(t.class_ids&&t.class_ids.length>0)?t.class_ids:(t.class_id?[t.class_id]:[]);
     const clsNames=ids.map(id=>clsById[id]?.name).filter(Boolean);
     const clsText=clsNames.length?clsNames.join(', '):'All classes';
+    const unsent=unsentByTest[t.id]||0;
     html+=`<div class="test-card" data-tid="${t.id}">
       <div class="test-card-main">
         <div class="test-card-name">${esc(t.name)}</div>
         <div class="test-card-sub">${fmtTestDate(t.date)} · ${esc(clsText)} · ${t.grade_type==='percent'?'Percentage':'Out of '+t.max_points}</div>
       </div>
+      ${unsent?`<span class="test-unsent-badge">${unsent} unsent</span>`:''}
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>`;
   });
   wrap.innerHTML=html;
   wrap.querySelectorAll('.test-card').forEach(el=>el.onclick=()=>{ testsState.activeTest=rows.find(r=>r.id===el.dataset.tid); renderTests(); });
   $('newTestBtn').onclick=()=>openNewTestSheet();
+  $('testSettingsBtn').onclick=()=>openTestSettingsSheet(()=>renderTestsList());
 }
 
 function openNewTestSheet(){
@@ -4023,7 +4060,7 @@ async function renderGradeEntry(v){
   if(!testsState.passing) testsState.passing={};
   if(testsState.passing[t.id]===undefined){
     const persisted=_loadPassingMarks();
-    testsState.passing[t.id]=(persisted[t.id]!==undefined)?persisted[t.id]:60;
+    testsState.passing[t.id]=(persisted[t.id]!==undefined)?persisted[t.id]:_testSettings().defaultPassing;
   }
   if(!testsState.gradeFilter) testsState.gradeFilter={};
   if(!testsState.gradeFilter[t.id]) testsState.gradeFilter[t.id]='all';
@@ -4041,6 +4078,7 @@ async function renderGradeEntry(v){
   });
   const {data:scores}=await sb.from('ykp_test_scores').select('*').eq('test_id',t.id);
   const byStudent={}; (scores||[]).forEach(r=>byStudent[r.student_id]=r);
+  const sendsByStudent=await _lastSendsForTest(t.id,students.map(s=>s.id));
   const clsNames=classIds.map(id=>clsById[id]?.name).filter(Boolean);
   const clsText=clsNames.length?clsNames.join(', '):'All classes';
   const passingPct=testsState.passing[t.id];
@@ -4052,11 +4090,15 @@ async function renderGradeEntry(v){
     const val=sc!=null?sc.score:'';
     const unit=t.grade_type==='percent'?'%':'/'+t.max_points;
     const pct=sc!=null&&isPoints?` (${Math.round(sc.score/t.max_points*100)}%)`:'';
+    const sendInfo=sendsByStudent[s.id];
+    const sent=sendInfo&&sendInfo.status==='success';
+    const sentTitle=sent?`Sent ${new Date(sendInfo.created_at).toLocaleDateString()} — tap for history`:'Not sent yet — tap for history';
     rows+=`<div class="score-row" data-sid="${s.id}">
       <div class="score-name"><div class="score-heb" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>${(s.english_name&&s.hebrew_name)?`<div class="score-eng-sub">${esc(s.english_name)}</div>`:''}</div>
       <input class="score-inp" data-sid="${s.id}" type="number" min="0" max="${t.grade_type==='percent'?100:t.max_points}" inputmode="decimal" placeholder="–" value="${val}">
       <span class="score-unit">${unit}</span>
       <span class="score-pct" data-pct="${s.id}">${pct}</span>
+      <button class="sent-badge ${sent?'sent-yes':'sent-no'}" data-sent-sid="${s.id}" title="${sentTitle}" type="button">${sent?'✓':'·'}</button>
     </div>`;
   });
 
@@ -4099,7 +4141,8 @@ async function renderGradeEntry(v){
         ${_filterBtn('failed','✗ Failed')}
         ${_filterBtn('unmarked','— Unmarked')}
       </div>
-      <button class="btn btn-soft btn-sm" id="testExportBtn" style="height:32px;padding:0 12px;font-size:12px;margin-left:auto">📄 Export</button>
+      <button class="btn btn-soft btn-sm" id="testSendBtn" style="height:32px;padding:0 12px;font-size:12px;margin-left:auto">📤 Send</button>
+      <button class="btn btn-soft btn-sm" id="testExportBtn" style="height:32px;padding:0 12px;font-size:12px">📄 Export</button>
     </div>
     <div class="zal-hint" style="margin:-4px 0 10px">Tap a score to edit · changes save automatically</div>
     <div id="gradeSummary" class="grade-summary"></div>
@@ -4154,6 +4197,16 @@ async function renderGradeEntry(v){
   // Passed/Failed/Unmarked filter, and the class dropdown above — no need
   // for a separate, redundant set of export-only filter options.
   if($('testExportBtn')) $('testExportBtn').onclick=()=>openTestResultExportSheet(t, v);
+
+  // Send button — mirrors the Export button's "whatever's currently visible" behavior,
+  // so filtering to Passed only (holding back students who need a retake) then hitting
+  // Send only emails the filtered-in parents.
+  if($('testSendBtn')) $('testSendBtn').onclick=()=>openSendTestResultsSheet(t, v, sendsByStudent);
+
+  // Sent-status badges — tap for full send history + manual override actions
+  v.querySelectorAll('[data-sent-sid]').forEach(btn=>{
+    btn.onclick=()=>openSendHistorySheet(btn.dataset.sentSid,{testId:t.id,onChange:()=>renderGradeEntry(v)});
+  });
 
   // ── Score inputs — save on every keystroke (debounced), not just on blur ──
   // Rationale: relying on 'change' alone means a hard page refresh performed
@@ -4235,6 +4288,58 @@ function _applyGradeFilters(t, v, searchQ){
     row.style.display=(searchOk&&filterOk)?'':'none';
   });
   _refreshGradeSummary(t, v);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SEND TEST RESULTS — reuses the currently-visible score rows (so the
+   existing Passed/Failed/search filters double as the send filter: filter to
+   Passed, hit Send, and the Failed/retake group is held back automatically)
+   and hands the matching student ids to the same report-card send pipeline
+   used everywhere else (testOnly mode), just scoped to this one test's id
+   for tracking purposes.
+   ══════════════════════════════════════════════════════════════════════════ */
+function openSendTestResultsSheet(t, v, sendsByStudent){
+  const passing=testsState.passing?.[t.id]??60;
+  const isPoints=t.grade_type==='points'&&t.max_points;
+  const rows=[...v.querySelectorAll('.score-row')].filter(r=>r.style.display!=='none');
+  const candidates=rows.map(row=>{
+    const sid=row.dataset.sid;
+    const s=state.students.find(x=>x.id===sid); if(!s) return null;
+    const raw=row.querySelector('.score-inp')?.value.trim();
+    if(!raw) return null; // unmarked — nothing to send
+    const score=parseFloat(raw); if(isNaN(score)) return null;
+    const pct=isPoints?(score/t.max_points*100):score;
+    const already=sendsByStudent[sid]&&sendsByStudent[sid].status==='success';
+    return {student:s, status:pct>=passing?'pass':'fail', hasEmail:_parentEmails(s).length>0, already};
+  }).filter(Boolean);
+  if(!candidates.length){ toast('No marked, visible students to send to — check your filters',true); return; }
+
+  const passCount=candidates.filter(c=>c.status==='pass').length;
+  const failCount=candidates.filter(c=>c.status==='fail').length;
+  const alreadyCount=candidates.filter(c=>c.already).length;
+  const noEmailCount=candidates.filter(c=>!c.hasEmail).length;
+  const sendable=candidates.filter(c=>c.hasEmail);
+
+  openCustomSheet({
+    id:'__sendTest__',
+    title:`Send "${esc(t.name)}" results`,
+    html:`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+        <div class="sq-row"><span>Passed</span><span>${passCount}</span></div>
+        <div class="sq-row"><span>Failed</span><span>${failCount}</span></div>
+        ${alreadyCount?`<div class="sq-row fail"><span>Already sent before</span><span>${alreadyCount} (will resend)</span></div>`:''}
+        ${noEmailCount?`<div class="sq-row fail"><span>No parent email on file</span><span>${noEmailCount} (skipped)</span></div>`:''}
+      </div>
+      <p class="muted" style="font-size:11.5px;margin-bottom:10px">Sends the report-card PDF (test scores only) to just the ${sendable.length} parent${sendable.length!==1?'s':''} matching your current filters above. Adjust the Passed/Failed filter first if you want to hold back retakers.</p>
+      ${sendable.length?`<button class="btn btn-primary btn-block" id="stSend">📤 Send to ${sendable.length} parent${sendable.length!==1?'s':''}</button>`:''}
+      <button class="btn btn-soft btn-block" id="stCancel" style="margin-top:8px">Cancel</button>`,
+    onMount:()=>{
+      $('stCancel').onclick=closeCustomSheet;
+      if($('stSend')) $('stSend').onclick=()=>{
+        closeCustomSheet();
+        startSendQueue(sendable.map(c=>c.student.id),'2000-01-01',todayStr(),true,t.id);
+      };
+    }
+  });
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -5335,8 +5440,108 @@ function _loadHtml2canvas(){
   return _h2cLoading;
 }
 function _parentEmails(stu){ return (stu.parent_email||'').split(/[;,]/).map(e=>e.trim()).filter(Boolean); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SEND TRACKING — ykp_report_card_sends
+   One row per send *attempt*, never updated in place, so the table doubles
+   as a full history. testId set = a single test result sent from Grade
+   Entry; testId absent = a period-based report card (periodFrom/periodTo
+   set instead). status:'reset' lets a principal manually clear a prior
+   "sent" mark (the override/force-resend setting) without deleting history.
+   ══════════════════════════════════════════════════════════════════════════ */
+async function logSend({studentId,testId,periodFrom,periodTo,method,recipientEmails,status,error}){
+  try{
+    await sb.from('ykp_report_card_sends').insert({
+      student_id:studentId, test_id:testId||null,
+      period_from:testId?null:(periodFrom||null), period_to:testId?null:(periodTo||null),
+      method, recipient_emails:recipientEmails||null, status, error:error||null
+    });
+  }catch(e){ console.error('Failed to log send:',e); }
+}
+// Latest send status per student for a given test — first row per student wins since rows come back newest-first.
+async function _lastSendsForTest(testId,studentIds){
+  if(!testId||!studentIds.length) return {};
+  const {data}=await sb.from('ykp_report_card_sends').select('student_id,status,created_at')
+    .eq('test_id',testId).in('student_id',studentIds).order('created_at',{ascending:false});
+  const by={}; (data||[]).forEach(r=>{ if(!by[r.student_id]) by[r.student_id]=r; });
+  return by;
+}
+// Latest full-report-card send per student (any period) — used for the "already sent before" heads-up on bulk sends.
+async function _lastSendsForRoster(studentIds){
+  if(!studentIds.length) return {};
+  const {data}=await sb.from('ykp_report_card_sends').select('student_id,status,created_at,period_from,period_to')
+    .is('test_id',null).in('student_id',studentIds).order('created_at',{ascending:false});
+  const by={}; (data||[]).forEach(r=>{ if(!by[r.student_id]) by[r.student_id]=r; });
+  return by;
+}
+async function openSendHistorySheet(studentId,ctx){
+  const s=state.students.find(x=>x.id===studentId);
+  const nm=s?(s.hebrew_name||s.english_name||'Student'):'Student';
+  const {data}=await sb.from('ykp_report_card_sends').select('*').eq('student_id',studentId).order('created_at',{ascending:false}).limit(50);
+  const testsById={};
+  const testIds=[...new Set((data||[]).filter(r=>r.test_id).map(r=>r.test_id))];
+  if(testIds.length){ const {data:ts}=await sb.from('ykp_tests').select('id,name').in('id',testIds); (ts||[]).forEach(t=>testsById[t.id]=t.name); }
+  const rowsHtml=(data&&data.length)?data.map(r=>{
+    const what=r.test_id?esc(testsById[r.test_id]||'Test'):(r.period_from?`Report card ${r.period_from} – ${r.period_to}`:'Report card');
+    const when=new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const cls=r.status==='success'?'ok':r.status==='reset'?'':'fail';
+    const lbl=r.status==='success'?'✓ sent':r.status==='reset'?'— cleared':'⚠ failed';
+    return `<div class="sq-row ${cls}"><span>${what}</span><span>${lbl} · ${when}</span></div>`;
+  }).join(''):'<div class="hist-empty">No sends logged yet.</div>';
+  const showActions=!!(ctx&&(ctx.testId||ctx.periodFrom));
+  openCustomSheet({
+    id:'__sendHist__',
+    title:`Send history — ${esc(nm)}`,
+    html:`<div style="max-height:320px;overflow:auto;display:flex;flex-direction:column;gap:4px">${rowsHtml}</div>
+      ${showActions?`<div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-soft" style="flex:1" id="shMarkSent">Mark as sent</button>
+        <button class="btn btn-soft" style="flex:1" id="shClear">Clear sent status</button>
+      </div>
+      <p class="muted" style="font-size:11px;text-align:center;margin-top:6px">"Mark as sent" logs it as delivered without emailing (e.g. you told the parent in person). "Clear" un-marks it so it shows as not-yet-sent again.</p>`:''}
+      <button class="btn btn-primary btn-block" id="shClose" style="margin-top:10px">Close</button>`,
+    onMount:()=>{
+      $('shClose').onclick=closeCustomSheet;
+      if($('shMarkSent')) $('shMarkSent').onclick=async()=>{
+        await logSend({studentId,testId:ctx.testId,periodFrom:ctx.periodFrom,periodTo:ctx.periodTo,method:'manual',status:'success'});
+        closeCustomSheet(); toast('Marked as sent'); if(ctx.onChange) ctx.onChange();
+      };
+      if($('shClear')) $('shClear').onclick=async()=>{
+        await logSend({studentId,testId:ctx.testId,periodFrom:ctx.periodFrom,periodTo:ctx.periodTo,method:'manual',status:'reset'});
+        closeCustomSheet(); toast('Cleared'); if(ctx.onChange) ctx.onChange();
+      };
+    }
+  });
+}
+
+/* ── Test-tab settings — plain localStorage prefs, same pattern as the passing-mark persistence above ── */
+function _testSettings(){ try{ return {defaultPassing:60,reminderDays:3,skipSentByDefault:true, ...JSON.parse(localStorage.getItem('ykp_test_settings_v1')||'{}')}; }catch(_){ return {defaultPassing:60,reminderDays:3,skipSentByDefault:true}; } }
+function _saveTestSettings(s){ try{ localStorage.setItem('ykp_test_settings_v1',JSON.stringify(s)); }catch(_){} }
+function openTestSettingsSheet(onSaved){
+  const cur=_testSettings();
+  openCustomSheet({
+    id:'__testSettings__',
+    title:'Test settings',
+    html:`<div class="field"><label>Default passing mark for new tests</label>
+        <div style="display:flex;align-items:center;gap:6px"><input id="tsPassing" class="inp" type="number" min="0" max="100" value="${cur.defaultPassing}" style="width:80px"><span class="muted">%</span></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Remind me about unsent results after</label>
+        <div style="display:flex;align-items:center;gap:6px"><input id="tsDays" class="inp" type="number" min="1" max="60" value="${cur.reminderDays}" style="width:80px"><span class="muted">days</span></div>
+      </div>
+      <label class="shul-opt"><input type="checkbox" id="tsSkipSent" ${cur.skipSentByDefault?'checked':''}> Skip already-sent students by default when starting a send</label>
+      <button class="btn btn-primary btn-block" id="tsSave" style="margin-top:16px">Save</button>`,
+    onMount:()=>{
+      $('tsSave').onclick=()=>{
+        const defaultPassing=Math.max(0,Math.min(100,parseInt($('tsPassing').value)||60));
+        const reminderDays=Math.max(1,parseInt($('tsDays').value)||3);
+        const skipSentByDefault=$('tsSkipSent').checked;
+        _saveTestSettings({defaultPassing,reminderDays,skipSentByDefault});
+        closeCustomSheet(); toast('Settings saved'); if(onSaved) onSaved();
+      };
+    }
+  });
+}
 // One-tap: render this student's card to an image and hand it to the phone's share sheet
-async function shareReportToParent(stu,from,to,testOnly){
+async function shareReportToParent(stu,from,to,testOnly,testId){
   if(state.isLearningTeacher){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
   toast('Preparing report card…');
   const ids=[stu.id], ytdFrom=getYtdStart(to);
@@ -5370,6 +5575,7 @@ async function shareReportToParent(stu,from,to,testOnly){
     if(navigator.canShare && navigator.canShare({files:[file]})){
       try{ await navigator.share({files:[file],title:'Report Card',text}); }
       catch(e){ /* user cancelled the share sheet */ }
+      logSend({studentId:stu.id,testId,periodFrom:from,periodTo:to,method:'share',recipientEmails:emails.join(','),status:'success'});
       return;
     }
     // Fallback (desktop / no file-share): download the image, then open a pre-addressed email
@@ -5382,9 +5588,11 @@ async function shareReportToParent(stu,from,to,testOnly){
       location.href='mailto:'+to+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(text+'\n\n(The report-card image just downloaded — please attach it.)');
     }
     toast('Report card image downloaded — attach it to your message');
+    logSend({studentId:stu.id,testId,periodFrom:from,periodTo:to,method:'share',recipientEmails:emails.join(','),status:'success'});
   }catch(err){
     if(host&&host.parentNode)document.body.removeChild(host);
     toast('Could not prepare report card: '+(err.message||err),true);
+    logSend({studentId:stu.id,testId,periodFrom:from,periodTo:to,method:'share',recipientEmails:_parentEmails(stu).join(','),status:'failed',error:err.message||String(err)});
   }
 }
 async function generateReportCards(studentIds,from,to,testOnly){
@@ -5414,25 +5622,38 @@ async function generateReportCards(studentIds,from,to,testOnly){
 }
 
 /* Step-through sender: walks a group of students one at a time so every report
-   card is addressed only to that one student's own parent (no BCC-everyone risk). */
-function startSendQueue(studentIds,from,to,testOnly){
+   card is addressed only to that one student's own parent (no BCC-everyone risk).
+   testId is set only when this was launched from Grade Entry's "Send" button on a
+   single test — it's what lets logSend() tag the row per-test instead of per-period. */
+async function startSendQueue(studentIds,from,to,testOnly,testId){
   const queue=studentIds.map(id=>state.students.find(s=>s.id===id)).filter(s=>s&&_parentEmails(s).length);
   const missing=studentIds.length-queue.length;
   if(!queue.length){ toast('None of these students have a parent email on file',true); return; }
+  const settings=_testSettings();
+  const sends=testId?await _lastSendsForTest(testId,queue.map(s=>s.id)):await _lastSendsForRoster(queue.map(s=>s.id));
+  const alreadySentIds=new Set(queue.filter(s=>sends[s.id]&&sends[s.id].status==='success').map(s=>s.id));
+  let skipSent=settings.skipSentByDefault&&alreadySentIds.size>0;
+  const effectiveQueue=()=>skipSent?queue.filter(s=>!alreadySentIds.has(s.id)):queue;
   openCustomSheet({
+    id:'__sendQueueStart__',
     title:`Send report cards — ${queue.length} parent${queue.length!==1?'s':''}`,
     html:`<p class="muted" style="margin-bottom:10px">${missing?`${missing} student${missing!==1?'s':''} will be skipped (no parent email on file).`:''}</p>
-      <button class="btn btn-primary btn-block" id="sabStart">⚡ Send all ${queue.length} at once (automatic)</button>
+      ${alreadySentIds.size?`<label class="shul-opt" style="margin-top:0"><input type="checkbox" id="ssqSkipSent" ${skipSent?'checked':''}> Skip ${alreadySentIds.size} already sent before</label>`:''}
+      <p class="muted" id="ssqCountLine" style="font-size:11.5px;margin:8px 0 0"></p>
+      <button class="btn btn-primary btn-block" id="sabStart" style="margin-top:14px">⚡ Send all at once (automatic)</button>
       <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Generates every PDF, uploads it, and emails each parent automatically in the background. No manual steps — just watch the progress.</div>
       <button class="btn btn-soft btn-block" id="sqStart" style="margin-top:14px">Send one at a time instead</button>
       <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">You approve each send yourself before it goes out.</div>`,
     onMount:()=>{
-      $('sqStart').onclick=()=>openSendQueueSheet(queue,0,from,to,testOnly,0);
-      $('sabStart').onclick=()=>runSendAllAtOnce(queue,from,to,testOnly);
+      const _updCount=()=>{ const n=effectiveQueue().length; $('ssqCountLine').textContent=`${n} parent${n!==1?'s':''} will be sent to.`; };
+      _updCount();
+      if($('ssqSkipSent')) $('ssqSkipSent').onchange=e=>{ skipSent=e.target.checked; _updCount(); };
+      $('sqStart').onclick=()=>openSendQueueSheet(effectiveQueue(),0,from,to,testOnly,0,testId);
+      $('sabStart').onclick=()=>runSendAllAtOnce(effectiveQueue(),from,to,testOnly,testId);
     }
   });
 }
-function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount){
+function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount,testId){
   if(idx>=queue.length){
     openCustomSheet({
       title:'Done sending',
@@ -5460,10 +5681,10 @@ function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount){
     onMount:()=>{
       $('sqSend').onclick=async()=>{
         $('sqSend').disabled=true; $('sqSend').textContent='Sending…';
-        await shareReportToParent(stu,from,to,testOnly);
-        openSendQueueSheet(queue,idx+1,from,to,testOnly,sentCount+1);
+        await shareReportToParent(stu,from,to,testOnly,testId);
+        openSendQueueSheet(queue,idx+1,from,to,testOnly,sentCount+1,testId);
       };
-      $('sqSkip').onclick=()=>openSendQueueSheet(queue,idx+1,from,to,testOnly,sentCount);
+      $('sqSkip').onclick=()=>openSendQueueSheet(queue,idx+1,from,to,testOnly,sentCount,testId);
       $('sqStop').onclick=closeCustomSheet;
     }
   });
@@ -5548,7 +5769,7 @@ function _rcSummarySheet(uploadResults,sendById){
     onMount:()=>{ $('sabClose').onclick=closeCustomSheet; }
   });
 }
-async function runSendAllAtOnce(queue,from,to,testOnly){
+async function runSendAllAtOnce(queue,from,to,testOnly,testId){
   if(state.isLearningTeacher){ toast('Not available for this role',true); return; }
   closeCustomSheet();
   const ids=queue.map(s=>s.id), ytdFrom=getYtdStart(to);
@@ -5597,6 +5818,14 @@ async function runSendAllAtOnce(queue,from,to,testOnly){
       toSend.forEach(r=>{ sendById[r.student.id]={success:false,error:err.message||String(err)}; });
     }
   }
+  // Log every attempt — an upload failure counts as a failed send too, not just a rejected email.
+  uploadResults.forEach(r=>{
+    const sr=sendById[r.student.id];
+    const ok=r.ok&&sr&&sr.success;
+    logSend({studentId:r.student.id,testId,periodFrom:from,periodTo:to,method:'bulk_email',
+      recipientEmails:_parentEmails(r.student).join(','),status:ok?'success':'failed',
+      error:!r.ok?r.error:(sr&&!sr.success?sr.error:undefined)});
+  });
   _rcSummarySheet(uploadResults,sendById);
 }
 
