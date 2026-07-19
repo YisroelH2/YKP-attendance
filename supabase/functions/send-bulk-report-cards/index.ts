@@ -6,7 +6,8 @@
 // student's parent via Resend — one email per student, never a shared/BCC send.
 //
 // Deploy:   supabase functions deploy send-bulk-report-cards
-// Secrets:  supabase secrets set RESEND_API_KEY=re_xxx REPORT_CARD_FROM_EMAIL="YKP Reports <reports@yourdomain.com>"
+// Secrets:  supabase secrets set RESEND_API_KEY=re_xxx
+// Secrets:  supabase secrets set REPORT_CARD_FROM_EMAIL=YKP Reports, reports@yourdomain.com (formatted as: Name, email)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
