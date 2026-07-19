@@ -993,7 +993,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.1.2';
+const APP_VERSION='8.1.3';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -6008,10 +6008,6 @@ async function generateShulList(entries,heading,showReason,nameFmt){
     groupedMap.get(e.student.id).keys.push(e.key);
   });
   const grouped=[...groupedMap.values()];
-  const n    = grouped.length;
-  const half = Math.ceil(n/2);
-  const colA = grouped.slice(0,half);
-  const colB = grouped.slice(half);
 
   // Each grouped entry may carry multiple session keys
   const mkRow = (group) => {
@@ -6033,9 +6029,6 @@ async function generateShulList(entries,heading,showReason,nameFmt){
     }
     return `<div class="row"><span class="name">${nameCell(s)}</span>${sessHtml?`<div class="sessions">${sessHtml}</div>`:''}</div>`;
   };
-
-  const leftRows  = colA.map(g=>mkRow(g)).join('');
-  const rightRows = colB.map(g=>mkRow(g)).join('');
 
   // Heading font-size: calibrated so ~60-char text wraps to 2 lines
   const hLen        = heading.length;
@@ -6180,7 +6173,13 @@ body {
     background:#ffffff!important; -webkit-print-color-adjust:exact!important;
     print-color-adjust:exact!important; border-radius:0!important;
     max-width:100%!important; width:100%!important;
-    min-height:auto!important; height:auto!important;
+    /* Force every page's card to reach exactly one full page tall — NOT
+       auto — so a short list still shows a full white sheet with an even
+       blue margin all the way around instead of stopping short and leaving
+       the rest of the page exposed as solid blue (prints as gray in B&W).
+       Entries are pre-paginated below so each card's content is guaranteed
+       to fit within this height. */
+    min-height: calc(100vh - 36px) !important; height:auto!important;
     box-shadow:none!important; outline:none!important;
     border:none!important; overflow:visible!important;
   }
@@ -6198,41 +6197,71 @@ body {
   .row       { page-break-inside: avoid; break-inside: avoid; }
 }`;
 
-  // ── Body HTML ─────────────────────────────────────────────────────────────
-  const body = `<div class="card">
-  <div class="card-inner">
+  // ── Pagination — measure real rendered row/header heights off-screen at
+  // print dimensions, then greedily pack two columns per page so every page
+  // (including the last) only ever holds what actually fits. Rows here are
+  // NOT uniform height — the "show reason" toggle can add a variable number
+  // of session lines under a name — so we measure the real height of each
+  // grouped row rather than assuming a fixed row count; that's what keeps
+  // this correct whether or not the reason toggle is on. Page-height math
+  // uses the CSS reference pixel (96px/in), matching @page{size:letter}.
+  const PAGE_W=816, PAGE_H=1056;          // 8.5in x 11in @ 96px/in
+  const BODY_PAD=36, CARD_PAD_H=72, CARD_PAD_V=34, COL_GAP=28; // print-mode paddings, both sides combined
+  const contentW=PAGE_W-BODY_PAD-CARD_PAD_H;
+  const colW=(contentW-COL_GAP)/2;
+  const pageContentH=PAGE_H-BODY_PAD-CARD_PAD_V; // budget available inside card-inner on any one page
 
-    <!-- 1. Header: header.png centered; bh absolutely top-right of card -->
-    <div class="header-wrap">
-      <span class="bh">&#x05D1;&#x05F4;&#x05D4;</span>
-      <img class="header-img" src="${headerUrl}" alt="YKP Header">
-    </div>
-
-    <!-- 2. Full-width dark-blue divider -->
+  const chromeHtml=`<div class="header-wrap"><span class="bh">&#x05D1;&#x05F4;&#x05D4;</span><img class="header-img" src="${headerUrl}" alt="YKP Header"></div>
     <hr class="divider">
-
-    <!-- 3. Date row: directly below divider, above title -->
-    <!--    English left edge ◄────────────────────► Hebrew right edge -->
     ${(engDate||cleanHebDate)?`<div class="date-row">
       ${engDate?`<span class="eng-date">${esc(engDate)}</span>`:'<span></span>'}
       ${cleanHebDate?`<span class="heb-date">${esc(cleanHebDate)}</span>`:''}
     </div>`:''}
+    <div class="title" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>`;
 
-    <!-- 4. Dynamic title (centered serif, size auto-scales to length) -->
-    <div class="title" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>
+  const measureHost=document.createElement('div');
+  measureHost.style.cssText='position:fixed;left:-99999px;top:0;background:#fff';
+  measureHost.innerHTML=`<style>${css}</style>
+    <div id="mChrome" style="width:${contentW}px">${chromeHtml}</div>
+    <div id="mRows" style="width:${colW}px">${grouped.map(mkRow).join('')}</div>`;
+  document.body.appendChild(measureHost);
+  const chromeH=measureHost.querySelector('#mChrome').getBoundingClientRect().height;
+  const rowHeights=[...measureHost.querySelector('#mRows').children].map(el=>el.getBoundingClientRect().height);
+  document.body.removeChild(measureHost);
 
-    <!-- 5. Two-column student list: num left, name right -->
+  const pages=[]; // {first, colA:[groups], colB:[groups]}
+  let i=0, first=true;
+  while(i<grouped.length){
+    const budget=pageContentH-(first?chromeH:0);
+    const colA=[], colB=[];
+    let h=0;
+    while(i<grouped.length && h+rowHeights[i]<=budget){ colA.push(grouped[i]); h+=rowHeights[i]; i++; }
+    if(i<grouped.length){
+      h=0;
+      while(i<grouped.length && h+rowHeights[i]<=budget){ colB.push(grouped[i]); h+=rowHeights[i]; i++; }
+    }
+    // Guard: an unusually tall single row (e.g. many sessions with notes)
+    // that alone exceeds the budget must still get placed, or pagination spins forever.
+    if(!colA.length && !colB.length && i<grouped.length){ colA.push(grouped[i]); i++; }
+    pages.push({first,colA,colB});
+    first=false;
+  }
+
+  // ── Body HTML ─────────────────────────────────────────────────────────────
+  const pageHtml=pages.map((p,pi)=>{
+    const isLast=pi===pages.length-1;
+    return `<div class="card${isLast?'':' page-break'}">
+  <div class="card-inner">
+    ${p.first?chromeHtml:''}
     <div class="list-grid">
-      <div class="col">${leftRows}</div>
-      <div class="col">${rightRows}</div>
+      <div class="col">${p.colA.map(mkRow).join('')}</div>
+      <div class="col">${p.colB.map(mkRow).join('')}</div>
     </div>
-
   </div>
-</div>
+</div>`;
+  }).join('');
 
-`;
-
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shul List</title><style>${css}</style></head><body>${pageHtml}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
