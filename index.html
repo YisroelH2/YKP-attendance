@@ -987,7 +987,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.0.6';
+const APP_VERSION='8.0.7';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5071,10 +5071,15 @@ function openRCSheet(single){
       function computeIds(){
         if(isSingle) return [single.id];
         const clsId=$('stuFilterClass')?.value||'';
-        const q=($('stuSearch')?.value||'').trim().toLowerCase();
-        let stus=state.students;
+        const bunkId=$('stuFilterBunk')?.value||'';
+        const q=($('stuSearch')?.value||'').trim();
+        // Reuse the same matching used to render the roster (_stuMatchesQ's fuzzy
+        // search + bunk filter) so this list always agrees with what's on screen —
+        // a stricter/duplicated check here previously caused "No students match"
+        // even when exactly one student was visibly showing.
+        let stus=state.students.filter(s=>_stuMatchesQ(s,q));
         if(clsId) stus=stus.filter(s=>clsId==='__none__'?!s.class_id:s.class_id===clsId);
-        if(q) stus=stus.filter(s=>((s.hebrew_name||'')+(s.english_name||'')).toLowerCase().includes(q));
+        if(bunkId) stus=stus.filter(s=>s.bunk===bunkId);
         if(!stus.length){toast('No students match',true);return null;}
         return stus.map(s=>s.id);
       }
