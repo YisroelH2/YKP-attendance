@@ -993,7 +993,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.1.1';
+const APP_VERSION='8.1.2';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -4470,9 +4470,6 @@ async function generateTestResultList(entries, heading, nameFmt, showScore, show
     return heb+(s.english_name?' '+esc(lastFirst(s.english_name)):'');
   };
 
-  const n=entries.length, half=Math.ceil(n/2);
-  const colA=entries.slice(0,half), colB=entries.slice(half);
-
   // Name once, Pass/Fail badge + score pushed to the right — same visual
   // language as the Shul-list's .sess-toprow spacing fix. The badge itself is
   // fully omitted (not just hidden) when showBadge is off, so unchecking it
@@ -4487,8 +4484,6 @@ async function generateTestResultList(entries, heading, nameFmt, showScore, show
       <div class="test-right">${scoreHtml}${badgeHtml}</div>
     </div>`;
   };
-  const leftRows=colA.map(mkRow).join('');
-  const rightRows=colB.map(mkRow).join('');
 
   const hLen=heading.length;
   const headingSize=hLen>100?'18px':hLen>70?'26px':hLen>45?'38px':hLen>25?'50px':'60px';
@@ -4542,7 +4537,19 @@ body {
   @page { margin: 0; size: letter portrait; }
   html { height:auto; background:#c5d6eb!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
   body { background:#c5d6eb!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; padding:18px!important; margin:0!important; min-height:auto!important; height:auto!important; display:block!important; width:100%!important; box-sizing:border-box!important; }
-  .card { background:#ffffff!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; border-radius:0!important; max-width:100%!important; width:100%!important; min-height:auto!important; height:auto!important; box-shadow:none!important; outline:none!important; border:none!important; overflow:visible!important; }
+  .card {
+    background:#ffffff!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
+    border-radius:0!important; max-width:100%!important; width:100%!important;
+    /* Force every page's card to reach exactly one full page tall (page
+       height minus the body's own 18px*2 padding) — NOT auto — so a short
+       list still shows a full white sheet with an even blue margin all the
+       way around instead of stopping short and leaving the rest of the page
+       exposed as solid blue (prints as an ugly gray block in B&W). Entries
+       are pre-paginated below so each card's content is guaranteed to fit
+       within this height — the remainder just reads as clean white space. */
+    min-height: calc(100vh - 36px) !important; height:auto!important;
+    box-shadow:none!important; outline:none!important; border:none!important; overflow:visible!important;
+  }
   .card-inner { padding:14px 36px 20px!important; background:#ffffff!important; }
   .list-grid { page-break-inside:auto; }
   .row { page-break-inside:avoid; break-inside:avoid; }
@@ -4550,27 +4557,70 @@ body {
   .no-print { display: none !important; }
 }`;
 
-  const body = `<div class="card">
-  <div class="card-inner">
-    <div class="header-wrap">
-      <span class="bh">&#x05D1;&#x05F4;&#x05D4;</span>
-      <img class="header-img" src="${headerUrl}" alt="YKP Header">
-    </div>
+  // ── Pagination — measure real rendered row/header heights off-screen at
+  // print dimensions, then greedily pack two columns per page so every page
+  // (including the last) only ever holds what actually fits. This is what
+  // makes "only queue a 2nd page when the names reach it" correct even
+  // though row height varies (short vs. wrapped names): we measure instead
+  // of guessing a fixed row count. Page-height math uses the CSS reference
+  // pixel (96px/in), which is what @page{size:letter} and print engines agree on.
+  const PAGE_W=816, PAGE_H=1056;          // 8.5in x 11in @ 96px/in
+  const BODY_PAD=36, CARD_PAD_H=72, CARD_PAD_V=34, COL_GAP=28; // print-mode paddings, both sides combined
+  const contentW=PAGE_W-BODY_PAD-CARD_PAD_H;
+  const colW=(contentW-COL_GAP)/2;
+  const pageContentH=PAGE_H-BODY_PAD-CARD_PAD_V; // budget available inside card-inner on any one page
+
+  const chromeHtml=`<div class="header-wrap"><span class="bh">&#x05D1;&#x05F4;&#x05D4;</span><img class="header-img" src="${headerUrl}" alt="YKP Header"></div>
     <hr class="divider">
     ${(engDate||cleanHebDate)?`<div class="date-row">
       ${engDate?`<span class="eng-date">${esc(engDate)}</span>`:'<span></span>'}
       ${cleanHebDate?`<span class="heb-date">${esc(cleanHebDate)}</span>`:''}
     </div>`:''}
     <div class="title" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>
-    <div class="summary-line">${summaryLine}</div>
+    <div class="summary-line">${summaryLine}</div>`;
+
+  const measureHost=document.createElement('div');
+  measureHost.style.cssText='position:fixed;left:-99999px;top:0;background:#fff';
+  measureHost.innerHTML=`<style>${css}</style>
+    <div id="mChrome" style="width:${contentW}px">${chromeHtml}</div>
+    <div id="mRows" style="width:${colW}px">${entries.map(mkRow).join('')}</div>`;
+  document.body.appendChild(measureHost);
+  const chromeH=measureHost.querySelector('#mChrome').getBoundingClientRect().height;
+  const rowHeights=[...measureHost.querySelector('#mRows').children].map(el=>el.getBoundingClientRect().height);
+  document.body.removeChild(measureHost);
+
+  const pages=[]; // {first, colA:[entries], colB:[entries]}
+  let i=0, first=true;
+  while(i<entries.length){
+    const budget=pageContentH-(first?chromeH:0);
+    const colA=[], colB=[];
+    let h=0;
+    while(i<entries.length && h+rowHeights[i]<=budget){ colA.push(entries[i]); h+=rowHeights[i]; i++; }
+    if(i<entries.length){
+      h=0;
+      while(i<entries.length && h+rowHeights[i]<=budget){ colB.push(entries[i]); h+=rowHeights[i]; i++; }
+    }
+    // Guard: an unusually tall single row (e.g. a long wrapped name) that
+    // alone exceeds the budget must still get placed, or pagination spins forever.
+    if(!colA.length && !colB.length && i<entries.length){ colA.push(entries[i]); i++; }
+    pages.push({first,colA,colB});
+    first=false;
+  }
+
+  const pageHtml=pages.map((p,pi)=>{
+    const isLast=pi===pages.length-1;
+    return `<div class="card${isLast?'':' page-break'}">
+  <div class="card-inner">
+    ${p.first?chromeHtml:''}
     <div class="list-grid">
-      <div class="col">${leftRows}</div>
-      <div class="col">${rightRows}</div>
+      <div class="col">${p.colA.map(mkRow).join('')}</div>
+      <div class="col">${p.colB.map(mkRow).join('')}</div>
     </div>
   </div>
 </div>`;
+  }).join('');
 
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Test Results</title><style>${css}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Test Results</title><style>${css}</style></head><body>${pageHtml}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const w=window.open(url,'_blank');
