@@ -987,7 +987,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.0.7';
+const APP_VERSION='8.0.8';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5586,7 +5586,7 @@ async function runSendAllAtOnce(queue,from,to,testOnly){
       const items=toSend.map(r=>({
         studentId:r.student.id,
         studentName:r.student.hebrew_name||r.student.english_name||'Student',
-        parentEmail:_parentEmails(r.student)[0],
+        parentEmail:_parentEmails(r.student).join(','),
         pdfUrl:r.url,
         fileName:'ReportCard-'+(r.student.english_name||r.student.hebrew_name||'student').replace(/[^a-z0-9]+/gi,'-')+'.pdf'
       }));

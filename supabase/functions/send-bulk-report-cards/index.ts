@@ -60,7 +60,10 @@ function base64Encode(buf: ArrayBuffer): string {
 
 async function sendOne(item: ReportCardItem): Promise<SendResult> {
   try {
-    if (!item.parentEmail) throw new Error('No parent email');
+    // parentEmail may hold more than one address, comma-separated (a family
+    // with separate mom/dad emails on file) — send to all of them.
+    const toEmails = (item.parentEmail || '').split(',').map((e) => e.trim()).filter(Boolean);
+    if (!toEmails.length) throw new Error('No parent email');
     if (!item.pdfUrl) throw new Error('No PDF URL');
 
     const pdfRes = await fetch(item.pdfUrl);
@@ -88,7 +91,7 @@ async function sendOne(item: ReportCardItem): Promise<SendResult> {
       },
       body: JSON.stringify({
         from: FROM_EMAIL,
-        to: [item.parentEmail],
+        to: toEmails,
         subject,
         html,
         attachments: [
