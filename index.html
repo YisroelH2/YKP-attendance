@@ -993,7 +993,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.1.3';
+const APP_VERSION='8.1.4';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -4547,7 +4547,13 @@ body {
        exposed as solid blue (prints as an ugly gray block in B&W). Entries
        are pre-paginated below so each card's content is guaranteed to fit
        within this height — the remainder just reads as clean white space. */
-    min-height: calc(100vh - 36px) !important; height:auto!important;
+    /* Absolute units on purpose, not vh: Chrome's real print/PDF pipeline
+       does not reliably treat 100vh as "one physical page" the way a normal
+       on-screen viewport does — it can resolve against stale window state,
+       which was exactly the previous bug (page 1 render blank, everything
+       shifted onto page 2). @page{size:letter} makes the physical page
+       8.5in x 11in, so pin the math to that directly. */
+    min-height: calc(11in - 36px) !important; height:auto!important;
     box-shadow:none!important; outline:none!important; border:none!important; overflow:visible!important;
   }
   .card-inner { padding:14px 36px 20px!important; background:#ffffff!important; }
@@ -4569,6 +4575,7 @@ body {
   const contentW=PAGE_W-BODY_PAD-CARD_PAD_H;
   const colW=(contentW-COL_GAP)/2;
   const pageContentH=PAGE_H-BODY_PAD-CARD_PAD_V; // budget available inside card-inner on any one page
+  const SAFETY_MARGIN=48; // see note at the pagination loop below
 
   const chromeHtml=`<div class="header-wrap"><span class="bh">&#x05D1;&#x05F4;&#x05D4;</span><img class="header-img" src="${headerUrl}" alt="YKP Header"></div>
     <hr class="divider">
@@ -4592,7 +4599,15 @@ body {
   const pages=[]; // {first, colA:[entries], colB:[entries]}
   let i=0, first=true;
   while(i<entries.length){
-    const budget=pageContentH-(first?chromeH:0);
+    // SAFETY_MARGIN matters a lot here: .list-grid is a flex container, and
+    // flex boxes don't fragment across a print page break — if content we
+    // judged as "fits" turns out even 1px too tall once actually printed
+    // (measured off-screen vs. the real print pass can differ by a hair),
+    // Chrome pushes the WHOLE list-grid to the next page as one atomic
+    // unit, leaving the current page blank below its header. Packing right
+    // up to the exact computed budget hit that; reserving a full row's
+    // worth of slack keeps it comfortably clear of that edge.
+    const budget=pageContentH-(first?chromeH:0)-SAFETY_MARGIN;
     const colA=[], colB=[];
     let h=0;
     while(i<entries.length && h+rowHeights[i]<=budget){ colA.push(entries[i]); h+=rowHeights[i]; i++; }
@@ -6179,7 +6194,13 @@ body {
        the rest of the page exposed as solid blue (prints as gray in B&W).
        Entries are pre-paginated below so each card's content is guaranteed
        to fit within this height. */
-    min-height: calc(100vh - 36px) !important; height:auto!important;
+    /* Absolute units on purpose, not vh: Chrome's real print/PDF pipeline
+       does not reliably treat 100vh as "one physical page" the way a normal
+       on-screen viewport does — it can resolve against stale window state,
+       which was exactly the previous bug (page 1 render blank, everything
+       shifted onto page 2). @page{size:letter} makes the physical page
+       8.5in x 11in, so pin the math to that directly. */
+    min-height: calc(11in - 36px) !important; height:auto!important;
     box-shadow:none!important; outline:none!important;
     border:none!important; overflow:visible!important;
   }
@@ -6210,6 +6231,7 @@ body {
   const contentW=PAGE_W-BODY_PAD-CARD_PAD_H;
   const colW=(contentW-COL_GAP)/2;
   const pageContentH=PAGE_H-BODY_PAD-CARD_PAD_V; // budget available inside card-inner on any one page
+  const SAFETY_MARGIN=48; // see note at the pagination loop below
 
   const chromeHtml=`<div class="header-wrap"><span class="bh">&#x05D1;&#x05F4;&#x05D4;</span><img class="header-img" src="${headerUrl}" alt="YKP Header"></div>
     <hr class="divider">
@@ -6232,7 +6254,15 @@ body {
   const pages=[]; // {first, colA:[groups], colB:[groups]}
   let i=0, first=true;
   while(i<grouped.length){
-    const budget=pageContentH-(first?chromeH:0);
+    // SAFETY_MARGIN matters a lot here: .list-grid is a flex container, and
+    // flex boxes don't fragment across a print page break — if content we
+    // judged as "fits" turns out even 1px too tall once actually printed
+    // (measured off-screen vs. the real print pass can differ by a hair),
+    // Chrome pushes the WHOLE list-grid to the next page as one atomic
+    // unit, leaving the current page blank below its header. Packing right
+    // up to the exact computed budget hit that every time; reserving a
+    // full row's worth of slack keeps it comfortably clear of that edge.
+    const budget=pageContentH-(first?chromeH:0)-SAFETY_MARGIN;
     const colA=[], colB=[];
     let h=0;
     while(i<grouped.length && h+rowHeights[i]<=budget){ colA.push(grouped[i]); h+=rowHeights[i]; i++; }
