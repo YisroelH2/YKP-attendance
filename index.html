@@ -1001,7 +1001,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.2.1';
+const APP_VERSION='8.2.2';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5496,8 +5496,9 @@ const RC_CSS=`*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,
 .rl{text-align:right!important;direction:rtl}.rsub{font-size:10px;color:#777;font-style:italic}
 .rc-tbl tr:nth-child(even) td{background:#f1f5fa}
 @media print{
-  @page{margin:0.6in}
+  @page{margin:0}
   body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff!important;color:#000!important;margin:0!important;padding:0!important}
+  .rc-page{padding:0.6in}
   button,.no-print,.interactive-elements{display:none!important}
 }`;
 let _h2cLoading=null;
