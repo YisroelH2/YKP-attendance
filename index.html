@@ -676,23 +676,22 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-date-heb{font-size:14.5px;color:var(--accent);font-weight:700;min-height:16px}
 .cal-date-heb:not(:empty)::before{content:'·';color:var(--ink-faint);margin-right:8px;font-weight:400}
 .cal-date-today{font-size:11px;color:var(--accent);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:3px}
-/* No -webkit-overflow-scrolling:touch here on purpose: that legacy property
-   forces this container's absolutely-positioned children (many overlapping
-   .cal-block pills with box-shadows, fractional pixel offsets, and a
-   repeating-gradient background) onto separate GPU-composited layers, which
-   is what produces the hairline seam artifact inside pills — confirmed by
-   hit-testing to be a paint/compositing glitch, not a real overlapping
-   element. Modern browsers momentum-scroll fine without it. */
+/* No -webkit-overflow-scrolling:touch here on purpose: it's a legacy
+   property with no effect on desktop and no longer needed for momentum
+   scrolling on modern mobile browsers either, so there's no upside to
+   forcing this container's content onto extra GPU-composited layers. */
 .cal-scroll{overflow-y:auto;height:calc(100svh - 200px);position:relative}
 .cal-grid{position:relative;padding-left:66px;padding-right:6px;margin:0 4px}
+/* Hour gridlines as real elements (not a repeating-gradient background):
+   1px-wide repeating gradients are fragile at non-100% browser zoom — at
+   fractional zoom scales Chrome can blur/misalign the thin repeated band
+   relative to the pills painted on top, which is exactly the hairline seam
+   this app hit (fine at 100% zoom, reappeared when zoomed out). Hit-testing
+   already confirmed .cal-block's z-index correctly paints above these
+   z-index:auto lines, so plain elements are both simpler and more robust. */
+.cal-hour-line{position:absolute;left:66px;right:6px;height:1px;background:var(--line);opacity:.6;pointer-events:none}
 .cal-hour-lbl{position:absolute;left:0;width:62px;font-size:10.5px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:10px;transform:translateY(-50%);line-height:1;pointer-events:none;letter-spacing:-.01em}
-/* Hour gridlines are painted as .cal-lane's own background (not separate
-   absolutely-positioned siblings) so they are always beneath .cal-block
-   children by box-model definition — no z-index/compositing race, which on
-   touch devices could otherwise let a hairline of the gridline flash through
-   a pill mid-scroll. */
-.cal-lane{position:absolute;left:66px;right:6px;top:0;bottom:0;
-  background-image:repeating-linear-gradient(to bottom, rgba(231,233,241,.6) 0, rgba(231,233,241,.6) 1px, transparent 1px, transparent 68px)}
+.cal-lane{position:absolute;left:66px;right:6px;top:0;bottom:0}
 /* No overflow:hidden here on purpose — combining it with border-radius and
    box-shadow on the same box is a known Chrome rendering gotcha that can
    paint a stray hairline seam at the clip boundary. border-radius alone
@@ -1021,7 +1020,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.3.5';
+const APP_VERSION='8.3.6';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1659,7 +1658,7 @@ function renderSchedule(){
   let hours='';
   for(let h=CAL_S;h<=CAL_E;h++){
     const y=(h-CAL_S)*HR_PX;
-    hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div>`;
+    hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
   }
 
   // Session blocks — side-by-side for overlapping events
