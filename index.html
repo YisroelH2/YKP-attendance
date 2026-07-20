@@ -676,7 +676,14 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-date-heb{font-size:14.5px;color:var(--accent);font-weight:700;min-height:16px}
 .cal-date-heb:not(:empty)::before{content:'·';color:var(--ink-faint);margin-right:8px;font-weight:400}
 .cal-date-today{font-size:11px;color:var(--accent);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:3px}
-.cal-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 200px);position:relative}
+/* No -webkit-overflow-scrolling:touch here on purpose: that legacy property
+   forces this container's absolutely-positioned children (many overlapping
+   .cal-block pills with box-shadows, fractional pixel offsets, and a
+   repeating-gradient background) onto separate GPU-composited layers, which
+   is what produces the hairline seam artifact inside pills — confirmed by
+   hit-testing to be a paint/compositing glitch, not a real overlapping
+   element. Modern browsers momentum-scroll fine without it. */
+.cal-scroll{overflow-y:auto;height:calc(100svh - 200px);position:relative}
 .cal-grid{position:relative;padding-left:66px;padding-right:6px;margin:0 4px}
 .cal-hour-lbl{position:absolute;left:0;width:62px;font-size:10.5px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:10px;transform:translateY(-50%);line-height:1;pointer-events:none;letter-spacing:-.01em}
 /* Hour gridlines are painted as .cal-lane's own background (not separate
@@ -1009,7 +1016,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.3.2';
+const APP_VERSION='8.3.3';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
