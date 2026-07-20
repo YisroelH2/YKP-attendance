@@ -1016,7 +1016,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.3.3';
+const APP_VERSION='8.3.4';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1598,7 +1598,7 @@ function _weekHtml(){
   for(let d=0; d<7; d++){
     const colDate=addDays(weekStart,d);
     const dayS=state.sessions.filter(s=>s.start_time && sessionOnDow(s,d)).sort((a,b)=>a.start_time<b.start_time?-1:1);
-    const evs=dayS.map(s=>{ const top=_t2y(s.start_time); const ht=Math.max(_t2y(_sesEnd(s))-top,20); return {s,top,ht,col:0,numCols:1}; });
+    const evs=dayS.map(s=>{ const top=Math.round(_t2y(s.start_time)); const ht=Math.max(Math.round(_t2y(_sesEnd(s)))-top,20); return {s,top,ht,col:0,numCols:1}; });
     const colEnds=[];
     evs.forEach(ev=>{ let c=colEnds.findIndex(e=>e<=ev.top+1); if(c<0)c=colEnds.length; ev.col=c; colEnds[c]=ev.top+ev.ht; });
     evs.forEach(ev=>{ ev.numCols=evs.filter(o=>o.top<ev.top+ev.ht-1&&o.top+o.ht>ev.top+1).length||1; });
@@ -1664,10 +1664,17 @@ function renderSchedule(){
     blocks=`<div class="cal-empty">No sessions yet.<br>Add them in <b>Setup</b> → Sessions.</div>`;
   } else {
     // ── Step 1: pixel coords ────────────────────────────────────────────────
+    // top/bottom are each rounded to a whole pixel independently (not just the
+    // height) — on a 1x-DPR desktop screen, feeding a fractional top like
+    // 498.667px straight into the inline style lets the block's own rounded/
+    // clipped edge snap to a different device pixel than its background/
+    // shadow layers do, showing up as a hairline seam inside the pill. Whole
+    // pixels remove that ambiguity entirely.
     const evs=sorted.map(s=>{
-      const top=_t2y(s.start_time);
+      const top=Math.round(_t2y(s.start_time));
       const end=_sesEnd(s);
-      const ht=Math.max(_t2y(end)-top,34);
+      const bottom=Math.round(_t2y(end));
+      const ht=Math.max(bottom-top,34);
       return {s,top,ht,col:0,numCols:1};
     });
 
