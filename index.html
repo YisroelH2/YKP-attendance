@@ -238,6 +238,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .send-preview{max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:4px;margin:10px 0;border:1px solid var(--line);border-radius:var(--r-md);padding:6px}
 .send-preview .sq-row{background:transparent;padding:6px 6px}
 .send-preview .sq-row span:last-child{font-weight:400;color:var(--ink-soft);text-align:right}
+.sq-row-name{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.sq-row-name:active{opacity:.6}
 .danger-zone{margin-top:22px;padding:14px;border:1.5px dashed var(--attn-line);background:var(--attn-bg);border-radius:var(--r-md)}
 .danger-zone-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--attn);margin-bottom:8px;display:block}
 .btn-danger{background:var(--attn);color:#fff}
@@ -999,7 +1001,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.2.0';
+const APP_VERSION='8.2.1';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5712,6 +5714,7 @@ async function startSendQueue(studentIds,from,to,testOnly,testId){
       ${alreadySentIds.size?`<label class="shul-opt" style="margin-top:0"><input type="checkbox" id="ssqSkipSent" ${skipSent?'checked':''}> Skip ${alreadySentIds.size} already sent before</label>`:''}
       <p class="muted" id="ssqCountLine" style="font-size:11.5px;margin:8px 0 0"></p>
       <div id="ssqPreview"></div>
+      <p class="muted" style="font-size:11px;margin:2px 0 0">Tap a name above to open that student's report card.</p>
       <button class="btn btn-primary btn-block" id="sqStart" style="margin-top:14px">Send one at a time</button>
       <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">You approve each send yourself before it goes out.</div>
       <div class="danger-zone">
@@ -5724,6 +5727,7 @@ async function startSendQueue(studentIds,from,to,testOnly,testId){
         const q=effectiveQueue();
         $('ssqCountLine').textContent=`${q.length} parent${q.length!==1?'s':''} will be sent to.`;
         $('ssqPreview').innerHTML=_sendPreviewListHtml(q);
+        _wireSendPreviewClicks($('ssqPreview'),q,from,to,testOnly);
       };
       _updCount();
       if($('ssqSkipSent')) $('ssqSkipSent').onchange=e=>{ skipSent=e.target.checked; _updCount(); };
@@ -5733,14 +5737,31 @@ async function startSendQueue(studentIds,from,to,testOnly,testId){
   });
 }
 // Recipient preview shown before any bulk send — lets the sender sanity-check
-// exactly who is about to get an email before committing to anything.
+// exactly who is about to get an email before committing to anything. Names are
+// clickable so the sender can actually open a student's report card and check
+// it before it goes out, not just eyeball the name/email.
 function _sendPreviewListHtml(queue){
   if(!queue.length) return '';
   return `<div class="send-preview">${queue.map(s=>{
     const nm=esc(s.hebrew_name||s.english_name||'Student');
     const emails=esc(_parentEmails(s).join(', '));
-    return `<div class="sq-row" dir="auto"><span>${nm}</span><span>${emails}</span></div>`;
+    return `<div class="sq-row" dir="auto"><span class="sq-row-name" data-preview-id="${esc(s.id)}" role="button" tabindex="0">${nm}</span><span>${emails}</span></div>`;
   }).join('')}</div>`;
+}
+// Attaches click/keyboard handlers to the names rendered by _sendPreviewListHtml
+// inside `container`. Must be re-called any time that container's innerHTML is
+// replaced (e.g. after the skip-sent checkbox re-renders the list).
+function _wireSendPreviewClicks(container,queue,from,to,testOnly){
+  if(!container) return;
+  container.querySelectorAll('.sq-row-name').forEach(el=>{
+    const open=e=>{
+      e.stopPropagation();
+      const stu=queue.find(s=>String(s.id)===el.dataset.previewId);
+      if(stu) generateReportCards([stu.id],from,to,testOnly);
+    };
+    el.onclick=open;
+    el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(e); } };
+  });
 }
 // Re-authentication gate for the bulk "send all" path — the one action that can
 // blast an email to every parent at once with no per-student review. Password
@@ -5802,10 +5823,12 @@ function _finalConfirmSendAll(queue,from,to,testOnly,testId){
     title:'Final confirmation',
     html:`<p style="text-align:center;font-weight:700;margin-bottom:4px">Send ${queue.length} report card${queue.length!==1?'s':''} now?</p>
       <p class="muted" style="text-align:center;font-size:12.5px;margin-bottom:10px">These parents will receive an email immediately. This can’t be undone.</p>
-      ${_sendPreviewListHtml(queue)}
+      <div id="sabFinalPreview">${_sendPreviewListHtml(queue)}</div>
+      <p class="muted" style="font-size:11px;margin:2px 0 0">Tap a name above to open that student's report card.</p>
       <button class="btn btn-danger btn-block" id="sabFinal" style="margin-top:14px">✅ Confirm & send now</button>
       <button class="btn btn-soft btn-block" id="sabFinalCancel" style="margin-top:8px">Cancel</button>`,
     onMount:()=>{
+      _wireSendPreviewClicks($('sabFinalPreview'),queue,from,to,testOnly);
       $('sabFinalCancel').onclick=closeCustomSheet;
       $('sabFinal').onclick=()=>{
         $('sabFinal').disabled=true; $('sabFinal').textContent='Sending…';
