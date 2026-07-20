@@ -235,6 +235,12 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .sq-row span:first-child{font-weight:600}
 .sq-row.ok span:last-child{color:#16a34a}
 .sq-row.fail span:last-child{color:var(--attn);text-align:right}
+.send-preview{max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:4px;margin:10px 0;border:1px solid var(--line);border-radius:var(--r-md);padding:6px}
+.send-preview .sq-row{background:transparent;padding:6px 6px}
+.send-preview .sq-row span:last-child{font-weight:400;color:var(--ink-soft);text-align:right}
+.danger-zone{margin-top:22px;padding:14px;border:1.5px dashed var(--attn-line);background:var(--attn-bg);border-radius:var(--r-md)}
+.danger-zone-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--attn);margin-bottom:8px;display:block}
+.btn-danger{background:var(--attn);color:#fff}
 
 /* ---------- tests ---------- */
 .subtabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px}
@@ -993,7 +999,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.1.4';
+const APP_VERSION='8.2.0';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5705,16 +5711,106 @@ async function startSendQueue(studentIds,from,to,testOnly,testId){
     html:`<p class="muted" style="margin-bottom:10px">${missing?`${missing} student${missing!==1?'s':''} will be skipped (no parent email on file).`:''}</p>
       ${alreadySentIds.size?`<label class="shul-opt" style="margin-top:0"><input type="checkbox" id="ssqSkipSent" ${skipSent?'checked':''}> Skip ${alreadySentIds.size} already sent before</label>`:''}
       <p class="muted" id="ssqCountLine" style="font-size:11.5px;margin:8px 0 0"></p>
-      <button class="btn btn-primary btn-block" id="sabStart" style="margin-top:14px">⚡ Send all at once (automatic)</button>
-      <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Generates every PDF, uploads it, and emails each parent automatically in the background. No manual steps — just watch the progress.</div>
-      <button class="btn btn-soft btn-block" id="sqStart" style="margin-top:14px">Send one at a time instead</button>
-      <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">You approve each send yourself before it goes out.</div>`,
+      <div id="ssqPreview"></div>
+      <button class="btn btn-primary btn-block" id="sqStart" style="margin-top:14px">Send one at a time</button>
+      <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">You approve each send yourself before it goes out.</div>
+      <div class="danger-zone">
+        <span class="danger-zone-label">⚠ Bulk automatic send</span>
+        <button class="btn btn-danger btn-block" id="sabStart">⚡ Send all at once (automatic)</button>
+        <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Emails every parent listed above automatically, with no per-student approval. You'll be asked to re-confirm before anything goes out.</div>
+      </div>`,
     onMount:()=>{
-      const _updCount=()=>{ const n=effectiveQueue().length; $('ssqCountLine').textContent=`${n} parent${n!==1?'s':''} will be sent to.`; };
+      const _updCount=()=>{
+        const q=effectiveQueue();
+        $('ssqCountLine').textContent=`${q.length} parent${q.length!==1?'s':''} will be sent to.`;
+        $('ssqPreview').innerHTML=_sendPreviewListHtml(q);
+      };
       _updCount();
       if($('ssqSkipSent')) $('ssqSkipSent').onchange=e=>{ skipSent=e.target.checked; _updCount(); };
       $('sqStart').onclick=()=>openSendQueueSheet(effectiveQueue(),0,from,to,testOnly,0,testId);
-      $('sabStart').onclick=()=>runSendAllAtOnce(effectiveQueue(),from,to,testOnly,testId);
+      $('sabStart').onclick=()=>_reauthAndConfirmSendAll(effectiveQueue(),from,to,testOnly,testId);
+    }
+  });
+}
+// Recipient preview shown before any bulk send — lets the sender sanity-check
+// exactly who is about to get an email before committing to anything.
+function _sendPreviewListHtml(queue){
+  if(!queue.length) return '';
+  return `<div class="send-preview">${queue.map(s=>{
+    const nm=esc(s.hebrew_name||s.english_name||'Student');
+    const emails=esc(_parentEmails(s).join(', '));
+    return `<div class="sq-row" dir="auto"><span>${nm}</span><span>${emails}</span></div>`;
+  }).join('')}</div>`;
+}
+// Re-authentication gate for the bulk "send all" path — the one action that can
+// blast an email to every parent at once with no per-student review. Password
+// users must re-enter their password (a fresh sb.auth call, not just a UI check).
+// OAuth users have no password on file, so they retype their sign-in email instead —
+// a real OAuth re-prompt would bounce the page and lose the queue.
+async function _reauthAndConfirmSendAll(queue,from,to,testOnly,testId){
+  if(!queue.length){ toast('Nothing to send',true); return; }
+  const email=(state.user&&state.user.email)||'';
+  const provider=state.user&&state.user.app_metadata&&state.user.app_metadata.provider;
+  const isPasswordUser=!provider||provider==='email';
+  openCustomSheet({
+    id:'__sendAllReauth__',
+    title:'Confirm it’s you',
+    html:`<p class="muted" style="font-size:12.5px;margin-bottom:10px">You're about to trigger an automatic bulk send to ${queue.length} parent${queue.length!==1?'s':''}. Please re-confirm your sign-in first.</p>
+      ${isPasswordUser?`
+        <div class="field"><label>Password for ${esc(email)}</label>
+          <input type="password" id="sabPw" class="inp" placeholder="Password" autocomplete="current-password">
+        </div>`:`
+        <div class="field"><label>Type your sign-in email to confirm (${esc(email)})</label>
+          <input type="email" id="sabPw" class="inp" placeholder="you@example.com" autocomplete="email">
+        </div>`}
+      <p class="muted" id="sabReauthErr" style="font-size:11.5px;color:var(--attn);display:none;margin-top:2px"></p>
+      <button class="btn btn-primary btn-block" id="sabVerify" style="margin-top:12px">Verify & continue</button>
+      <button class="btn btn-soft btn-block" id="sabReauthCancel" style="margin-top:8px">Cancel</button>`,
+    onMount:()=>{
+      $('sabReauthCancel').onclick=closeCustomSheet;
+      $('sabPw').addEventListener('keydown',e=>{if(e.key==='Enter')$('sabVerify').click();});
+      $('sabVerify').onclick=async()=>{
+        const val=$('sabPw').value.trim();
+        const err=$('sabReauthErr');
+        if(!val){ err.textContent=isPasswordUser?'Enter your password':'Enter your email'; err.style.display='block'; return; }
+        $('sabVerify').disabled=true; $('sabVerify').textContent='Verifying…';
+        if(isPasswordUser){
+          const {error}=await sb.auth.signInWithPassword({email,password:val});
+          if(error){
+            $('sabVerify').disabled=false; $('sabVerify').textContent='Verify & continue';
+            err.textContent='Incorrect password'; err.style.display='block';
+            return;
+          }
+        } else {
+          if(val.toLowerCase()!==email.toLowerCase()){
+            $('sabVerify').disabled=false; $('sabVerify').textContent='Verify & continue';
+            err.textContent='That doesn’t match your sign-in email'; err.style.display='block';
+            return;
+          }
+        }
+        _finalConfirmSendAll(queue,from,to,testOnly,testId);
+      };
+    }
+  });
+}
+// Last stop before parents actually receive anything — shows the full recipient
+// list one more time so a re-confirm always means "I checked the names," not
+// just "I clicked yes."
+function _finalConfirmSendAll(queue,from,to,testOnly,testId){
+  openCustomSheet({
+    id:'__sendAllFinal__',
+    title:'Final confirmation',
+    html:`<p style="text-align:center;font-weight:700;margin-bottom:4px">Send ${queue.length} report card${queue.length!==1?'s':''} now?</p>
+      <p class="muted" style="text-align:center;font-size:12.5px;margin-bottom:10px">These parents will receive an email immediately. This can’t be undone.</p>
+      ${_sendPreviewListHtml(queue)}
+      <button class="btn btn-danger btn-block" id="sabFinal" style="margin-top:14px">✅ Confirm & send now</button>
+      <button class="btn btn-soft btn-block" id="sabFinalCancel" style="margin-top:8px">Cancel</button>`,
+    onMount:()=>{
+      $('sabFinalCancel').onclick=closeCustomSheet;
+      $('sabFinal').onclick=()=>{
+        $('sabFinal').disabled=true; $('sabFinal').textContent='Sending…';
+        runSendAllAtOnce(queue,from,to,testOnly,testId);
+      };
     }
   });
 }
