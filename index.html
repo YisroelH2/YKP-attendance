@@ -678,9 +678,14 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .cal-date-today{font-size:11px;color:var(--accent);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:3px}
 .cal-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 200px);position:relative}
 .cal-grid{position:relative;padding-left:66px;padding-right:6px;margin:0 4px}
-.cal-hour-line{position:absolute;left:66px;right:6px;height:1px;background:var(--line);opacity:.6;pointer-events:none}
 .cal-hour-lbl{position:absolute;left:0;width:62px;font-size:10.5px;color:var(--ink-faint);font-weight:600;text-align:right;padding-right:10px;transform:translateY(-50%);line-height:1;pointer-events:none;letter-spacing:-.01em}
-.cal-lane{position:absolute;left:66px;right:6px;top:0;bottom:0}
+/* Hour gridlines are painted as .cal-lane's own background (not separate
+   absolutely-positioned siblings) so they are always beneath .cal-block
+   children by box-model definition — no z-index/compositing race, which on
+   touch devices could otherwise let a hairline of the gridline flash through
+   a pill mid-scroll. */
+.cal-lane{position:absolute;left:66px;right:6px;top:0;bottom:0;
+  background-image:repeating-linear-gradient(to bottom, rgba(231,233,241,.6) 0, rgba(231,233,241,.6) 1px, transparent 1px, transparent 68px)}
 .cal-block{position:absolute;border-radius:12px;padding:4px 6px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;min-height:36px;box-shadow:0 3px 12px rgba(79,70,229,.25),0 1px 3px rgba(0,0,0,.12);word-break:break-word;white-space:normal}
 .cal-mini-wrap{position:absolute;pointer-events:none;display:flex;align-items:center;gap:6px;min-height:14px}
 .cal-mini-bar{border-radius:4px;width:5px;flex-shrink:0;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.2)}
@@ -1004,7 +1009,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.3.1';
+const APP_VERSION='8.3.2';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1642,7 +1647,7 @@ function renderSchedule(){
   let hours='';
   for(let h=CAL_S;h<=CAL_E;h++){
     const y=(h-CAL_S)*HR_PX;
-    hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div><div class="cal-hour-line" style="top:${y}px"></div>`;
+    hours+=`<div class="cal-hour-lbl" style="top:${y}px">${_fmtHr(h)}</div>`;
   }
 
   // Session blocks — side-by-side for overlapping events
