@@ -476,7 +476,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   border-radius:24px 24px 0 0; box-shadow:var(--sh-3); padding:8px 20px calc(22px + var(--safe-b));
   transform:translateY(100%); transition:transform .26s cubic-bezier(.2,.9,.3,1); max-width:760px; margin:0 auto}
 .sheet.show{transform:translateY(0)}
-.grab{width:38px;height:4px;border-radius:99px;background:var(--line);margin:8px auto 14px}
+.grab{width:38px;height:4px;border-radius:99px;background:var(--line);margin:8px auto 14px;cursor:grab;position:relative}
+.grab::before{content:'';position:absolute;left:50%;top:50%;width:60px;height:28px;transform:translate(-50%,-50%)}
+.grab:active{cursor:grabbing}
 .sheet h3{margin:0 0 2px; font-size:18px}
 .sheet .who-sub{margin:0 0 16px; font-size:13px; color:var(--ink-faint)}
 .seg{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:16px}
@@ -1001,7 +1003,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.2.2';
+const APP_VERSION='8.3.0';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1208,6 +1210,46 @@ function boot(){
   });
 }
 
+// Bottom-sheet drag-to-dismiss: dragging the grab handle down past a threshold
+// closes the sheet, mirroring the native "swipe down to dismiss" gesture — a
+// faster way out of a tall sheet than hunting for a cancel button underneath it.
+// Bound once per sheet at startup; only the small .grab handle starts a drag,
+// so it never fights with scrolling inside the sheet's own content.
+function _wireSheetDrag(sheetEl,bgEl,closeFn){
+  const grab=sheetEl&&sheetEl.querySelector('.grab');
+  if(!grab) return;
+  grab.style.touchAction='none';
+  let startY=0,dy=0,dragging=false;
+  grab.addEventListener('pointerdown',e=>{
+    dragging=true; startY=e.clientY; dy=0;
+    sheetEl.style.transition='none';
+    try{grab.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  grab.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    dy=Math.max(0,e.clientY-startY);
+    sheetEl.style.transform=`translateY(${dy}px)`;
+    if(bgEl)bgEl.style.opacity=String(Math.max(0,1-dy/280));
+  });
+  const finish=()=>{
+    if(!dragging)return;
+    dragging=false;
+    if(dy>90){
+      sheetEl.style.transition='transform .2s ease-in';
+      sheetEl.style.transform='translateY(100%)';
+      if(bgEl)bgEl.style.opacity='0';
+      setTimeout(()=>{ sheetEl.style.transition=''; sheetEl.style.transform=''; if(bgEl)bgEl.style.opacity=''; closeFn(); },200);
+    } else {
+      sheetEl.style.transition='transform .2s cubic-bezier(.2,.9,.3,1)';
+      sheetEl.style.transform='';
+      if(bgEl)bgEl.style.opacity='';
+      setTimeout(()=>{ sheetEl.style.transition=''; },200);
+    }
+    dy=0;
+  };
+  grab.addEventListener('pointerup',finish);
+  grab.addEventListener('pointercancel',finish);
+}
 function wireEvents(){
   $('loginBtn').onclick = doLogin;
   $('googleBtn').onclick = signInWithGoogle;
@@ -1247,6 +1289,11 @@ function wireEvents(){
   $('pickBg').onclick = closePicker;
   $('pickEmpty').onclick = ()=>pickerCb&&pickerCb(null);
   $('customSheetBg').onclick = closeCustomSheet;
+  _wireSheetDrag($('sheet'),$('sheetBg'),closeSheet);
+  _wireSheetDrag($('formSheet'),$('formBg'),closeForm);
+  _wireSheetDrag($('delaySheet'),$('delayBg'),closeDelaySheet);
+  _wireSheetDrag($('pickSheet'),$('pickBg'),closePicker);
+  _wireSheetDrag($('customSheet'),$('customSheetBg'),closeCustomSheet);
   $('consentBox').onchange = e=>{ $('consentContinue').disabled = !e.target.checked; };
   $('consentContinue').onclick = ()=>{ localStorage.setItem('ykp_consent_v2', new Date().toISOString()); enterApp(); };
   $('consentRead').onclick = showPolicy;
