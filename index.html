@@ -1020,7 +1020,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.4.0';
+const APP_VERSION='8.4.1';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5283,33 +5283,38 @@ function emailReportToParent(stu){
   location.href=`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-function openRCSheet(single){
+function openRCSheet(single,prevSel){
   const isSingle=single&&single.id;
   const curMonth=todayStr().slice(0,7);
   const nm=isSingle?(single.hebrew_name||single.english_name||'student'):'';
+  const initPtype=(prevSel&&prevSel.ptype)||'month';
+  const monthVal=(prevSel&&prevSel.month)||curMonth;
+  const weekVal=(prevSel&&prevSel.week)||todayStr();
+  const fromVal=(prevSel&&prevSel.from)||todayStr();
+  const toVal=(prevSel&&prevSel.to)||todayStr();
   openCustomSheet({
     title:isSingle?`Report card — ${nm}`:'Generate Report Cards',
     html:`<p class="muted" style="margin-bottom:10px">${isSingle?'Generates a PDF report card for this student.':"Generates PDFs for currently filtered students."} Use your browser's Print → Save as PDF.</p>
       <div class="field"><label>Period</label>
         <div id="rcPeriodSeg" class="rc-seg">
-          <button class="seg-btn active" data-v="month" type="button">Month</button>
-          <button class="seg-btn" data-v="week" type="button">Week</button>
-          <button class="seg-btn" data-v="custom" type="button">Custom</button>
-          <button class="seg-btn" data-v="all" type="button">All time</button>
+          <button class="seg-btn${initPtype==='month'?' active':''}" data-v="month" type="button">Month</button>
+          <button class="seg-btn${initPtype==='week'?' active':''}" data-v="week" type="button">Week</button>
+          <button class="seg-btn${initPtype==='custom'?' active':''}" data-v="custom" type="button">Custom</button>
+          <button class="seg-btn${initPtype==='all'?' active':''}" data-v="all" type="button">All time</button>
         </div>
       </div>
-      <div class="field" id="rcMonthWrap"><label>Month</label>
-        <input type="month" id="rcSheetMonth" class="inp" value="${curMonth}" max="${curMonth}">
+      <div class="field" id="rcMonthWrap" style="${initPtype==='month'?'':'display:none'}"><label>Month</label>
+        <input type="month" id="rcSheetMonth" class="inp" value="${monthVal}" max="${curMonth}">
       </div>
-      <div class="field" id="rcWeekWrap" style="display:none"><label>Week containing</label>
-        <input type="date" id="rcSheetWeek" class="inp" value="${todayStr()}" max="${todayStr()}">
+      <div class="field" id="rcWeekWrap" style="${initPtype==='week'?'':'display:none'}"><label>Week containing</label>
+        <input type="date" id="rcSheetWeek" class="inp" value="${weekVal}" max="${todayStr()}">
       </div>
-      <div class="row2" id="rcCustomWrap" style="display:none">
+      <div class="row2" id="rcCustomWrap" style="${initPtype==='custom'?'':'display:none'}">
         <div class="field"><label>Start date</label>
-          <input type="date" id="rcSheetFrom" class="inp" value="${todayStr()}" max="${todayStr()}">
+          <input type="date" id="rcSheetFrom" class="inp" value="${fromVal}" max="${todayStr()}">
         </div>
         <div class="field"><label>End date</label>
-          <input type="date" id="rcSheetTo" class="inp" value="${todayStr()}" max="${todayStr()}">
+          <input type="date" id="rcSheetTo" class="inp" value="${toVal}" max="${todayStr()}">
         </div>
       </div>
       <label class="shul-opt"><input type="checkbox" id="rcTestOnly"> Test scores only (skip attendance)</label>
@@ -5319,7 +5324,7 @@ function openRCSheet(single){
       :`<button class="btn btn-soft btn-block" id="rcSendQueue" style="margin-top:8px">📤 Send to parents…</button>
         <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Choose to send all at once automatically, or step through one at a time — each report card only ever goes to that student's own parent.</div>`}`,
     onMount:()=>{
-      let ptype='month';
+      let ptype=initPtype;
       $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
         ptype=b.dataset.v;
         $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b));
@@ -5352,8 +5357,9 @@ function openRCSheet(single){
         const p=computePeriod(); if(!p)return;
         const ids=computeIds(); if(!ids)return;
         const testOnly=$('rcTestOnly').checked;
+        const sel={ptype,month:$('rcSheetMonth').value,week:$('rcSheetWeek').value,from:$('rcSheetFrom')?.value,to:$('rcSheetTo')?.value};
         closeCustomSheet();
-        startSendQueue(ids,p.from,p.to,testOnly);
+        startSendQueue(ids,p.from,p.to,testOnly,undefined,sel);
       };
       function computePeriod(){
         let from,to;
@@ -5784,7 +5790,7 @@ async function generateReportCards(studentIds,from,to,testOnly){
    card is addressed only to that one student's own parent (no BCC-everyone risk).
    testId is set only when this was launched from Grade Entry's "Send" button on a
    single test — it's what lets logSend() tag the row per-test instead of per-period. */
-async function startSendQueue(studentIds,from,to,testOnly,testId){
+async function startSendQueue(studentIds,from,to,testOnly,testId,prevSel){
   const queue=studentIds.map(id=>state.students.find(s=>s.id===id)).filter(s=>s&&_parentEmails(s).length);
   const missing=studentIds.length-queue.length;
   if(!queue.length){ toast('None of these students have a parent email on file',true); return; }
@@ -5796,7 +5802,8 @@ async function startSendQueue(studentIds,from,to,testOnly,testId){
   openCustomSheet({
     id:'__sendQueueStart__',
     title:`Send report cards — ${queue.length} parent${queue.length!==1?'s':''}`,
-    html:`<p class="muted" style="margin-bottom:10px">${missing?`${missing} student${missing!==1?'s':''} will be skipped (no parent email on file).`:''}</p>
+    html:`${prevSel?`<button class="btn btn-soft btn-block" id="ssqBack" style="margin-bottom:10px">← Back to date selection</button>`:''}
+      <p class="muted" style="margin-bottom:10px">${missing?`${missing} student${missing!==1?'s':''} will be skipped (no parent email on file).`:''}</p>
       ${alreadySentIds.size?`<label class="shul-opt" style="margin-top:0"><input type="checkbox" id="ssqSkipSent" ${skipSent?'checked':''}> Skip ${alreadySentIds.size} already sent before</label>`:''}
       <p class="muted" id="ssqCountLine" style="font-size:11.5px;margin:8px 0 0"></p>
       <div id="ssqPreview"></div>
@@ -5809,6 +5816,10 @@ async function startSendQueue(studentIds,from,to,testOnly,testId){
         <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">Emails every parent listed above automatically, with no per-student approval. You'll be asked to re-confirm before anything goes out.</div>
       </div>`,
     onMount:()=>{
+      if($('ssqBack')) $('ssqBack').onclick=()=>{
+        closeCustomSheet();
+        openRCSheet(undefined,prevSel);
+      };
       const _updCount=()=>{
         const q=effectiveQueue();
         $('ssqCountLine').textContent=`${q.length} parent${q.length!==1?'s':''} will be sent to.`;
