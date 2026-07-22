@@ -1020,7 +1020,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.3.6';
+const APP_VERSION='8.4.0';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5294,6 +5294,7 @@ function openRCSheet(single){
         <div id="rcPeriodSeg" class="rc-seg">
           <button class="seg-btn active" data-v="month" type="button">Month</button>
           <button class="seg-btn" data-v="week" type="button">Week</button>
+          <button class="seg-btn" data-v="custom" type="button">Custom</button>
           <button class="seg-btn" data-v="all" type="button">All time</button>
         </div>
       </div>
@@ -5302,6 +5303,14 @@ function openRCSheet(single){
       </div>
       <div class="field" id="rcWeekWrap" style="display:none"><label>Week containing</label>
         <input type="date" id="rcSheetWeek" class="inp" value="${todayStr()}" max="${todayStr()}">
+      </div>
+      <div class="row2" id="rcCustomWrap" style="display:none">
+        <div class="field"><label>Start date</label>
+          <input type="date" id="rcSheetFrom" class="inp" value="${todayStr()}" max="${todayStr()}">
+        </div>
+        <div class="field"><label>End date</label>
+          <input type="date" id="rcSheetTo" class="inp" value="${todayStr()}" max="${todayStr()}">
+        </div>
       </div>
       <label class="shul-opt"><input type="checkbox" id="rcTestOnly"> Test scores only (skip attendance)</label>
       <button class="btn btn-primary btn-block" id="rcSheetGen" style="margin-top:14px">Generate PDF</button>
@@ -5316,6 +5325,7 @@ function openRCSheet(single){
         $('rcPeriodSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b));
         $('rcMonthWrap').style.display=ptype==='month'?'':'none';
         $('rcWeekWrap').style.display=ptype==='week'?'':'none';
+        $('rcCustomWrap').style.display=ptype==='custom'?'':'none';
       });
       function computeIds(){
         if(isSingle) return [single.id];
@@ -5357,6 +5367,10 @@ function openRCSheet(single){
           const dow=new Date(d+'T00:00:00').getDay();
           from=addDays(d,-dow);     // Sunday of that week
           to=addDays(from,6);       // Saturday
+        } else if(ptype==='custom'){
+          from=$('rcSheetFrom').value; to=$('rcSheetTo').value;
+          if(!from||!to){toast('Choose a start and end date',true);return null;}
+          if(from>to){toast('Start date must be before end date',true);return null;}
         } else {
           from='2000-01-01'; to=todayStr();
         }
