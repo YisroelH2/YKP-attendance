@@ -1023,7 +1023,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.4.7';
+const APP_VERSION='8.4.8';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -6076,10 +6076,14 @@ async function uploadReportCardPdf(stu,blob,to){
   if(error) throw new Error(error.message||'Could not create download link');
   return data.signedUrl;
 }
-function _rcProgressSheet(phase,i,total){
+// step/totalSteps make the two-phase nature of a bulk send visible — without
+// it, the bar filling up, resetting, and filling again (upload phase finishing,
+// send phase starting) looks like a restart or a glitch rather than the next
+// step, especially glancing at it from a phone.
+function _rcProgressSheet(phase,i,total,step,totalSteps){
   const pct=total?Math.round(i/total*100):0;
   openCustomSheet({
-    title:'Sending report cards',
+    title:`Sending report cards — Step ${step} of ${totalSteps}`,
     html:`<p class="muted" style="text-align:center;margin-bottom:10px">${esc(phase)}: ${i} of ${total}…</p>
       <div class="rc-bar-track"><div class="rc-bar-fill" style="width:${pct}%"></div></div>
       <p class="muted" style="font-size:11px;text-align:center;margin-top:10px">Please keep this tab open until it finishes.</p>`,
@@ -6124,7 +6128,7 @@ async function runSendAllAtOnce(queue,from,to,testOnly,testId){
   const uploadResults=[]; // {student, ok, url?, error?}
   for(let i=0;i<queue.length;i++){
     const stu=queue[i];
-    _rcProgressSheet('Generating & uploading',i+1,queue.length);
+    _rcProgressSheet('Generating & uploading',i+1,queue.length,1,2);
     try{
       const blob=await buildReportCardPdfBlob(stu,state.sessions,mAtt,yAtt,tests,scores,from,to,testOnly);
       const url=await uploadReportCardPdf(stu,blob,to);
@@ -6138,7 +6142,7 @@ async function runSendAllAtOnce(queue,from,to,testOnly,testId){
   const sendById={};
   for(let i=0;i<toSend.length;i+=BULK_SEND_CHUNK){
     const chunk=toSend.slice(i,i+BULK_SEND_CHUNK);
-    _rcProgressSheet('Sending emails',Math.min(i+chunk.length,toSend.length),toSend.length);
+    _rcProgressSheet('Sending emails',Math.min(i+chunk.length,toSend.length),toSend.length,2,2);
     try{
       const items=chunk.map(r=>({
         studentId:r.student.id,
