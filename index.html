@@ -1023,7 +1023,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.4.6';
+const APP_VERSION='8.4.7';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -6017,17 +6017,17 @@ function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount,testId){
 /* ===================== SEND ALL AT ONCE (backend batch email) ===================== */
 const REPORT_CARD_BUCKET='report-cards';
 const SEND_BULK_FN='send-bulk-report-cards';
-// A single Edge Function call processes items sequentially (PDF fetch + Resend
-// call per student, each PDF held in memory as a base64 string). Two real large
-// batches on 2026-07-22 each independently died after delivering ~9 items —
-// consistent with a hard per-invocation ceiling (most likely memory from
-// accumulating PDF attachments) rather than a slow-network fluke — and the call
-// then fails client-side with a generic "non-2xx status" error even though those
-// ~9 items already sent successfully server-side. That both looks like a total
-// failure and, on retry, risks re-emailing whoever the prior attempt actually
-// reached. Chunk size is kept well under that observed ceiling so each call
-// reliably finishes, confining any real failure to just its own small chunk.
-const BULK_SEND_CHUNK=6;
+// Root cause of the 2026-07-22 incident (confirmed via Supabase's Edge Function
+// logs, not guessed): batches were dying with "CPU Time exceeded" after ~9
+// items, because base64-encoding each PDF via btoa(String.fromCharCode(...))
+// was CPU-heavy — fixed in the Edge Function itself with a table-based encoder.
+// Chunk size is kept at 1 (one student = one Edge Function call) on top of that
+// fix, not as the primary fix but as a hard guarantee: with exactly one item
+// per call, a failure can only ever mean "this one student's email is in an
+// unknown state" — never "some unknown number of the 6/15/100 in this call
+// went through." That ambiguity is exactly what turned one failed call into a
+// same-day double-send risk before, so it's worth the extra round-trip time.
+const BULK_SEND_CHUNK=1;
 
 let _jspdfLoading=null;
 function _loadJsPDF(){
@@ -6153,20 +6153,21 @@ async function runSendAllAtOnce(queue,from,to,testOnly,testId){
     }catch(err){
       chunk.forEach(r=>{ sendById[r.student.id]={success:false,error:err.message||String(err)}; });
     }
-    // Log each chunk right away — if a later chunk fails or the tab closes, this
-    // chunk's outcome is already durably recorded rather than lost.
-    chunk.forEach(r=>{
+    // Awaited, not fire-and-forget — this chunk's outcome must actually be
+    // written to the DB before moving to the next one, or before the tab could
+    // close, so nothing is ever sent-but-unrecorded.
+    await Promise.all(chunk.map(r=>{
       const sr=sendById[r.student.id];
-      logSend({studentId:r.student.id,testId,periodFrom:from,periodTo:to,method:'bulk_email',
+      return logSend({studentId:r.student.id,testId,periodFrom:from,periodTo:to,method:'bulk_email',
         recipientEmails:_parentEmails(r.student).join(','),status:sr&&sr.success?'success':'failed',
         error:sr&&!sr.success?sr.error:undefined});
-    });
+    }));
   }
   // Upload failures never reached the send step at all — log those too.
-  uploadResults.filter(r=>!r.ok).forEach(r=>{
+  await Promise.all(uploadResults.filter(r=>!r.ok).map(r=>
     logSend({studentId:r.student.id,testId,periodFrom:from,periodTo:to,method:'bulk_email',
-      recipientEmails:_parentEmails(r.student).join(','),status:'failed',error:r.error});
-  });
+      recipientEmails:_parentEmails(r.student).join(','),status:'failed',error:r.error})
+  ));
   _rcSummarySheet(uploadResults,sendById);
 }
 
