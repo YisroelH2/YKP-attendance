@@ -1023,7 +1023,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.4.4';
+const APP_VERSION='8.4.5';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -6013,13 +6013,16 @@ function openSendQueueSheet(queue,idx,from,to,testOnly,sentCount,testId){
 const REPORT_CARD_BUCKET='report-cards';
 const SEND_BULK_FN='send-bulk-report-cards';
 // A single Edge Function call processes items sequentially (PDF fetch + Resend
-// call per student). A 100+ item batch can run long enough to hit the platform's
-// execution/response time limit — the call then fails client-side with a generic
-// "non-2xx status" error even though most items already sent successfully server-
-// side, which both looks like a total failure and (on retry) risks re-emailing
-// everyone the first attempt actually reached. Chunking keeps each call short
-// enough to always finish cleanly, and confines any real failure to one chunk.
-const BULK_SEND_CHUNK=15;
+// call per student, each PDF held in memory as a base64 string). Two real large
+// batches on 2026-07-22 each independently died after delivering ~9 items —
+// consistent with a hard per-invocation ceiling (most likely memory from
+// accumulating PDF attachments) rather than a slow-network fluke — and the call
+// then fails client-side with a generic "non-2xx status" error even though those
+// ~9 items already sent successfully server-side. That both looks like a total
+// failure and, on retry, risks re-emailing whoever the prior attempt actually
+// reached. Chunk size is kept well under that observed ceiling so each call
+// reliably finishes, confining any real failure to just its own small chunk.
+const BULK_SEND_CHUNK=6;
 
 let _jspdfLoading=null;
 function _loadJsPDF(){
