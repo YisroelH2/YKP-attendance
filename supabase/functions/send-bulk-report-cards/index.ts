@@ -49,14 +49,40 @@ function escapeHtml(s: string): string {
   );
 }
 
+// Table-based encoder instead of btoa(String.fromCharCode(...chunk)) — the
+// spread-based version was the dominant CPU cost per item (confirmed via
+// Supabase's Edge Function logs: batches were dying with "CPU Time exceeded"
+// after only ~9 items, well before any wall-clock/network timeout). Building
+// output as an array of single chars and joining once avoids both the spread
+// overhead and repeated string-concat churn on multi-MB PDFs.
+const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 function base64Encode(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
-  let binary = '';
-  const chunkSize = 0x8000; // avoid call-stack blowups on large PDFs
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  const len = bytes.length;
+  const out: string[] = new Array(Math.ceil(len / 3) * 4);
+  let o = 0, i = 0;
+  for (; i + 2 < len; i += 3) {
+    const n = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+    out[o++] = B64_CHARS[(n >> 18) & 63];
+    out[o++] = B64_CHARS[(n >> 12) & 63];
+    out[o++] = B64_CHARS[(n >> 6) & 63];
+    out[o++] = B64_CHARS[n & 63];
   }
-  return btoa(binary);
+  const rem = len - i;
+  if (rem === 1) {
+    const n = bytes[i] << 16;
+    out[o++] = B64_CHARS[(n >> 18) & 63];
+    out[o++] = B64_CHARS[(n >> 12) & 63];
+    out[o++] = '=';
+    out[o++] = '=';
+  } else if (rem === 2) {
+    const n = (bytes[i] << 16) | (bytes[i + 1] << 8);
+    out[o++] = B64_CHARS[(n >> 18) & 63];
+    out[o++] = B64_CHARS[(n >> 12) & 63];
+    out[o++] = B64_CHARS[(n >> 6) & 63];
+    out[o++] = '=';
+  }
+  return out.join('');
 }
 
 async function sendOne(item: ReportCardItem): Promise<SendResult> {
