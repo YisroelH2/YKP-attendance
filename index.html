@@ -240,6 +240,9 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .send-preview .sq-row span:last-child{font-weight:400;color:var(--ink-soft);text-align:right}
 .sq-row-name{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
 .sq-row-name:active{opacity:.6}
+.sq-row-left{display:flex;align-items:center;gap:7px;min-width:0}
+.sq-row-check{flex-shrink:0;cursor:pointer}
+.sq-row-excluded{opacity:.45}
 .danger-zone{margin-top:22px;padding:14px;border:1.5px dashed var(--attn-line);background:var(--attn-bg);border-radius:var(--r-md)}
 .danger-zone-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--attn);margin-bottom:8px;display:block}
 .btn-danger{background:var(--attn);color:#fff}
@@ -1020,7 +1023,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.4.3';
+const APP_VERSION='8.4.4';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5814,12 +5817,14 @@ async function startSendQueue(studentIds,from,to,testOnly,testId,prevSel){
     noTestIds=new Set(queue.filter(s=>!scoredIds.has(s.id)).map(s=>s.id));
   }
   let skipNoTest=noTestIds.size>0;
-  const effectiveQueue=()=>{
+  const excludedIds=new Set(); // individually unchecked in the preview list — stays visible, just left out of the send
+  const baseQueue=()=>{
     let q=queue;
     if(skipSent) q=q.filter(s=>!alreadySentIds.has(s.id));
     if(skipNoTest) q=q.filter(s=>!noTestIds.has(s.id));
     return q;
   };
+  const effectiveQueue=()=>baseQueue().filter(s=>!excludedIds.has(s.id));
   openCustomSheet({
     id:'__sendQueueStart__',
     title:`Send report cards — ${queue.length} parent${queue.length!==1?'s':''}`,
@@ -5829,7 +5834,7 @@ async function startSendQueue(studentIds,from,to,testOnly,testId,prevSel){
       ${noTestIds.size?`<label class="shul-opt" style="margin-top:0"><input type="checkbox" id="ssqSkipNoTest" ${skipNoTest?'checked':''}> Skip ${noTestIds.size} with no test in this period</label>`:''}
       <p class="muted" id="ssqCountLine" style="font-size:11.5px;margin:8px 0 0"></p>
       <div id="ssqPreview"></div>
-      <p class="muted" style="font-size:11px;margin:2px 0 0">Tap a name above to open that student's report card. ${noTestIds.size?'⚠ marks students with no test recorded in this period.':''}</p>
+      <p class="muted" style="font-size:11px;margin:2px 0 0">Uncheck a name to leave them out, or tap it to open that student's report card. ${noTestIds.size?'⚠ marks students with no test recorded in this period.':''}</p>
       <button class="btn btn-primary btn-block" id="sqStart" style="margin-top:14px">Send one at a time</button>
       <div class="muted" style="font-size:11.5px;margin-top:6px;text-align:center">You approve each send yourself before it goes out.</div>
       <div class="danger-zone">
@@ -5843,10 +5848,17 @@ async function startSendQueue(studentIds,from,to,testOnly,testId,prevSel){
         openRCSheet(undefined,prevSel);
       };
       const _updCount=()=>{
-        const q=effectiveQueue();
-        $('ssqCountLine').textContent=`${q.length} parent${q.length!==1?'s':''} will be sent to.`;
-        $('ssqPreview').innerHTML=_sendPreviewListHtml(q,noTestIds);
-        _wireSendPreviewClicks($('ssqPreview'),q,from,to,testOnly);
+        const displayQ=baseQueue();
+        const sendQ=effectiveQueue();
+        $('ssqCountLine').textContent=`${sendQ.length} parent${sendQ.length!==1?'s':''} will be sent to.`;
+        $('ssqPreview').innerHTML=_sendPreviewListHtml(displayQ,noTestIds,excludedIds);
+        _wireSendPreviewClicks($('ssqPreview'),displayQ,from,to,testOnly);
+        $('ssqPreview').querySelectorAll('.sq-row-check').forEach(cb=>{
+          cb.onchange=()=>{
+            if(cb.checked) excludedIds.delete(cb.dataset.checkId); else excludedIds.add(cb.dataset.checkId);
+            _updCount();
+          };
+        });
       };
       _updCount();
       if($('ssqSkipSent')) $('ssqSkipSent').onchange=e=>{ skipSent=e.target.checked; _updCount(); };
@@ -5860,13 +5872,15 @@ async function startSendQueue(studentIds,from,to,testOnly,testId,prevSel){
 // exactly who is about to get an email before committing to anything. Names are
 // clickable so the sender can actually open a student's report card and check
 // it before it goes out, not just eyeball the name/email.
-function _sendPreviewListHtml(queue,flagIds){
+function _sendPreviewListHtml(queue,flagIds,excludedIds){
   if(!queue.length) return '';
   return `<div class="send-preview">${queue.map(s=>{
     const nm=esc(s.hebrew_name||s.english_name||'Student');
     const emails=esc(_parentEmails(s).join(', '));
     const flagged=flagIds&&flagIds.has(s.id);
-    return `<div class="sq-row${flagged?' fail':''}" dir="auto"><span class="sq-row-name" data-preview-id="${esc(s.id)}" role="button" tabindex="0">${nm}${flagged?' ⚠':''}</span><span>${emails}</span></div>`;
+    const excluded=excludedIds&&excludedIds.has(s.id);
+    const checkbox=excludedIds?`<input type="checkbox" class="sq-row-check" data-check-id="${esc(s.id)}" ${excluded?'':'checked'}>`:'';
+    return `<div class="sq-row${flagged?' fail':''}${excluded?' sq-row-excluded':''}" dir="auto"><span class="sq-row-left">${checkbox}<span class="sq-row-name" data-preview-id="${esc(s.id)}" role="button" tabindex="0">${nm}${flagged?' ⚠':''}</span></span><span>${emails}</span></div>`;
   }).join('')}</div>`;
 }
 // Attaches click/keyboard handlers to the names rendered by _sendPreviewListHtml
