@@ -1023,7 +1023,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.4.5';
+const APP_VERSION='8.4.6';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5795,6 +5795,11 @@ async function generateReportCards(studentIds,from,to,testOnly){
    single test — it's what lets logSend() tag the row per-test instead of per-period. */
 async function startSendQueue(studentIds,from,to,testOnly,testId,prevSel){
   const queue=studentIds.map(id=>state.students.find(s=>s.id===id)).filter(s=>s&&_parentEmails(s).length);
+  queue.sort((a,b)=>{
+    const na=(a.hebrew_name||a.english_name||'').toLowerCase();
+    const nb=(b.hebrew_name||b.english_name||'').toLowerCase();
+    return na<nb?-1:na>nb?1:0;
+  });
   const missing=studentIds.length-queue.length;
   if(!queue.length){ toast('None of these students have a parent email on file',true); return; }
   const settings=_testSettings();
