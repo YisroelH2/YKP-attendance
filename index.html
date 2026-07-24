@@ -1023,7 +1023,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.5.0';
+const APP_VERSION='8.5.1';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -2186,7 +2186,7 @@ function renderStudents(selMode, sel){
       <div style="display:flex;gap:8px">
         ${(!selMode && !state.isTeacher)?`<button class="btn btn-soft btn-sm" id="addStudent">+ Add</button>`:''}
         ${(!selMode && !state.isGbpOnly)?`<button class="btn btn-soft btn-sm" id="rcOpen">📄 Reports</button>`:''}
-        <button class="btn btn-soft btn-sm" id="selToggle">${selMode?'Cancel':'Select'}</button>
+        ${!state.isTeacher?`<button class="btn btn-soft btn-sm" id="selToggle">${selMode?'Cancel':'Select'}</button>`:''}
       </div>
     </div>
     <div class="controls" style="margin-bottom:8px">
@@ -2210,7 +2210,7 @@ function renderStudents(selMode, sel){
     ${selMode?`<div class="sel-bar" id="selBar">
       <span id="selCount">0 selected</span>
       <button class="btn btn-soft btn-sm" id="selAll">All</button>
-      <button class="btn btn-soft btn-sm" id="selMove">Move</button>
+      ${!state.isTeacher?`<button class="btn btn-soft btn-sm" id="selMove">Move</button>`:''}
       ${!state.isTeacher?`<button class="btn btn-sm" id="selDel" style="background:var(--attn);color:#fff">Delete</button>`:''  }
     </div>`:''}`;
   if(!state.stuFilters) state.stuFilters={classId:'',bunkId:'',q:''};
@@ -2229,7 +2229,7 @@ function renderStudents(selMode, sel){
       const cls=state.classes.find(c=>c.id===s.class_id);
       const av=state.photoUrls[s.id]?`<img class="avatar" src="${state.photoUrls[s.id]}">`:`<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
       const chk=selMode?`<div class="sel-chk ${sel.has(s.id)?'on':''}" data-id="${s.id}"></div>`:'';
-      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<button class="sth-hist-btn" data-hid="${s.id}" title="History"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>${state.isGbpOnly?'':'<div class="rcbtn" title="Report card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>'}<div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`:''}</div>`;
+      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<button class="sth-hist-btn" data-hid="${s.id}" title="History"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>${state.isGbpOnly?'':'<div class="rcbtn" title="Report card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>'}${state.isTeacher?'':'<div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>'}`:''}</div>`;
     }).join('');
     if(!html) html=`<div class="empty"><p>No match.</p></div>`;
     if(hasMore) html+=`<button class="btn btn-soft btn-block" id="stuMore" style="margin:8px 0 4px">Show more (${list.length-stuLimit} more)</button>`;
@@ -2257,14 +2257,14 @@ function renderStudents(selMode, sel){
   if($('stuFilterBunk')) $('stuFilterBunk').onchange=e=>{ filterBunk=e.target.value; state.stuFilters.bunkId=filterBunk; stuLimit=50; draw($('stuSearch').value.trim()); };
   if(!selMode && $('addStudent')) $('addStudent').onclick=()=>editStudent(null);
   if(!selMode && $('rcOpen')) $('rcOpen').onclick=()=>openRCSheet();
-  $('selToggle').onclick=()=>renderStudents(!selMode,new Set());
+  if($('selToggle')) $('selToggle').onclick=()=>renderStudents(!selMode,new Set());
   if(selMode){
     if($('selAll')) $('selAll').onclick=()=>{
       const allOn=currentList.every(s=>sel.has(s.id));
       if(allOn){ sel.clear(); } else { currentList.forEach(s=>sel.add(s.id)); }
       renderStudents(true,sel);
     };
-    $('selMove').onclick=()=>{
+    if($('selMove')) $('selMove').onclick=()=>{
       if(!sel.size){toast('Select students first',true);return;}
       const clsOpts=`<option value="">No class</option>${state.classes.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}`;
       openCustomSheet({id:'__move__',title:`Move ${sel.size} students`,html:`<div class="field"><label>Move to class</label><select id="moveClass" class="inp">${clsOpts}</select></div><div class="row2"><button class="btn btn-ghost" id="mvCancel" style="flex:1">Cancel</button><button class="btn btn-primary" id="mvSave" style="flex:1">Move</button></div>`,
@@ -2288,6 +2288,7 @@ function renderStudents(selMode, sel){
 
 let photoFor=null;
 function pickPhoto(id){
+  if(state.isTeacher) return; // teacher & class_gbp_teacher: no editing student records, including photos
   photoFor=id;
   openCustomSheet({id:'__photopick__',title:'Add photo',html:`
     <div class="row2" style="gap:10px">
@@ -2839,6 +2840,7 @@ function readForm(){
 function closeForm(){$('formSheet').classList.remove('show');$('formBg').classList.remove('show');setTimeout(()=>$('formBg').classList.add('hidden'),240);}
 
 function editStudent(id){
+  if(state.isTeacher) return; // teacher & class_gbp_teacher: no add/edit/delete on student records
   const s=id?state.students.find(x=>x.id===id):null;
   const classOpts=[{value:'',label:'(No class)'}].concat(state.classes.map(c=>({value:c.id,label:c.name})));
   openForm({
