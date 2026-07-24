@@ -1023,7 +1023,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.4.8';
+const APP_VERSION='8.5.0';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1389,17 +1389,24 @@ async function enterApp(){
    3. DATA
    ========================================================= */
 async function loadRole(){
-  state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.role='staff'; state.teacherClassIds=null;
+  state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.isGbpOnly=false; state.role='staff'; state.teacherClassIds=null;
   if(!state.user?.id) return;
   try{
     const {data}=await sb.from('profiles').select('role').eq('id',state.user.id).maybeSingle();
     state.role=data?.role||'staff';
-    state.isTeacher=(state.role==='teacher');
+    // class_gbp_teacher: same class-scoped access as `teacher` (own class only,
+    // no Setup) PLUS the Baal-Peh-only Tests restriction below — see isGbpOnly.
+    state.isTeacher=(state.role==='teacher'||state.role==='class_gbp_teacher');
     state.isTester=(state.role==='tester');
     // learning_teacher: staff who ONLY run Gemarah Baal Peh testing sessions —
     // see applyRoleUI() / switchView() for the Tests-only lockdown this drives.
     state.isLearningTeacher=(state.role==='learning_teacher');
-  }catch(_){ state.role='staff'; state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; }
+    // isGbpOnly: may mark Baal Peh in the Tests tab but must never touch
+    // ykp_tests/ykp_test_scores or send report cards (those show test marks).
+    // True for both the Tests-only learning_teacher and the class-scoped
+    // class_gbp_teacher — see the guards this drives throughout the Tests tab.
+    state.isGbpOnly=(state.role==='learning_teacher'||state.role==='class_gbp_teacher');
+  }catch(_){ state.role='staff'; state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.isGbpOnly=false; }
 }
 
 function applyRoleUI(){
@@ -2178,7 +2185,7 @@ function renderStudents(selMode, sel){
       <h2 style="font-size:16px;margin:0">${state.students.length} students</h2>
       <div style="display:flex;gap:8px">
         ${(!selMode && !state.isTeacher)?`<button class="btn btn-soft btn-sm" id="addStudent">+ Add</button>`:''}
-        ${!selMode?`<button class="btn btn-soft btn-sm" id="rcOpen">📄 Reports</button>`:''}
+        ${(!selMode && !state.isGbpOnly)?`<button class="btn btn-soft btn-sm" id="rcOpen">📄 Reports</button>`:''}
         <button class="btn btn-soft btn-sm" id="selToggle">${selMode?'Cancel':'Select'}</button>
       </div>
     </div>
@@ -2222,7 +2229,7 @@ function renderStudents(selMode, sel){
       const cls=state.classes.find(c=>c.id===s.class_id);
       const av=state.photoUrls[s.id]?`<img class="avatar" src="${state.photoUrls[s.id]}">`:`<div class="avatar" style="background:${colorFor(s.id)}">${esc(initials(s.english_name||s.hebrew_name))}</div>`;
       const chk=selMode?`<div class="sel-chk ${sel.has(s.id)?'on':''}" data-id="${s.id}"></div>`:'';
-      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<button class="sth-hist-btn" data-hid="${s.id}" title="History"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button><div class="rcbtn" title="Report card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div><div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`:''}</div>`;
+      return `<div class="lrow${sel.has(s.id)?' sel-on':''}" data-id="${s.id}">${chk}${av}<div class="meta"><div class="n" dir="auto">${esc(s.hebrew_name)}</div><div class="s">${[esc(s.english_name||''),cls?esc(cls.name):'',s.bunk?'Bunk '+esc(s.bunk):''].filter(Boolean).join(' · ')}</div></div>${!selMode?`<button class="sth-hist-btn" data-hid="${s.id}" title="History"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>${state.isGbpOnly?'':'<div class="rcbtn" title="Report card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>'}<div class="cam"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`:''}</div>`;
     }).join('');
     if(!html) html=`<div class="empty"><p>No match.</p></div>`;
     if(hasMore) html+=`<button class="btn btn-soft btn-block" id="stuMore" style="margin:8px 0 4px">Show more (${list.length-stuLimit} more)</button>`;
@@ -3977,28 +3984,28 @@ function fmtTestDate(iso){
 
 async function renderTests(){
   const v=$('view-tests');
-  // learning_teacher: hard-locked to Baal Peh — this coercion (mirroring the
-  // switchView() pattern used for isTester/isLearningTeacher) guarantees no
-  // stray testsState.sub or leftover testsState.activeTest can ever route
-  // this role into the regular Tests grading UI, which is what talks to
+  // isGbpOnly (learning_teacher and class_gbp_teacher): hard-locked to Baal
+  // Peh within the Tests tab — this coercion guarantees no stray
+  // testsState.sub or leftover testsState.activeTest can ever route these
+  // roles into the regular Tests grading UI, which is what talks to
   // ykp_tests / ykp_test_scores.
-  if(state.isLearningTeacher){ testsState.sub='baal'; testsState.activeTest=null; }
+  if(state.isGbpOnly){ testsState.sub='baal'; testsState.activeTest=null; }
   if(testsState.activeTest) { await renderGradeEntry(v); return; }
   v.innerHTML=`
-    <div class="subtabs" style="${state.isLearningTeacher?'grid-template-columns:1fr':''}">
-      ${state.isLearningTeacher?'':`<button class="subtab ${testsState.sub==='tests'?'active':''}" id="stTests">Tests</button>`}
+    <div class="subtabs" style="${state.isGbpOnly?'grid-template-columns:1fr':''}">
+      ${state.isGbpOnly?'':`<button class="subtab ${testsState.sub==='tests'?'active':''}" id="stTests">Tests</button>`}
       <button class="subtab ${testsState.sub==='baal'?'active':''}" id="stBaal">Baal Peh</button>
     </div>
     <div id="testSubView"></div>`;
   if($('stTests')) $('stTests').onclick=()=>{ testsState.sub='tests'; renderTests(); };
   $('stBaal').onclick=()=>{ testsState.sub='baal'; renderTests(); };
-  if(testsState.sub==='tests' && !state.isLearningTeacher) await renderTestsList();
+  if(testsState.sub==='tests' && !state.isGbpOnly) await renderTestsList();
   else await renderBaalPeh();
 }
 
 /* ---- Tests sub-tab ---- */
 async function renderTestsList(){
-  if(state.isLearningTeacher) return; // never touches ykp_tests for this role
+  if(state.isGbpOnly) return; // never touches ykp_tests for this role
   const wrap=$('testSubView');
   const {data:tests}=await sb.from('ykp_tests').select('*').order('date',{ascending:false});
   const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
@@ -4054,7 +4061,7 @@ async function renderTestsList(){
 }
 
 function openNewTestSheet(){
-  if(state.isLearningTeacher) return; // never touches ykp_tests for this role
+  if(state.isGbpOnly) return; // never touches ykp_tests for this role
   let gt='percent';
   const clsChecks=state.classes.map(c=>`<label class="consent-check" style="margin:4px 0"><input type="checkbox" class="ntCls" value="${c.id}"> ${esc(c.name)}</label>`).join('');
   openCustomSheet({id:'__newTest__',title:'New test',html:`
@@ -4131,7 +4138,7 @@ function _refreshGradeSummary(t, container){
 }
 
 async function renderGradeEntry(v){
-  if(state.isLearningTeacher) return; // never touches ykp_test_scores for this role
+  if(state.isGbpOnly) return; // never touches ykp_test_scores for this role
   const t=testsState.activeTest;
   const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
   let students=state.students.filter(s=>s.active!==false);
@@ -5251,7 +5258,7 @@ function openBpSheet(existing){
 
 /* generic custom sheet (for Tests forms that don't need the attendance-status seg) */
 async function deleteTest(tid){
-  if(state.isLearningTeacher) return; // never touches ykp_tests/ykp_test_scores for this role
+  if(state.isGbpOnly) return; // never touches ykp_tests/ykp_test_scores for this role
   if(!confirm('Delete this test and all its scores?\nThis cannot be undone.')) return;
   const scoreDel=await sb.from('ykp_test_scores').delete().eq('test_id',tid);
   if(scoreDel.error){ toast('Delete failed — check connection',true); return; }
@@ -5710,7 +5717,7 @@ function openTestSettingsSheet(onSaved){
 }
 // One-tap: render this student's card to an image and hand it to the phone's share sheet
 async function shareReportToParent(stu,from,to,testOnly,testId){
-  if(state.isLearningTeacher){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
+  if(state.isGbpOnly){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
   toast('Preparing report card…');
   const ids=[stu.id], ytdFrom=getYtdStart(to);
   let host=null;
@@ -5764,7 +5771,7 @@ async function shareReportToParent(stu,from,to,testOnly,testId){
   }
 }
 async function generateReportCards(studentIds,from,to,testOnly){
-  if(state.isLearningTeacher){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
+  if(state.isGbpOnly){ toast('Not available for this role',true); return; } // report cards pull ykp_tests/ykp_test_scores
   if(!studentIds.length){toast('No students',true);return;}
   toast('Generating report cards…');
   const ytdFrom=getYtdStart(to);
@@ -6109,7 +6116,7 @@ function _rcSummarySheet(uploadResults,sendById){
   });
 }
 async function runSendAllAtOnce(queue,from,to,testOnly,testId){
-  if(state.isLearningTeacher){ toast('Not available for this role',true); return; }
+  if(state.isGbpOnly){ toast('Not available for this role',true); return; }
   closeCustomSheet();
   const ids=queue.map(s=>s.id), ytdFrom=getYtdStart(to);
   toast('Preparing report cards…');
