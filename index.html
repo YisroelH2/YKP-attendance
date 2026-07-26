@@ -1406,10 +1406,11 @@ async function loadRole(){
     const {data}=await sb.from('profiles').select('role').eq('id',state.user.id).maybeSingle();
     state.role=data?.role||'staff';
     // class_gbp_teacher / class_gbp_teacher_all: same class-scoped access as
-    // `teacher` (own class only, no Setup) PLUS the Baal-Peh-only Tests
-    // restriction below — see isGbpOnly. The "_all" variant additionally
-    // sees every camper (not just their own class) within Baal Peh
-    // specifically — see isGbpAllCampers and _bpStudents()/_bpClasses().
+    // `teacher` (own class only, no Setup). Plain class_gbp_teacher is ALSO
+    // hard-locked to Baal-Peh-only within Tests — see isGbpOnly below. The
+    // "_all" variant is not: it gets the FULL Tests tab (regular Tests +
+    // Baal Peh), scoped to every camper rather than just their own class —
+    // see isGbpAllCampers and _testsAllStudents()/_testsAllClasses().
     state.isTeacher=(state.role==='teacher'||state.role==='class_gbp_teacher'||state.role==='class_gbp_teacher_all');
     state.isTester=(state.role==='tester');
     // learning_teacher: staff who ONLY run Gemarah Baal Peh testing sessions —
@@ -1417,12 +1418,14 @@ async function loadRole(){
     state.isLearningTeacher=(state.role==='learning_teacher');
     // isGbpOnly: may mark Baal Peh in the Tests tab but must never touch
     // ykp_tests/ykp_test_scores or send report cards (those show test marks).
-    // True for the Tests-only learning_teacher and both class-scoped
-    // class_gbp_teacher variants — see the guards this drives throughout the Tests tab.
-    state.isGbpOnly=(state.role==='learning_teacher'||state.role==='class_gbp_teacher'||state.role==='class_gbp_teacher_all');
-    // isGbpAllCampers: this one teacher tests Baal Peh for every camper, not
-    // just their own class — everywhere else (Schedule/Mark/History) stays
-    // scoped to their own class like a regular class_gbp_teacher.
+    // True for the Tests-only learning_teacher and the plain, class-scoped
+    // class_gbp_teacher — NOT class_gbp_teacher_all, who gets full Tests
+    // access (see isGbpAllCampers) — see the guards this drives throughout the Tests tab.
+    state.isGbpOnly=(state.role==='learning_teacher'||state.role==='class_gbp_teacher');
+    // isGbpAllCampers: this one teacher tests (both regular Tests and Baal
+    // Peh) for every camper, not just their own class — everywhere else
+    // (Schedule/Mark/History) stays scoped to their own class like a
+    // regular class_gbp_teacher.
     state.isGbpAllCampers=(state.role==='class_gbp_teacher_all');
   }catch(_){ state.role='staff'; state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.isGbpOnly=false; state.isGbpAllCampers=false; }
 }
@@ -1492,10 +1495,11 @@ async function loadAll(){
     if(stRes.error) throw new Error('students failed');
     state.students=stRes.data||[];
     // class_gbp_teacher_all: Schedule/Mark/History stay scoped to their own
-    // class (state.classes/state.students above), but Baal Peh should show
-    // every camper — fetch the unscoped roster separately so _bpStudents()/
-    // _bpClasses() can hand it to the Baal Peh tab without loosening scope
-    // anywhere else. See loadRole()'s isGbpAllCampers comment.
+    // class (state.classes/state.students above), but the whole Tests tab
+    // (regular Tests + Baal Peh) should show every camper — fetch the
+    // unscoped roster separately so _testsAllStudents()/_testsAllClasses()
+    // can hand it to Tests without loosening scope anywhere else. See
+    // loadRole()'s isGbpAllCampers comment.
     if(state.isGbpAllCampers){
       const [gClRes,gStRes]=await Promise.all([
         sb.from('classes').select('*').order('sort_order'),
@@ -4017,6 +4021,15 @@ function fmtTestDate(iso){
   return `${wd}, ${mo} ${day} '${yr}`;
 }
 
+// Student/class roster for the Tests tab (both the regular Tests sub-tab and
+// Baal Peh) — everywhere else in the app a class_gbp_teacher(_all) stays
+// scoped to state.students/state.classes (their own class), but
+// class_gbp_teacher_all sees every camper within the whole Tests tab,
+// backed by the separately-fetched state.gbpStudents/state.gbpClasses (see
+// loadAll()). Falls back to the regular scoped lists for every other role.
+function _testsAllStudents(){ return state.gbpStudents||state.students; }
+function _testsAllClasses(){ return state.gbpClasses||state.classes; }
+
 async function renderTests(){
   const v=$('view-tests');
   // isGbpOnly (learning_teacher and class_gbp_teacher): hard-locked to Baal
@@ -4043,7 +4056,7 @@ async function renderTestsList(){
   if(state.isGbpOnly) return; // never touches ykp_tests for this role
   const wrap=$('testSubView');
   const {data:tests}=await sb.from('ykp_tests').select('*').order('date',{ascending:false});
-  const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
+  const clsById={}; _testsAllClasses().forEach(c=>clsById[c.id]=c);
   const rows=tests||[];
 
   let html=`<div style="display:flex;gap:8px;margin-bottom:14px">
@@ -4074,7 +4087,7 @@ async function renderTestsList(){
 function openNewTestSheet(){
   if(state.isGbpOnly) return; // never touches ykp_tests for this role
   let gt='percent';
-  const clsChecks=state.classes.map(c=>`<label class="consent-check" style="margin:4px 0"><input type="checkbox" class="ntCls" value="${c.id}"> ${esc(c.name)}</label>`).join('');
+  const clsChecks=_testsAllClasses().map(c=>`<label class="consent-check" style="margin:4px 0"><input type="checkbox" class="ntCls" value="${c.id}"> ${esc(c.name)}</label>`).join('');
   openCustomSheet({id:'__newTest__',title:'New test',html:`
     <div class="field"><label>Test name</label><input id="ntName" class="inp" placeholder="e.g. Chumash Perek Aleph"></div>
     <div class="field"><label>Date</label><input id="ntDate" class="inp" type="date" value="${todayStr()}"></div>
@@ -4151,8 +4164,8 @@ function _refreshGradeSummary(t, container){
 async function renderGradeEntry(v){
   if(state.isGbpOnly) return; // never touches ykp_test_scores for this role
   const t=testsState.activeTest;
-  const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
-  let students=state.students.filter(s=>s.active!==false);
+  const clsById={}; _testsAllClasses().forEach(c=>clsById[c.id]=c);
+  let students=_testsAllStudents().filter(s=>s.active!==false);
   const classIds=(t.class_ids&&t.class_ids.length>0)?t.class_ids:(t.class_id?[t.class_id]:[]);
   if(classIds.length>0) students=students.filter(s=>classIds.includes(s.class_id));
   // Init passing/filter/class-filter state per test — passing mark is seeded from
@@ -4168,7 +4181,7 @@ async function renderGradeEntry(v){
   if(testsState.classFilter[t.id]===undefined) testsState.classFilter[t.id]='';
   // Classes this test actually covers — used to build the class-filter dropdown
   // below, and to further narrow the visible student list when one is chosen.
-  const filterableClasses=classIds.length?classIds.map(id=>clsById[id]).filter(Boolean):state.classes.slice();
+  const filterableClasses=classIds.length?classIds.map(id=>clsById[id]).filter(Boolean):_testsAllClasses().slice();
   if(testsState.classFilter[t.id]) students=students.filter(s=>s.class_id===testsState.classFilter[t.id]);
   // Sort alphabetically by English name, falling back to Hebrew name
   students=students.slice().sort((a,b)=>{
@@ -4390,7 +4403,7 @@ function openTestResultExportSheet(t, v){
   if(!rows.length){ toast('No students to export — check your filters',true); return; }
   const allEntries=rows.map(row=>{
     const sid=row.dataset.sid;
-    const s=state.students.find(x=>x.id===sid); if(!s) return null;
+    const s=_testsAllStudents().find(x=>x.id===sid); if(!s) return null;
     const inp=row.querySelector('.score-inp');
     const raw=inp?.value.trim();
     let status='unmarked', scoreDisplay='';
@@ -4687,21 +4700,13 @@ body {
 const BAAL_PEH_DAFIM=['45a','45b','46a','46b','47a','47b','48a','48b','49a','49b','50a','50b','51a','51b'];
 let bpRows=[]; // the currently-rendered (filtered) Baal Peh session rows — used by the Export Selected sheet
 
-// Student/class roster for the Baal Peh tab specifically — everywhere else in
-// the app a class_gbp_teacher(_all) stays scoped to state.students/state.classes
-// (their own class), but class_gbp_teacher_all sees every camper within Baal
-// Peh, backed by the separately-fetched state.gbpStudents/state.gbpClasses
-// (see loadAll()). Falls back to the regular scoped lists for every other role.
-function _bpStudents(){ return state.gbpStudents||state.students; }
-function _bpClasses(){ return state.gbpClasses||state.classes; }
-
 // Reads the pre-aggregated ykp_baal_peh_progress view (one row per unique
 // student+daf pair, already de-duplicated by the view's GROUP BY) and shapes
 // it into {student_id: Set<daf>} for the leaderboard / badge renderers.
 async function _computeBpProgress(){
   const {data}=await sb.from('ykp_baal_peh_progress').select('student_id,daf');
   const rows=data||[];
-  const stuById={}; _bpStudents().forEach(s=>stuById[s.id]=s); // teacher-scoped upstream (or all campers for class_gbp_teacher_all)
+  const stuById={}; _testsAllStudents().forEach(s=>stuById[s.id]=s); // teacher-scoped upstream (or all campers for class_gbp_teacher_all)
   const progress={};
   rows.forEach(r=>{
     if(!stuById[r.student_id]) return;
@@ -4716,7 +4721,7 @@ async function _computeBpProgress(){
 async function _renderBpLeaderboard(container, classId){
   if(!container) return;
   const progress=await _computeBpProgress();
-  let students=_bpStudents().filter(s=>s.active!==false);
+  let students=_testsAllStudents().filter(s=>s.active!==false);
   if(classId) students=students.filter(s=>(s.class_id||'__none__')===classId);
   const total=BAAL_PEH_DAFIM.length;
   const rows=students.map(s=>({student:s, count:(progress[s.id]||new Set()).size}))
@@ -4852,7 +4857,7 @@ function _mountCombobox(opts){
 // down and rebuilding the whole tab (leaderboard + list flicker, focus loss,
 // and the clear-button's post-pick openPanel() reaching into stale DOM nodes).
 function _mountBpStudentCombo(h){
-  const forClass=h.classId?_bpStudents().filter(s=>(s.class_id||'__none__')===h.classId):_bpStudents();
+  const forClass=h.classId?_testsAllStudents().filter(s=>(s.class_id||'__none__')===h.classId):_testsAllStudents();
   _mountCombobox({
     inputId:'bpStudentInput', panelId:'bpStudentPanel', clearId:'bpStudentClear',
     items:forClass, getLabel:s=>s.english_name||s.hebrew_name,
@@ -4899,7 +4904,7 @@ async function renderBaalPeh(){
 
   _mountCombobox({
     inputId:'bpClassInput', panelId:'bpClassPanel', clearId:'bpClassClear',
-    items:_bpClasses(), getLabel:c=>c.name, placeholder:'All classes',
+    items:_testsAllClasses(), getLabel:c=>c.name, placeholder:'All classes',
     selectedId:h.classId, fuzzy:false,
     // Narrow the Student combo + refresh the leaderboard/list in place — no
     // full-tab re-render, which is what made this selector feel glitchy.
@@ -4944,12 +4949,12 @@ async function loadBaalPehList(){
     .order('date',{ascending:false}).order('created_at',{ascending:false});
   if(h.studentId) q=q.eq('student_id',h.studentId);
   const {data}=await q; const rows=data||[];
-  const stuById={}; _bpStudents().forEach(s=>stuById[s.id]=s);
+  const stuById={}; _testsAllStudents().forEach(s=>stuById[s.id]=s);
   let filt=rows.filter(r=>stuById[r.student_id]);
   // Teacher-scoped: only records for their own students (defense-in-depth).
   // Skipped for class_gbp_teacher_all, who's meant to see every camper here.
   if(state.isTeacher && !state.isGbpAllCampers && state.teacherClassIds){
-    const tStuIds=new Set(_bpStudents().map(s=>s.id));
+    const tStuIds=new Set(_testsAllStudents().map(s=>s.id));
     filt=filt.filter(r=>tStuIds.has(r.student_id));
   }
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
@@ -5028,7 +5033,7 @@ async function loadBaalPehList(){
 function openBpShulListSheet(){
   const h=testsState.bp||{};
   if(!h.sel||!h.sel.size){ toast('Select some sessions first',true); return; }
-  const stuById={}; _bpStudents().forEach(s=>stuById[s.id]=s);
+  const stuById={}; _testsAllStudents().forEach(s=>stuById[s.id]=s);
   const entries=[];
   (bpRows||[]).forEach(r=>{
     if(h.sel.has(String(r.id))){ const s=stuById[r.student_id]; if(s) entries.push({student:s,key:String(r.id)}); }
@@ -5071,11 +5076,11 @@ function openBpShulListSheet(){
 function openBpSheet(existing){
   const h=testsState.bp||{};
   const editing=!!existing;
-  const forClass=h.classId?_bpStudents().filter(s=>(s.class_id||'__none__')===h.classId):_bpStudents();
+  const forClass=h.classId?_testsAllStudents().filter(s=>(s.class_id||'__none__')===h.classId):_testsAllStudents();
   const selId=editing?existing.student_id:h.studentId;
   // make sure the editing student appears even if filtered out
   let optStudents=forClass;
-  if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=_bpStudents().find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
+  if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=_testsAllStudents().find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
   // `existing` (when editing) comes from loadBaalPehList's embedded query, so
   // it already carries `.dafim` (array of {daf}) and a real `.note` column.
   const existingDafim=editing?(existing.dafim||[]).map(x=>x.daf):[];
