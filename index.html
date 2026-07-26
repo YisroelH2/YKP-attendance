@@ -1034,7 +1034,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.5.2';
+const APP_VERSION='8.6.0';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -4791,11 +4791,15 @@ function _mountCombobox(opts){
       }).join('');
     }
     panel.querySelectorAll('.combo-opt').forEach(el=>{
-      // pointerdown (not click) fires before the input's blur — this is what
-      // lets a tap/click on an option register cleanly on both desktop and
-      // mobile touch, instead of racing against blur closing the panel first.
-      el.addEventListener('pointerdown', ev=>{
-        ev.preventDefault();
+      // Plain 'click' — NOT 'pointerdown'. pointerdown fires the instant a
+      // finger touches the screen, before a scroll/drag gesture can be
+      // recognized, so calling preventDefault() there (as this used to)
+      // picked the option under your finger immediately and made the list
+      // impossible to touch-scroll. click already only fires for a genuine
+      // tap (browsers suppress it after a touch-drag), and since these
+      // options are plain divs (never focused), there's no input blur to
+      // race against, so nothing is lost by waiting for it.
+      el.addEventListener('click', ()=>{
         pick(filtered[Number(el.dataset.i)]);
       });
     });
