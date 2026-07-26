@@ -133,12 +133,14 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 
 /* ---------- mark controls ---------- */
 .controls{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px}
-.ctl{display:flex; flex-direction:column; gap:5px}
+.ctl{display:flex; flex-direction:column; gap:5px; min-width:0}
 .ctl span{font-size:12px; font-weight:600; color:var(--ink-soft); padding-inline-start:2px}
 .ctl select,.ctl input{
-  height:44px; padding:0 12px; border-radius:var(--r-md);
+  width:100%; min-width:0; height:44px; padding:0 12px; border-radius:var(--r-md);
   border:1px solid var(--line); background:var(--surface); box-shadow:var(--sh-1);
   -webkit-appearance:none; appearance:none;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  box-sizing:border-box;
 }
 .ctl.full{grid-column:1 / -1}
 .ctl select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0b4' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
@@ -1034,7 +1036,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.6.0';
+const APP_VERSION='8.6.1';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
