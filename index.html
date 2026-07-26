@@ -271,10 +271,6 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .score-inp:focus{border-color:var(--accent);outline:none}
 .score-unit{font-size:13px;color:var(--ink-faint);font-weight:600;white-space:nowrap;min-width:28px}
 .score-pct{font-size:12px;color:var(--ink-faint);min-width:38px;text-align:right}
-.sent-badge{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);font-size:11px;font-weight:800;flex-shrink:0;line-height:1;padding:0}
-.sent-badge.sent-yes{border-color:#16a34a;color:#16a34a;background:color-mix(in srgb,#16a34a 12%,transparent)}
-.sent-badge.sent-no{color:var(--ink-faint)}
-.test-unsent-badge{font-size:10.5px;font-weight:800;background:var(--attn-bg);color:var(--attn);border-radius:999px;padding:2px 8px;white-space:nowrap}
 .tests-gear{width:42px;height:42px;flex-shrink:0;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--ink-soft)}
 .tests-gear:active{transform:scale(.94)}
 .bp-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 13px;margin-bottom:7px;box-shadow:var(--sh-1)}
@@ -297,6 +293,13 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .daf-chip.mastered:not(.active){border-color:#d4af37;box-shadow:inset 0 0 0 1.5px #d4af37}
 .daf-chip.mastered:not(.active)::after{content:'✓';font-size:9px;vertical-align:super;margin-left:2px;color:#d4af37}
 .bp-leaderboard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-1);margin-bottom:14px;max-height:280px;overflow-y:auto}
+.bp-fab{
+  position:fixed; right:18px; bottom:calc(var(--nav-h) + var(--safe-b) + 18px); z-index:39;
+  width:56px; height:56px; border-radius:50%; border:none;
+  background:var(--accent); color:#fff; box-shadow:var(--sh-3);
+  font-size:28px; font-weight:400; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.bp-fab:active{transform:scale(.94)}
 .bp-lb-title{display:flex;align-items:center;gap:6px;padding:10px 13px;font-weight:800;font-size:14px;border-bottom:1px solid var(--line);background:var(--surface-2,#f1f3fb);position:sticky;top:0}
 .bp-lb-row{display:flex;align-items:center;gap:10px;padding:8px 13px;border-bottom:1px solid var(--line)}
 .bp-lb-row:last-child{border-bottom:none}
@@ -1397,24 +1400,31 @@ async function enterApp(){
    3. DATA
    ========================================================= */
 async function loadRole(){
-  state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.isGbpOnly=false; state.role='staff'; state.teacherClassIds=null;
+  state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.isGbpOnly=false; state.isGbpAllCampers=false; state.role='staff'; state.teacherClassIds=null;
   if(!state.user?.id) return;
   try{
     const {data}=await sb.from('profiles').select('role').eq('id',state.user.id).maybeSingle();
     state.role=data?.role||'staff';
-    // class_gbp_teacher: same class-scoped access as `teacher` (own class only,
-    // no Setup) PLUS the Baal-Peh-only Tests restriction below — see isGbpOnly.
-    state.isTeacher=(state.role==='teacher'||state.role==='class_gbp_teacher');
+    // class_gbp_teacher / class_gbp_teacher_all: same class-scoped access as
+    // `teacher` (own class only, no Setup) PLUS the Baal-Peh-only Tests
+    // restriction below — see isGbpOnly. The "_all" variant additionally
+    // sees every camper (not just their own class) within Baal Peh
+    // specifically — see isGbpAllCampers and _bpStudents()/_bpClasses().
+    state.isTeacher=(state.role==='teacher'||state.role==='class_gbp_teacher'||state.role==='class_gbp_teacher_all');
     state.isTester=(state.role==='tester');
     // learning_teacher: staff who ONLY run Gemarah Baal Peh testing sessions —
     // see applyRoleUI() / switchView() for the Tests-only lockdown this drives.
     state.isLearningTeacher=(state.role==='learning_teacher');
     // isGbpOnly: may mark Baal Peh in the Tests tab but must never touch
     // ykp_tests/ykp_test_scores or send report cards (those show test marks).
-    // True for both the Tests-only learning_teacher and the class-scoped
-    // class_gbp_teacher — see the guards this drives throughout the Tests tab.
-    state.isGbpOnly=(state.role==='learning_teacher'||state.role==='class_gbp_teacher');
-  }catch(_){ state.role='staff'; state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.isGbpOnly=false; }
+    // True for the Tests-only learning_teacher and both class-scoped
+    // class_gbp_teacher variants — see the guards this drives throughout the Tests tab.
+    state.isGbpOnly=(state.role==='learning_teacher'||state.role==='class_gbp_teacher'||state.role==='class_gbp_teacher_all');
+    // isGbpAllCampers: this one teacher tests Baal Peh for every camper, not
+    // just their own class — everywhere else (Schedule/Mark/History) stays
+    // scoped to their own class like a regular class_gbp_teacher.
+    state.isGbpAllCampers=(state.role==='class_gbp_teacher_all');
+  }catch(_){ state.role='staff'; state.isTeacher=false; state.isTester=false; state.isLearningTeacher=false; state.isGbpOnly=false; state.isGbpAllCampers=false; }
 }
 
 function applyRoleUI(){
@@ -1481,6 +1491,21 @@ async function loadAll(){
     }
     if(stRes.error) throw new Error('students failed');
     state.students=stRes.data||[];
+    // class_gbp_teacher_all: Schedule/Mark/History stay scoped to their own
+    // class (state.classes/state.students above), but Baal Peh should show
+    // every camper — fetch the unscoped roster separately so _bpStudents()/
+    // _bpClasses() can hand it to the Baal Peh tab without loosening scope
+    // anywhere else. See loadRole()'s isGbpAllCampers comment.
+    if(state.isGbpAllCampers){
+      const [gClRes,gStRes]=await Promise.all([
+        sb.from('classes').select('*').order('sort_order'),
+        sb.from('students').select('*').eq('active',true).order('sort_order')
+      ]);
+      state.gbpClasses=gClRes.data||[];
+      state.gbpStudents=gStRes.data||[];
+    } else {
+      state.gbpClasses=null; state.gbpStudents=null;
+    }
     try{ localStorage.setItem('ykp_cache_v1',JSON.stringify({classes:state.classes,sessions:state.sessions,students:state.students,at:Date.now()})); }catch(_){}
   }catch(e){
     if(!c){ state.classes=[]; state.sessions=[]; state.students=[]; }
@@ -4020,28 +4045,6 @@ async function renderTestsList(){
   const {data:tests}=await sb.from('ykp_tests').select('*').order('date',{ascending:false});
   const clsById={}; state.classes.forEach(c=>clsById[c.id]=c);
   const rows=tests||[];
-  const settings=_testSettings();
-
-  // ── Unsent-results reminder — batched across every test in one pair of
-  // queries (not one query per test) so this list stays fast. A score counts
-  // as "unsent" if it was marked more than reminderDays ago and the latest
-  // send row for that (test,student) pair isn't status:'success'.
-  const unsentByTest={};
-  if(rows.length){
-    const testIds=rows.map(t=>t.id);
-    const cutoff=new Date(Date.now()-settings.reminderDays*86400000).toISOString();
-    const [{data:oldScores},{data:sends}]=await Promise.all([
-      sb.from('ykp_test_scores').select('test_id,student_id,created_at').in('test_id',testIds).lte('created_at',cutoff),
-      sb.from('ykp_report_card_sends').select('test_id,student_id,status,created_at').in('test_id',testIds).not('test_id','is',null).order('created_at',{ascending:false})
-    ]);
-    const latestSend={}; // "testId|studentId" -> latest status
-    (sends||[]).forEach(r=>{ const k=r.test_id+'|'+r.student_id; if(!latestSend[k]) latestSend[k]=r.status; });
-    (oldScores||[]).forEach(r=>{
-      const k=r.test_id+'|'+r.student_id;
-      if(latestSend[k]==='success') return;
-      unsentByTest[r.test_id]=(unsentByTest[r.test_id]||0)+1;
-    });
-  }
 
   let html=`<div style="display:flex;gap:8px;margin-bottom:14px">
       <button class="btn btn-primary btn-block" id="newTestBtn" style="flex:1">+ New test</button>
@@ -4054,13 +4057,11 @@ async function renderTestsList(){
     const ids=(t.class_ids&&t.class_ids.length>0)?t.class_ids:(t.class_id?[t.class_id]:[]);
     const clsNames=ids.map(id=>clsById[id]?.name).filter(Boolean);
     const clsText=clsNames.length?clsNames.join(', '):'All classes';
-    const unsent=unsentByTest[t.id]||0;
     html+=`<div class="test-card" data-tid="${t.id}">
       <div class="test-card-main">
         <div class="test-card-name">${esc(t.name)}</div>
         <div class="test-card-sub">${fmtTestDate(t.date)} · ${esc(clsText)} · ${t.grade_type==='percent'?'Percentage':'Out of '+t.max_points}</div>
       </div>
-      ${unsent?`<span class="test-unsent-badge">${unsent} unsent</span>`:''}
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>`;
   });
@@ -4177,7 +4178,6 @@ async function renderGradeEntry(v){
   });
   const {data:scores}=await sb.from('ykp_test_scores').select('*').eq('test_id',t.id);
   const byStudent={}; (scores||[]).forEach(r=>byStudent[r.student_id]=r);
-  const sendsByStudent=await _lastSendsForTest(t.id,students.map(s=>s.id));
   const clsNames=classIds.map(id=>clsById[id]?.name).filter(Boolean);
   const clsText=clsNames.length?clsNames.join(', '):'All classes';
   const passingPct=testsState.passing[t.id];
@@ -4189,15 +4189,11 @@ async function renderGradeEntry(v){
     const val=sc!=null?sc.score:'';
     const unit=t.grade_type==='percent'?'%':'/'+t.max_points;
     const pct=sc!=null&&isPoints?` (${Math.round(sc.score/t.max_points*100)}%)`:'';
-    const sendInfo=sendsByStudent[s.id];
-    const sent=sendInfo&&sendInfo.status==='success';
-    const sentTitle=sent?`Sent ${new Date(sendInfo.created_at).toLocaleDateString()} — tap for history`:'Not sent yet — tap for history';
     rows+=`<div class="score-row" data-sid="${s.id}">
       <div class="score-name"><div class="score-heb" dir="auto">${esc(s.hebrew_name||s.english_name)}</div>${(s.english_name&&s.hebrew_name)?`<div class="score-eng-sub">${esc(s.english_name)}</div>`:''}</div>
       <input class="score-inp" data-sid="${s.id}" type="number" min="0" max="${t.grade_type==='percent'?100:t.max_points}" inputmode="decimal" placeholder="–" value="${val}">
       <span class="score-unit">${unit}</span>
       <span class="score-pct" data-pct="${s.id}">${pct}</span>
-      <button class="sent-badge ${sent?'sent-yes':'sent-no'}" data-sent-sid="${s.id}" title="${sentTitle}" type="button">${sent?'✓':'·'}</button>
     </div>`;
   });
 
@@ -4240,8 +4236,7 @@ async function renderGradeEntry(v){
         ${_filterBtn('failed','✗ Failed')}
         ${_filterBtn('unmarked','— Unmarked')}
       </div>
-      <button class="btn btn-soft btn-sm" id="testSendBtn" style="height:32px;padding:0 12px;font-size:12px;margin-left:auto">📤 Send</button>
-      <button class="btn btn-soft btn-sm" id="testExportBtn" style="height:32px;padding:0 12px;font-size:12px">📄 Export</button>
+      <button class="btn btn-soft btn-sm" id="testExportBtn" style="height:32px;padding:0 12px;font-size:12px;margin-left:auto">📄 Export</button>
     </div>
     <div class="zal-hint" style="margin:-4px 0 10px">Tap a score to edit · changes save automatically</div>
     <div id="gradeSummary" class="grade-summary"></div>
@@ -4296,16 +4291,6 @@ async function renderGradeEntry(v){
   // Passed/Failed/Unmarked filter, and the class dropdown above — no need
   // for a separate, redundant set of export-only filter options.
   if($('testExportBtn')) $('testExportBtn').onclick=()=>openTestResultExportSheet(t, v);
-
-  // Send button — mirrors the Export button's "whatever's currently visible" behavior,
-  // so filtering to Passed only (holding back students who need a retake) then hitting
-  // Send only emails the filtered-in parents.
-  if($('testSendBtn')) $('testSendBtn').onclick=()=>openSendTestResultsSheet(t, v, sendsByStudent);
-
-  // Sent-status badges — tap for full send history + manual override actions
-  v.querySelectorAll('[data-sent-sid]').forEach(btn=>{
-    btn.onclick=()=>openSendHistorySheet(btn.dataset.sentSid,{testId:t.id,onChange:()=>renderGradeEntry(v)});
-  });
 
   // ── Score inputs — save on every keystroke (debounced), not just on blur ──
   // Rationale: relying on 'change' alone means a hard page refresh performed
@@ -4387,58 +4372,6 @@ function _applyGradeFilters(t, v, searchQ){
     row.style.display=(searchOk&&filterOk)?'':'none';
   });
   _refreshGradeSummary(t, v);
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   SEND TEST RESULTS — reuses the currently-visible score rows (so the
-   existing Passed/Failed/search filters double as the send filter: filter to
-   Passed, hit Send, and the Failed/retake group is held back automatically)
-   and hands the matching student ids to the same report-card send pipeline
-   used everywhere else (testOnly mode), just scoped to this one test's id
-   for tracking purposes.
-   ══════════════════════════════════════════════════════════════════════════ */
-function openSendTestResultsSheet(t, v, sendsByStudent){
-  const passing=testsState.passing?.[t.id]??60;
-  const isPoints=t.grade_type==='points'&&t.max_points;
-  const rows=[...v.querySelectorAll('.score-row')].filter(r=>r.style.display!=='none');
-  const candidates=rows.map(row=>{
-    const sid=row.dataset.sid;
-    const s=state.students.find(x=>x.id===sid); if(!s) return null;
-    const raw=row.querySelector('.score-inp')?.value.trim();
-    if(!raw) return null; // unmarked — nothing to send
-    const score=parseFloat(raw); if(isNaN(score)) return null;
-    const pct=isPoints?(score/t.max_points*100):score;
-    const already=sendsByStudent[sid]&&sendsByStudent[sid].status==='success';
-    return {student:s, status:pct>=passing?'pass':'fail', hasEmail:_parentEmails(s).length>0, already};
-  }).filter(Boolean);
-  if(!candidates.length){ toast('No marked, visible students to send to — check your filters',true); return; }
-
-  const passCount=candidates.filter(c=>c.status==='pass').length;
-  const failCount=candidates.filter(c=>c.status==='fail').length;
-  const alreadyCount=candidates.filter(c=>c.already).length;
-  const noEmailCount=candidates.filter(c=>!c.hasEmail).length;
-  const sendable=candidates.filter(c=>c.hasEmail);
-
-  openCustomSheet({
-    id:'__sendTest__',
-    title:`Send "${esc(t.name)}" results`,
-    html:`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
-        <div class="sq-row"><span>Passed</span><span>${passCount}</span></div>
-        <div class="sq-row"><span>Failed</span><span>${failCount}</span></div>
-        ${alreadyCount?`<div class="sq-row fail"><span>Already sent before</span><span>${alreadyCount} (will resend)</span></div>`:''}
-        ${noEmailCount?`<div class="sq-row fail"><span>No parent email on file</span><span>${noEmailCount} (skipped)</span></div>`:''}
-      </div>
-      <p class="muted" style="font-size:11.5px;margin-bottom:10px">Sends the report-card PDF (test scores only) to just the ${sendable.length} parent${sendable.length!==1?'s':''} matching your current filters above. Adjust the Passed/Failed filter first if you want to hold back retakers.</p>
-      ${sendable.length?`<button class="btn btn-primary btn-block" id="stSend">📤 Send to ${sendable.length} parent${sendable.length!==1?'s':''}</button>`:''}
-      <button class="btn btn-soft btn-block" id="stCancel" style="margin-top:8px">Cancel</button>`,
-    onMount:()=>{
-      $('stCancel').onclick=closeCustomSheet;
-      if($('stSend')) $('stSend').onclick=()=>{
-        closeCustomSheet();
-        startSendQueue(sendable.map(c=>c.student.id),'2000-01-01',todayStr(),true,t.id);
-      };
-    }
-  });
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -4754,13 +4687,21 @@ body {
 const BAAL_PEH_DAFIM=['45a','45b','46a','46b','47a','47b','48a','48b','49a','49b','50a','50b','51a','51b'];
 let bpRows=[]; // the currently-rendered (filtered) Baal Peh session rows — used by the Export Selected sheet
 
+// Student/class roster for the Baal Peh tab specifically — everywhere else in
+// the app a class_gbp_teacher(_all) stays scoped to state.students/state.classes
+// (their own class), but class_gbp_teacher_all sees every camper within Baal
+// Peh, backed by the separately-fetched state.gbpStudents/state.gbpClasses
+// (see loadAll()). Falls back to the regular scoped lists for every other role.
+function _bpStudents(){ return state.gbpStudents||state.students; }
+function _bpClasses(){ return state.gbpClasses||state.classes; }
+
 // Reads the pre-aggregated ykp_baal_peh_progress view (one row per unique
 // student+daf pair, already de-duplicated by the view's GROUP BY) and shapes
 // it into {student_id: Set<daf>} for the leaderboard / badge renderers.
 async function _computeBpProgress(){
   const {data}=await sb.from('ykp_baal_peh_progress').select('student_id,daf');
   const rows=data||[];
-  const stuById={}; state.students.forEach(s=>stuById[s.id]=s); // already teacher-scoped upstream
+  const stuById={}; _bpStudents().forEach(s=>stuById[s.id]=s); // teacher-scoped upstream (or all campers for class_gbp_teacher_all)
   const progress={};
   rows.forEach(r=>{
     if(!stuById[r.student_id]) return;
@@ -4775,7 +4716,7 @@ async function _computeBpProgress(){
 async function _renderBpLeaderboard(container, classId){
   if(!container) return;
   const progress=await _computeBpProgress();
-  let students=state.students.filter(s=>s.active!==false);
+  let students=_bpStudents().filter(s=>s.active!==false);
   if(classId) students=students.filter(s=>(s.class_id||'__none__')===classId);
   const total=BAAL_PEH_DAFIM.length;
   const rows=students.map(s=>({student:s, count:(progress[s.id]||new Set()).size}))
@@ -4906,11 +4847,25 @@ function _mountCombobox(opts){
   _comboCloseCheckers.add(closer);
 }
 
+// Mounts (or re-mounts) just the Student combobox — pulled out of renderBaalPeh
+// so picking a Class can narrow the Student list in place instead of tearing
+// down and rebuilding the whole tab (leaderboard + list flicker, focus loss,
+// and the clear-button's post-pick openPanel() reaching into stale DOM nodes).
+function _mountBpStudentCombo(h){
+  const forClass=h.classId?_bpStudents().filter(s=>(s.class_id||'__none__')===h.classId):_bpStudents();
+  _mountCombobox({
+    inputId:'bpStudentInput', panelId:'bpStudentPanel', clearId:'bpStudentClear',
+    items:forClass, getLabel:s=>s.english_name||s.hebrew_name,
+    getSubLabel:s=>(s.english_name&&s.hebrew_name)?s.hebrew_name:'',
+    placeholder:'All students', selectedId:h.studentId, fuzzy:true,
+    onSelect:id=>{ h.studentId=id||''; loadBaalPehList(); }
+  });
+}
+
 async function renderBaalPeh(){
   const wrap=$('testSubView');
-  const h=testsState.bp||(testsState.bp={classId:'',studentId:'',date:'',selMode:false,sel:new Set()});
+  const h=testsState.bp||(testsState.bp={classId:'',studentId:'',selMode:false,sel:new Set()});
   if(!h.sel) h.sel=new Set();
-  const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
   wrap.innerHTML=`
     <div id="bpLeaderboard" class="bp-leaderboard"><div class="hist-empty" style="padding:18px">Loading leaderboard…</div></div>
     <div class="controls">
@@ -4928,11 +4883,7 @@ async function renderBaalPeh(){
           <div class="combo-panel hidden" id="bpStudentPanel"></div>
         </div>
       </div>
-      <div class="ctl full"><span>Day</span>
-        <input type="date" class="inp" id="bpDateFilter" value="${h.date||''}">
-      </div>
     </div>
-    <button class="btn btn-primary btn-block" id="bpLogBtn" style="margin-bottom:10px">+ Log session</button>
     <div class="search" style="margin-bottom:10px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="bpSearch" placeholder="Search by name or material…">
@@ -4943,22 +4894,23 @@ async function renderBaalPeh(){
       ${h.selMode?`<button class="btn btn-primary btn-sm" id="bpExportSel" style="display:${h.sel.size?'':'none'}">Export Selected (${h.sel.size})</button>`:''}
     </div>
     <div class="zal-hint" style="margin:-2px 0 8px">${h.selMode?'Tap a card to add it to the export list':'Long-press a session to edit or delete it'}</div>
-    <div id="bpList"><div class="hist-empty">Loading…</div></div>`;
+    <div id="bpList" style="padding-bottom:70px"><div class="hist-empty">Loading…</div></div>
+    <button class="bp-fab" id="bpLogBtn" title="Log session" aria-label="Log session" type="button">+</button>`;
 
   _mountCombobox({
     inputId:'bpClassInput', panelId:'bpClassPanel', clearId:'bpClassClear',
-    items:state.classes, getLabel:c=>c.name, placeholder:'All classes',
+    items:_bpClasses(), getLabel:c=>c.name, placeholder:'All classes',
     selectedId:h.classId, fuzzy:false,
-    onSelect:id=>{ h.classId=id||''; h.studentId=''; renderBaalPeh(); }
+    // Narrow the Student combo + refresh the leaderboard/list in place — no
+    // full-tab re-render, which is what made this selector feel glitchy.
+    onSelect:id=>{
+      h.classId=id||''; h.studentId='';
+      _mountBpStudentCombo(h);
+      _renderBpLeaderboard($('bpLeaderboard'), h.classId);
+      loadBaalPehList();
+    }
   });
-  _mountCombobox({
-    inputId:'bpStudentInput', panelId:'bpStudentPanel', clearId:'bpStudentClear',
-    items:forClass, getLabel:s=>s.english_name||s.hebrew_name,
-    getSubLabel:s=>(s.english_name&&s.hebrew_name)?s.hebrew_name:'',
-    placeholder:'All students', selectedId:h.studentId, fuzzy:true,
-    onSelect:id=>{ h.studentId=id||''; loadBaalPehList(); }
-  });
-  $('bpDateFilter').onchange=e=>{ h.date=e.target.value||''; loadBaalPehList(); };
+  _mountBpStudentCombo(h);
   $('bpLogBtn').onclick=()=>openBpSheet();
   $('bpSearch').oninput=e=>{
     const q=e.target.value.trim().toLowerCase();
@@ -4992,18 +4944,18 @@ async function loadBaalPehList(){
     .order('date',{ascending:false}).order('created_at',{ascending:false});
   if(h.studentId) q=q.eq('student_id',h.studentId);
   const {data}=await q; const rows=data||[];
-  const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
+  const stuById={}; _bpStudents().forEach(s=>stuById[s.id]=s);
   let filt=rows.filter(r=>stuById[r.student_id]);
-  // Teacher-scoped: only records for their own students (defense-in-depth)
-  if(state.isTeacher && state.teacherClassIds){
-    const tStuIds=new Set(state.students.map(s=>s.id));
+  // Teacher-scoped: only records for their own students (defense-in-depth).
+  // Skipped for class_gbp_teacher_all, who's meant to see every camper here.
+  if(state.isTeacher && !state.isGbpAllCampers && state.teacherClassIds){
+    const tStuIds=new Set(_bpStudents().map(s=>s.id));
     filt=filt.filter(r=>tStuIds.has(r.student_id));
   }
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
-  if(h.date) filt=filt.filter(r=>r.date===h.date);
   bpRows=filt; // keep the currently-rendered rows around for export lookup
   const list=$('bpList'); if(!list)return;
-  if(!filt.length){ list.innerHTML=`<div class="hist-empty">${h.date?'No sessions logged on this day.':'No sessions logged yet.'}</div>`; return; }
+  if(!filt.length){ list.innerHTML=`<div class="hist-empty">No sessions logged yet.</div>`; return; }
 
   // Per-student TOTAL progress (unique dafim across every session they've ever
   // had logged, not just the filtered rows shown here) so the badge next to
@@ -5076,7 +5028,7 @@ async function loadBaalPehList(){
 function openBpShulListSheet(){
   const h=testsState.bp||{};
   if(!h.sel||!h.sel.size){ toast('Select some sessions first',true); return; }
-  const stuById={}; state.students.forEach(s=>stuById[s.id]=s);
+  const stuById={}; _bpStudents().forEach(s=>stuById[s.id]=s);
   const entries=[];
   (bpRows||[]).forEach(r=>{
     if(h.sel.has(String(r.id))){ const s=stuById[r.student_id]; if(s) entries.push({student:s,key:String(r.id)}); }
@@ -5119,11 +5071,11 @@ function openBpShulListSheet(){
 function openBpSheet(existing){
   const h=testsState.bp||{};
   const editing=!!existing;
-  const forClass=h.classId?state.students.filter(s=>(s.class_id||'__none__')===h.classId):state.students;
+  const forClass=h.classId?_bpStudents().filter(s=>(s.class_id||'__none__')===h.classId):_bpStudents();
   const selId=editing?existing.student_id:h.studentId;
   // make sure the editing student appears even if filtered out
   let optStudents=forClass;
-  if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=state.students.find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
+  if(editing && !forClass.some(s=>s.id===existing.student_id)){ const es=_bpStudents().find(s=>s.id===existing.student_id); if(es)optStudents=[es,...forClass]; }
   // `existing` (when editing) comes from loadBaalPehList's embedded query, so
   // it already carries `.dafim` (array of {daf}) and a real `.note` column.
   const existingDafim=editing?(existing.dafim||[]).map(x=>x.daf):[];
@@ -5659,47 +5611,8 @@ async function _lastSendsForRoster(studentIds){
   const by={}; (data||[]).forEach(r=>{ if(!by[r.student_id]) by[r.student_id]=r; });
   return by;
 }
-async function openSendHistorySheet(studentId,ctx){
-  const s=state.students.find(x=>x.id===studentId);
-  const nm=s?(s.hebrew_name||s.english_name||'Student'):'Student';
-  const {data}=await sb.from('ykp_report_card_sends').select('*').eq('student_id',studentId).order('created_at',{ascending:false}).limit(50);
-  const testsById={};
-  const testIds=[...new Set((data||[]).filter(r=>r.test_id).map(r=>r.test_id))];
-  if(testIds.length){ const {data:ts}=await sb.from('ykp_tests').select('id,name').in('id',testIds); (ts||[]).forEach(t=>testsById[t.id]=t.name); }
-  const rowsHtml=(data&&data.length)?data.map(r=>{
-    const what=r.test_id?esc(testsById[r.test_id]||'Test'):(r.period_from?`Report card ${r.period_from} – ${r.period_to}`:'Report card');
-    const when=new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    const cls=r.status==='success'?'ok':r.status==='reset'?'':'fail';
-    const lbl=r.status==='success'?'✓ sent':r.status==='reset'?'— cleared':'⚠ failed';
-    return `<div class="sq-row ${cls}"><span>${what}</span><span>${lbl} · ${when}</span></div>`;
-  }).join(''):'<div class="hist-empty">No sends logged yet.</div>';
-  const showActions=!!(ctx&&(ctx.testId||ctx.periodFrom));
-  openCustomSheet({
-    id:'__sendHist__',
-    title:`Send history — ${esc(nm)}`,
-    html:`<div style="max-height:320px;overflow:auto;display:flex;flex-direction:column;gap:4px">${rowsHtml}</div>
-      ${showActions?`<div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-soft" style="flex:1" id="shMarkSent">Mark as sent</button>
-        <button class="btn btn-soft" style="flex:1" id="shClear">Clear sent status</button>
-      </div>
-      <p class="muted" style="font-size:11px;text-align:center;margin-top:6px">"Mark as sent" logs it as delivered without emailing (e.g. you told the parent in person). "Clear" un-marks it so it shows as not-yet-sent again.</p>`:''}
-      <button class="btn btn-primary btn-block" id="shClose" style="margin-top:10px">Close</button>`,
-    onMount:()=>{
-      $('shClose').onclick=closeCustomSheet;
-      if($('shMarkSent')) $('shMarkSent').onclick=async()=>{
-        await logSend({studentId,testId:ctx.testId,periodFrom:ctx.periodFrom,periodTo:ctx.periodTo,method:'manual',status:'success'});
-        closeCustomSheet(); toast('Marked as sent'); if(ctx.onChange) ctx.onChange();
-      };
-      if($('shClear')) $('shClear').onclick=async()=>{
-        await logSend({studentId,testId:ctx.testId,periodFrom:ctx.periodFrom,periodTo:ctx.periodTo,method:'manual',status:'reset'});
-        closeCustomSheet(); toast('Cleared'); if(ctx.onChange) ctx.onChange();
-      };
-    }
-  });
-}
-
 /* ── Test-tab settings — plain localStorage prefs, same pattern as the passing-mark persistence above ── */
-function _testSettings(){ try{ return {defaultPassing:60,reminderDays:3,skipSentByDefault:true, ...JSON.parse(localStorage.getItem('ykp_test_settings_v1')||'{}')}; }catch(_){ return {defaultPassing:60,reminderDays:3,skipSentByDefault:true}; } }
+function _testSettings(){ try{ return {defaultPassing:60,skipSentByDefault:true, ...JSON.parse(localStorage.getItem('ykp_test_settings_v1')||'{}')}; }catch(_){ return {defaultPassing:60,skipSentByDefault:true}; } }
 function _saveTestSettings(s){ try{ localStorage.setItem('ykp_test_settings_v1',JSON.stringify(s)); }catch(_){} }
 function openTestSettingsSheet(onSaved){
   const cur=_testSettings();
@@ -5709,17 +5622,13 @@ function openTestSettingsSheet(onSaved){
     html:`<div class="field"><label>Default passing mark for new tests</label>
         <div style="display:flex;align-items:center;gap:6px"><input id="tsPassing" class="inp" type="number" min="0" max="100" value="${cur.defaultPassing}" style="width:80px"><span class="muted">%</span></div>
       </div>
-      <div class="field" style="margin-top:12px"><label>Remind me about unsent results after</label>
-        <div style="display:flex;align-items:center;gap:6px"><input id="tsDays" class="inp" type="number" min="1" max="60" value="${cur.reminderDays}" style="width:80px"><span class="muted">days</span></div>
-      </div>
       <label class="shul-opt"><input type="checkbox" id="tsSkipSent" ${cur.skipSentByDefault?'checked':''}> Skip already-sent students by default when starting a send</label>
       <button class="btn btn-primary btn-block" id="tsSave" style="margin-top:16px">Save</button>`,
     onMount:()=>{
       $('tsSave').onclick=()=>{
         const defaultPassing=Math.max(0,Math.min(100,parseInt($('tsPassing').value)||60));
-        const reminderDays=Math.max(1,parseInt($('tsDays').value)||3);
         const skipSentByDefault=$('tsSkipSent').checked;
-        _saveTestSettings({defaultPassing,reminderDays,skipSentByDefault});
+        _saveTestSettings({defaultPassing,skipSentByDefault});
         closeCustomSheet(); toast('Settings saved'); if(onSaved) onSaved();
       };
     }
