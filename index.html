@@ -107,6 +107,30 @@ input,select,textarea{font-family:inherit; font-size:15px; color:var(--ink)}
 .gate-note{margin-top:16px; font-size:12.5px; color:var(--ink-faint); text-align:center; line-height:1.5}
 .gate-note code{background:#eef0fb; padding:1px 5px; border-radius:5px; color:var(--accent-ink); font-size:12px}
 
+/* ---------- loading gate (slow-connection only — see enterApp's loadGateTimer) ---------- */
+#loadGate{flex-direction:column; gap:14px}
+.load-orbit{position:relative; width:88px; height:88px; display:flex; align-items:center; justify-content:center}
+.load-orbit-logo{
+  width:46px; height:46px; border-radius:50%; object-fit:contain;
+  animation:load-pulse 1.8s ease-in-out infinite;
+  filter:drop-shadow(0 2px 6px rgba(79,70,229,.28));
+}
+.load-orbit-ring{
+  position:absolute; inset:0; width:100%; height:100%;
+  animation:load-spin 1.1s linear infinite;
+}
+.load-orbit-ring circle{
+  fill:none; stroke:var(--accent); stroke-width:4; stroke-linecap:round;
+  stroke-dasharray:44 132; opacity:.85;
+}
+@keyframes load-spin{ to{ transform:rotate(360deg); } }
+@keyframes load-pulse{ 0%,100%{ transform:scale(1); opacity:1; } 50%{ transform:scale(.88); opacity:.7; } }
+.load-text{
+  margin:0; font-size:13px; font-weight:600; color:var(--ink-soft); letter-spacing:.02em;
+  animation:load-fade 1.8s ease-in-out infinite;
+}
+@keyframes load-fade{ 0%,100%{ opacity:.5; } 50%{ opacity:1; } }
+
 /* =========================================================
    App shell
    ========================================================= */
@@ -1018,6 +1042,16 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   </div>
 </div>
 
+<!-- Loading gate: only shown if role/data takes long enough to notice
+     (see enterApp's showTimer) — fast connections never see it at all. -->
+<div id="loadGate" class="gate hidden">
+  <div class="load-orbit">
+    <img class="logoimg load-orbit-logo" alt="YKP">
+    <svg class="load-orbit-ring" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/></svg>
+  </div>
+  <p class="load-text">Getting things ready…</p>
+</div>
+
 <!-- privacy policy modal -->
 <div id="privacyBg" class="sheet-bg hidden"></div>
 <div id="privacySheet" class="sheet sheet-tall">
@@ -1036,7 +1070,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.6.2';
+const APP_VERSION='8.6.3';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1374,11 +1408,16 @@ async function enterApp(){
   $('consentGate').classList.add('hidden');
   // Keep #app hidden until the role-restricted nav is fully assembled —
   // revealing it earlier flashes every tab before applyRoleUI() strips the
-  // ones a non-director shouldn't see.
+  // ones a non-director shouldn't see. On a slow connection that wait can
+  // take a moment, so show a loader — but only once it's actually been
+  // waiting a beat, so a fast connection (the common case) never sees it.
+  const loadGateTimer=setTimeout(()=>$('loadGate').classList.remove('hidden'),220);
   syncQueue(); // drain anything left from prior session
   await loadRole();   // fetch role BEFORE data so loadAll can filter
   await loadAll();
   applyRoleUI();      // restrict UI after data is ready
+  clearTimeout(loadGateTimer);
+  $('loadGate').classList.add('hidden');
   $('app').classList.remove('hidden');
   if(state.isTester) switchView('tests');
   if(state.isLearningTeacher) switchView('tests');
