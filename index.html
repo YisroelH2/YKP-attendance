@@ -1036,7 +1036,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.6.1';
+const APP_VERSION='8.6.2';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1372,11 +1372,14 @@ async function enterApp(){
   if(!localStorage.getItem('ykp_consent_v2')){ showConsent(); return; }
   $('loginGate').classList.add('hidden');
   $('consentGate').classList.add('hidden');
-  $('app').classList.remove('hidden');
+  // Keep #app hidden until the role-restricted nav is fully assembled —
+  // revealing it earlier flashes every tab before applyRoleUI() strips the
+  // ones a non-director shouldn't see.
   syncQueue(); // drain anything left from prior session
   await loadRole();   // fetch role BEFORE data so loadAll can filter
   await loadAll();
   applyRoleUI();      // restrict UI after data is ready
+  $('app').classList.remove('hidden');
   if(state.isTester) switchView('tests');
   if(state.isLearningTeacher) switchView('tests');
   if(!state.schedule) state.schedule={date:todayStr()};
