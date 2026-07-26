@@ -52,6 +52,9 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* Stop taps from grabbing text on app UI; keep selection where it's actually typed */
 body{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* Student/staff photos are UI chrome, not content — block the native
+   save-image/drag-image affordances a long-press would otherwise trigger */
+img{-webkit-user-drag:none;user-drag:none;-webkit-touch-callout:none}
 input,textarea,[contenteditable="true"]{-webkit-user-select:text;-moz-user-select:text;user-select:text}
 html,body{margin:0;height:100%}
 html{touch-action:manipulation} /* block browser double-tap-zoom globally */
@@ -1070,7 +1073,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.6.3';
+const APP_VERSION='8.6.4';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1079,6 +1082,12 @@ const APP_VERSION='8.6.3';
     +'padding:2px 4px;user-select:none';
   document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(b));
 })();
+// Android Chrome shows its own copy/download/share menu on a long-press of
+// any <img>, regardless of user-select/touch-callout CSS. Photos here are
+// just avatars, not shareable content, so suppress that menu entirely.
+document.addEventListener('contextmenu',e=>{
+  if(e.target && e.target.tagName==='IMG') e.preventDefault();
+});
 // Belt-and-suspenders: this app no longer registers a service worker, so make
 // sure any leftover one (and its cached shell) from an older build can't keep
 // intercepting requests and serving stale pages.
