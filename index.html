@@ -1073,7 +1073,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.6.4';
+const APP_VERSION='8.7.0';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -1167,6 +1167,44 @@ const POLICY_HTML = `
 <p style="margin-top:14px">© 2026 Yisroel Haskelevich. All rights reserved.</p>`;
 
 function showConsent(){ $('loginGate').classList.add('hidden'); $('consentGate').classList.remove('hidden'); }
+// Remote "force everyone to re-consent" switch: app_settings.consent_version
+// is a single-row counter in Supabase. Staff can bump it from Setup at any
+// time; every device compares it against the version it last accepted
+// (ykp_consent_version in localStorage) and re-shows the gate if behind.
+async function getConsentVersion(){
+  try{
+    const {data}=await sb.from('app_settings').select('consent_version').eq('id',1).maybeSingle();
+    return data?.consent_version||1;
+  }catch(_){ return 1; }
+}
+function getAcceptedConsentVersion(){
+  const v=parseInt(localStorage.getItem('ykp_consent_version')||'0',10);
+  // Pre-existing installs accepted the policy under the old boolean flag,
+  // before versioning existed — treat that as having accepted version 1.
+  if(!v && localStorage.getItem('ykp_consent_v2')) return 1;
+  return v;
+}
+async function _loadConsentVerInfo(){
+  const el=$('consentVerInfo'); if(!el) return;
+  const {data}=await sb.from('app_settings').select('consent_version,consent_bumped_at').eq('id',1).maybeSingle();
+  if(!data){ el.textContent='Everyone accepts the current policy on next sign-in.'; return; }
+  el.textContent=data.consent_bumped_at
+    ? `Last reset ${new Date(data.consent_bumped_at).toLocaleDateString()} (version ${data.consent_version}). Everyone who hasn't re-accepted since then will see the consent screen again.`
+    : `Version ${data.consent_version}. No one has been forced to re-accept yet.`;
+}
+async function forceConsentReset(){
+  if(!confirm('Every signed-in staff member will have to read and re-accept the Privacy Policy the next time they open the app. Continue?')) return;
+  const btn=$('forceConsentBtn'); if(btn){ btn.disabled=true; btn.textContent='Working…'; }
+  const {data}=await sb.from('app_settings').select('consent_version').eq('id',1).maybeSingle();
+  const nextVer=(data?.consent_version||1)+1;
+  const {error}=await sb.from('app_settings').update({
+    consent_version:nextVer, consent_bumped_at:new Date().toISOString(), consent_bumped_by:state.user?.id||null
+  }).eq('id',1);
+  if(btn){ btn.disabled=false; btn.textContent='Require everyone to re-accept'; }
+  if(error){ toast('Could not reset consent',true); return; }
+  toast('Everyone will re-accept the Privacy Policy on next sign-in');
+  _loadConsentVerInfo();
+}
 function showPolicy(){
   $('policyBody').innerHTML=POLICY_HTML;
   $('privacyBg').classList.remove('hidden');
@@ -1371,7 +1409,11 @@ function wireEvents(){
   _wireSheetDrag($('pickSheet'),$('pickBg'),closePicker);
   _wireSheetDrag($('customSheet'),$('customSheetBg'),closeCustomSheet);
   $('consentBox').onchange = e=>{ $('consentContinue').disabled = !e.target.checked; };
-  $('consentContinue').onclick = ()=>{ localStorage.setItem('ykp_consent_v2', new Date().toISOString()); enterApp(); };
+  $('consentContinue').onclick = ()=>{
+    localStorage.setItem('ykp_consent_v2', new Date().toISOString());
+    localStorage.setItem('ykp_consent_version', String(state.requiredConsentVersion||1));
+    enterApp();
+  };
   $('consentRead').onclick = showPolicy;
   $('loginPrivacy').onclick = e=>{ e.preventDefault(); showPolicy(); };
   $('privacyBg').onclick = closePolicy;
@@ -1412,7 +1454,8 @@ async function doLogin(){
 }
 
 async function enterApp(){
-  if(!localStorage.getItem('ykp_consent_v2')){ showConsent(); return; }
+  state.requiredConsentVersion=await getConsentVersion();
+  if(getAcceptedConsentVersion()<state.requiredConsentVersion){ showConsent(); return; }
   $('loginGate').classList.add('hidden');
   $('consentGate').classList.add('hidden');
   // Keep #app hidden until the role-restricted nav is fully assembled —
@@ -2770,6 +2813,12 @@ function renderSetup(){
       <div id="clsList"></div>
     </div>
 
+    <div class="card">
+      <h2>Privacy Policy</h2>
+      <p class="muted" id="consentVerInfo">Checking current status…</p>
+      <button class="btn btn-soft btn-block" id="forceConsentBtn" style="margin-top:10px">Require everyone to re-accept</button>
+    </div>
+
     <button class="btn btn-ghost btn-block" id="setupSignout">Sign out</button>
     <p class="app-foot">YKP Attendance · <a href="#" id="setupPrivacy">Privacy Policy</a><br>© 2026 Yisroel Haskelevich</p>`;
 
@@ -2780,6 +2829,8 @@ function renderSetup(){
   $('addClass').onclick=()=>editClass(null);
   $('setupSignout').onclick=async()=>{await sb.auth.signOut();location.reload();};
   $('setupPrivacy').onclick=e=>{e.preventDefault();showPolicy();};
+  _loadConsentVerInfo();
+  $('forceConsentBtn').onclick=forceConsentReset;
 
 
   _renderSesCal($('sesCal'));
