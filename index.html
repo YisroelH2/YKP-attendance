@@ -1073,7 +1073,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.7.1';
+const APP_VERSION='8.7.2';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5716,11 +5716,11 @@ async function _lastSendsForTest(testId,studentIds){
   const by={}; (data||[]).forEach(r=>{ if(!by[r.student_id]) by[r.student_id]=r; });
   return by;
 }
-// Latest full-report-card send per student (any period) — used for the "already sent before" heads-up on bulk sends.
-async function _lastSendsForRoster(studentIds){
+// Latest full-report-card send per student for this exact period — used for the "already sent before" heads-up on bulk sends.
+async function _lastSendsForRoster(studentIds,from,to){
   if(!studentIds.length) return {};
   const {data}=await sb.from('ykp_report_card_sends').select('student_id,status,created_at,period_from,period_to')
-    .is('test_id',null).in('student_id',studentIds).order('created_at',{ascending:false});
+    .is('test_id',null).eq('period_from',from).eq('period_to',to).in('student_id',studentIds).order('created_at',{ascending:false});
   const by={}; (data||[]).forEach(r=>{ if(!by[r.student_id]) by[r.student_id]=r; });
   return by;
 }
@@ -5842,7 +5842,7 @@ async function startSendQueue(studentIds,from,to,testOnly,testId,prevSel){
   const missing=studentIds.length-queue.length;
   if(!queue.length){ toast('None of these students have a parent email on file',true); return; }
   const settings=_testSettings();
-  const sends=testId?await _lastSendsForTest(testId,queue.map(s=>s.id)):await _lastSendsForRoster(queue.map(s=>s.id));
+  const sends=testId?await _lastSendsForTest(testId,queue.map(s=>s.id)):await _lastSendsForRoster(queue.map(s=>s.id),from,to);
   const alreadySentIds=new Set(queue.filter(s=>sends[s.id]&&sends[s.id].status==='success').map(s=>s.id));
   let skipSent=settings.skipSentByDefault&&alreadySentIds.size>0;
 
