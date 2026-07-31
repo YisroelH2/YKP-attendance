@@ -1073,7 +1073,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.7.0';
+const APP_VERSION='8.7.1';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -5757,7 +5757,7 @@ async function shareReportToParent(stu,from,to,testOnly,testId){
     const [r1,r2,r3]=await Promise.all([
       sb.from('attendance').select('*').in('student_id',ids).gte('date',from).lte('date',to),
       sb.from('attendance').select('*').in('student_id',ids).gte('date',ytdFrom).lte('date',to),
-      sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
+      sb.from('ykp_tests').select('*').gte('date',from).lte('date',to).order('date',{ascending:false})
     ]);
     const mAtt=r1.data||[], yAtt=r2.data||[], tests=r3.data||[];
     const testIds=tests.map(t=>t.id);
@@ -5810,7 +5810,7 @@ async function generateReportCards(studentIds,from,to,testOnly){
   const [r1,r2,r3]=await Promise.all([
     sb.from('attendance').select('*').in('student_id',studentIds).gte('date',from).lte('date',to),
     sb.from('attendance').select('*').in('student_id',studentIds).gte('date',ytdFrom).lte('date',to),
-    sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
+    sb.from('ykp_tests').select('*').gte('date',from).lte('date',to).order('date',{ascending:false})
   ]);
   const mAtt=r1.data||[], yAtt=r2.data||[], tests=r3.data||[];
   const testIds=tests.map(t=>t.id);
@@ -6157,7 +6157,7 @@ async function runSendAllAtOnce(queue,from,to,testOnly,testId){
     const [r1,r2,r3]=await Promise.all([
       sb.from('attendance').select('*').in('student_id',ids).gte('date',from).lte('date',to),
       sb.from('attendance').select('*').in('student_id',ids).gte('date',ytdFrom).lte('date',to),
-      sb.from('ykp_tests').select('*').lte('date',to).order('date',{ascending:false})
+      sb.from('ykp_tests').select('*').gte('date',from).lte('date',to).order('date',{ascending:false})
     ]);
     mAtt=r1.data||[]; yAtt=r2.data||[]; tests=r3.data||[];
     const testIds=tests.map(t=>t.id);
