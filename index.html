@@ -322,6 +322,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
 .daf-chip.mastered:not(.active){border-color:#d4af37;box-shadow:inset 0 0 0 1.5px #d4af37}
 .daf-chip.mastered:not(.active)::after{content:'✓';font-size:9px;vertical-align:super;margin-left:2px;color:#d4af37}
 .bp-leaderboard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-1);margin-bottom:14px;max-height:280px;overflow-y:auto}
+.bp-leaderboard.expanded{max-height:none;overflow-y:visible}
 .bp-fab{
   position:fixed; right:18px; bottom:calc(var(--nav-h) + var(--safe-b) + 18px); z-index:39;
   width:56px; height:56px; border-radius:50%; border:none;
@@ -329,7 +330,8 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
   font-size:28px; font-weight:400; line-height:1; display:flex; align-items:center; justify-content:center;
 }
 .bp-fab:active{transform:scale(.94)}
-.bp-lb-title{display:flex;align-items:center;gap:6px;padding:10px 13px;font-weight:800;font-size:14px;border-bottom:1px solid var(--line);background:var(--surface-2,#f1f3fb);position:sticky;top:0}
+.bp-lb-title{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:10px 13px;font-weight:800;font-size:14px;border-bottom:1px solid var(--line);background:var(--surface-2,#f1f3fb);position:sticky;top:0}
+.bp-lb-toggle{background:none;border:none;color:var(--accent);font-weight:700;font-size:12px;cursor:pointer;padding:2px 4px;flex-shrink:0}
 .bp-lb-row{display:flex;align-items:center;gap:10px;padding:8px 13px;border-bottom:1px solid var(--line)}
 .bp-lb-row:last-child{border-bottom:none}
 .bp-lb-row.complete{background:linear-gradient(90deg,rgba(255,215,0,.12),transparent)}
@@ -1073,7 +1075,7 @@ main{flex:1; padding:16px 16px calc(var(--nav-h) + var(--safe-b) + 16px)}
    Bump APP_VERSION on every deploy that should be visually verifiable.
    The badge below renders on every screen so you can confirm which build
    a given device is actually running (helps catch stale-cache installs). */
-const APP_VERSION='8.7.2';
+const APP_VERSION='8.8.0';
 (function(){
   const b=document.createElement('div');
   b.textContent='v'+APP_VERSION;
@@ -4820,8 +4822,13 @@ async function _computeBpProgress(){
   return progress; // {student_id: Set<daf>}
 }
 
-// Renders the scrollable Leaderboard widget: ranked by unique-daf count
-// descending, with a crown for anyone who has reached the full 14/14.
+// Renders the Leaderboard widget: ranked by unique-daf count descending,
+// with a crown for anyone who has reached the full 14/14. Collapsed to a
+// fixed-height scroll box by default (see .bp-leaderboard's max-height); once
+// the roster is long enough to actually need that scroll, a "Show all" toggle
+// lets it expand to full height instead — persisted in module state (not per
+// class/student filter) since it's a transient viewing preference, not data.
+let _bpLbExpanded=false;
 async function _renderBpLeaderboard(container, classId){
   if(!container) return;
   const progress=await _computeBpProgress();
@@ -4832,10 +4839,15 @@ async function _renderBpLeaderboard(container, classId){
     .filter(r=>r.count>0)
     .sort((a,b)=>b.count-a.count || (a.student.english_name||a.student.hebrew_name||'').localeCompare(b.student.english_name||b.student.hebrew_name||''));
   if(!rows.length){
+    container.classList.remove('expanded');
     container.innerHTML=`<div class="bp-lb-title">🏆 Leaderboard</div><div class="hist-empty" style="padding:18px">No progress logged yet.</div>`;
     return;
   }
-  container.innerHTML=`<div class="bp-lb-title">🏆 Leaderboard</div>`+rows.map((r,i)=>{
+  const COLLAPSED_ROWS=6; // roughly what fits inside the 280px collapsed box
+  const canCollapse=rows.length>COLLAPSED_ROWS;
+  container.classList.toggle('expanded', _bpLbExpanded || !canCollapse);
+  const toggleHtml=canCollapse?`<button type="button" class="bp-lb-toggle" id="bpLbToggle">${_bpLbExpanded?'Show less ▴':`Show all ${rows.length} ▾`}</button>`:'';
+  container.innerHTML=`<div class="bp-lb-title"><span>🏆 Leaderboard</span>${toggleHtml}</div>`+rows.map((r,i)=>{
     const complete=r.count===total;
     const pct=Math.round(r.count/total*100);
     const name=esc(r.student.english_name||r.student.hebrew_name);
@@ -4846,6 +4858,8 @@ async function _renderBpLeaderboard(container, classId){
       <div class="bp-lb-frac">${r.count}/${total}</div>
     </div>`;
   }).join('');
+  const toggleBtn=container.querySelector('#bpLbToggle');
+  if(toggleBtn) toggleBtn.onclick=()=>{ _bpLbExpanded=!_bpLbExpanded; _renderBpLeaderboard(container, classId); };
 }
 
 // ── Reusable searchable combobox — replaces native <select> for long lists ──
@@ -4977,8 +4991,9 @@ function _mountBpStudentCombo(h){
 
 async function renderBaalPeh(){
   const wrap=$('testSubView');
-  const h=testsState.bp||(testsState.bp={classId:'',studentId:'',selMode:false,sel:new Set()});
+  const h=testsState.bp||(testsState.bp={classId:'',studentId:'',daf:'',selMode:false,sel:new Set()});
   if(!h.sel) h.sel=new Set();
+  if(h.daf===undefined) h.daf='';
   wrap.innerHTML=`
     <div id="bpLeaderboard" class="bp-leaderboard"><div class="hist-empty" style="padding:18px">Loading leaderboard…</div></div>
     <div class="controls">
@@ -4996,12 +5011,19 @@ async function renderBaalPeh(){
           <div class="combo-panel hidden" id="bpStudentPanel"></div>
         </div>
       </div>
+      <div class="ctl full"><span>Page (Daf)</span>
+        <select id="bpDafFilter">
+          <option value="">All pages</option>
+          ${BAAL_PEH_DAFIM.map(d=>`<option value="${d}" ${d===h.daf?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div class="search" style="margin-bottom:10px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="bpSearch" placeholder="Search by name or material…">
     </div>
     <div class="hist-actions" id="bpActions">
+      <button class="btn btn-soft btn-sm" id="bpProgressExport">📄 Export list</button>
       <button class="btn btn-soft btn-sm" id="bpSelToggle">${h.selMode?'Cancel selection':'✓ Select'}</button>
       ${h.selMode?`<button class="btn btn-soft btn-sm" id="bpSelAll">Select all shown</button>`:''}
       ${h.selMode?`<button class="btn btn-primary btn-sm" id="bpExportSel" style="display:${h.sel.size?'':'none'}">Export Selected (${h.sel.size})</button>`:''}
@@ -5024,6 +5046,8 @@ async function renderBaalPeh(){
     }
   });
   _mountBpStudentCombo(h);
+  $('bpDafFilter').onchange=e=>{ h.daf=e.target.value||''; loadBaalPehList(); };
+  $('bpProgressExport').onclick=()=>openBpProgressExportSheet(h);
   $('bpLogBtn').onclick=()=>openBpSheet();
   $('bpSearch').oninput=e=>{
     const q=e.target.value.trim().toLowerCase();
@@ -5066,6 +5090,7 @@ async function loadBaalPehList(){
     filt=filt.filter(r=>tStuIds.has(r.student_id));
   }
   if(h.classId) filt=filt.filter(r=>(stuById[r.student_id].class_id||'__none__')===h.classId);
+  if(h.daf) filt=filt.filter(r=>(r.dafim||[]).some(x=>x.daf===h.daf));
   bpRows=filt; // keep the currently-rendered rows around for export lookup
   const list=$('bpList'); if(!list)return;
   if(!filt.length){ list.innerHTML=`<div class="hist-empty">No sessions logged yet.</div>`; return; }
@@ -5179,6 +5204,223 @@ function openBpShulListSheet(){
       };
     }
   });
+}
+
+// ── Export list — the Baal Peh progress report (unlike Export Selected above,
+// this needs no manual per-session selection: it exports whichever students
+// are CURRENTLY matched by the Class/Student/Page filters already on screen,
+// same "no separate export-only filter UI" approach as the Tests tab's
+// openTestResultExportSheet). Ranked the same way as the on-screen Leaderboard.
+async function openBpProgressExportSheet(h){
+  const progress=await _computeBpProgress();
+  let students=_testsAllStudents().filter(s=>s.active!==false);
+  if(h.classId) students=students.filter(s=>(s.class_id||'__none__')===h.classId);
+  if(h.studentId) students=students.filter(s=>s.id===h.studentId);
+  const total=BAAL_PEH_DAFIM.length;
+  let entries=students.map(s=>{
+    const set=progress[s.id]||new Set();
+    return {student:s, count:set.size, total, dafim:[...set].sort()};
+  });
+  // A Page filter picks out only students actually tested on that Daf; with
+  // no Page filter, students with zero logged progress are omitted instead —
+  // matching the Leaderboard's own "no progress logged yet" behavior.
+  entries=h.daf ? entries.filter(e=>e.dafim.includes(h.daf)) : entries.filter(e=>e.count>0);
+  entries.sort((a,b)=>b.count-a.count || (a.student.english_name||a.student.hebrew_name||'').localeCompare(b.student.english_name||b.student.hebrew_name||''));
+  if(!entries.length){ toast('No students to export — check your filters',true); return; }
+
+  const filterNote=h.daf?` tested on Daf ${h.daf}`:'';
+  openCustomSheet({
+    id:'__bpProgress__',
+    title:`Export list — ${entries.length} student${entries.length===1?'':'s'}`,
+    html:`<p class="muted" style="margin-bottom:8px">Generates a printable Baal Peh progress list${filterNote?','+filterNote:''}. Use your browser's Print → Save as PDF.</p>
+      <div class="field"><label>Heading</label>
+        <textarea id="bpProgHdr" class="inp" rows="2" style="resize:none">Baal Peh Progress — Meseches Brochos</textarea>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Names shown</label>
+        <div class="seg" id="bpProgNameSeg">
+          <button class="seg-btn active" data-v="heb" type="button">Hebrew</button>
+          <button class="seg-btn" data-v="eng" type="button">English</button>
+          <button class="seg-btn" data-v="both" type="button">Both</button>
+        </div>
+      </div>
+      <label class="shul-opt"><input type="checkbox" id="bpProgShowDafim"> Show mastered Dafim under each name</label>
+      <p class="muted" style="margin-top:10px;font-size:12.5px">${entries.length} student${entries.length===1?'':'s'} will be included${filterNote}.</p>
+      <button class="btn btn-primary btn-block" id="bpProgGen" style="margin-top:14px">Generate list PDF</button>`,
+    onMount:()=>{
+      let nameFmt='heb';
+      $('bpProgNameSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{ nameFmt=b.dataset.v; $('bpProgNameSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b)); });
+      $('bpProgGen').onclick=()=>{
+        const hdr=$('bpProgHdr').value.trim()||'Baal Peh Progress';
+        const showDafim=$('bpProgShowDafim').checked;
+        closeCustomSheet();
+        generateBpProgressList(entries,hdr,nameFmt,showDafim);
+      };
+    }
+  });
+}
+
+// ── Progress-list PDF — mirrors generateTestResultList's card/header/date/
+// pagination engine (same off-screen row-height measurement so variable-height
+// rows, e.g. with the Dafim list shown, still paginate correctly), swapping
+// the Pass/Fail badge for a X/Total Dafim fraction badge.
+async function generateBpProgressList(entries, heading, nameFmt, showDafim){
+  if(!entries.length){ toast('No one to export',true); return; }
+  nameFmt=nameFmt||'heb';
+  toast('Generating list…');
+
+  const engDate=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  let hebDate=''; try{ hebDate=await fetchHebDate(todayStr()); }catch{}
+  const assetBase=location.origin+location.pathname.replace(/[^/]*$/, '');
+  const headerUrl=assetBase+'header.png';
+
+  const _sn=s=>s?s.replace(/[֑-ׇ]/g,''):'';
+  const cleanHebDate=_sn(hebDate)
+    .replace(/(^|\s)ב([א-ת])/g,'$1$2')
+    .trim();
+
+  const lastFirst=n=>{ if(!n) return ''; const p=n.trim().split(/\s+/); return p.length<2?n:p[p.length-1]+' '+p.slice(0,-1).join(' '); };
+  const nameCell=s=>{
+    const heb=esc(s.hebrew_name||''); const eng=esc(lastFirst(s.english_name||''));
+    if(nameFmt==='heb') return heb||eng;
+    if(nameFmt==='eng') return eng||heb;
+    return heb+(s.english_name?' '+esc(lastFirst(s.english_name)):'');
+  };
+
+  const mkRow=(e)=>{
+    const complete=e.count===e.total;
+    const dafHtml=(showDafim&&e.dafim.length)?`<div class="bp-print-dafs">${e.dafim.map(d=>esc(d)).join(', ')}</div>`:'';
+    return `<div class="row bp-print-row">
+      <div class="bp-print-namewrap"><span class="name">${nameCell(e.student)}${complete?' &#128081;':''}</span>${dafHtml}</div>
+      <div class="test-right"><span class="test-badge ${complete?'pass':'unmarked'}">${e.count}/${e.total}</span></div>
+    </div>`;
+  };
+
+  const hLen=heading.length;
+  const headingSize=hLen>100?'18px':hLen>70?'26px':hLen>45?'38px':hLen>25?'50px':'60px';
+  const headingLH=hLen>45?'1.30':'1.22';
+
+  const completeCount=entries.filter(e=>e.count===e.total).length;
+  const summaryLine=`${entries.length} student${entries.length===1?'':'s'}`+(completeCount?` · ${completeCount} completed all ${entries[0].total} Dafim`:'');
+
+  // ── CSS — mirrors generateTestResultList's card/header/date/title structure ─
+  const css = `
+@page { margin: 0; size: letter portrait; }
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Helvetica Neue',Arial,Helvetica,sans-serif;
+  background: #c5d6eb !important;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  display: block; min-height: 100vh; padding: 24px;
+}
+.card {
+  background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  width: 100%; max-width: 720px; margin: 0 auto; border-radius: 24px;
+  box-shadow: none; outline: none; border: none; position: relative;
+  overflow: hidden; min-height: calc(100vh - 48px);
+}
+.card-inner { padding: 18px 40px 28px; position: relative; z-index: 1; }
+.header-wrap { position: relative; display: flex; justify-content: center; align-items: flex-start; width: 100%; margin-bottom: 8px; min-height: 72px; }
+.header-img { max-height: 88px; width: auto; object-fit: contain; display: block; }
+.bh { position: absolute; top: 0; right: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; font-family: 'Times New Roman',Times,serif; white-space: nowrap; letter-spacing: .4px; }
+.divider { border:none; height:2px; background:#1e3a8a; margin:0 0 8px; display:block; }
+.date-row { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 10px; }
+.eng-date { font-size:13px; font-weight:600; color:#2c4880; letter-spacing:.2px; text-align:left; }
+.heb-date { font-size:13px; font-weight:600; color:#2c4880; text-align:right; direction:rtl; unicode-bidi:isolate; }
+.title { text-align: center; font-family: Georgia,'Times New Roman',Times,serif; font-weight: 400; color: #111111; margin-bottom: 10px; word-wrap: break-word; overflow-wrap: break-word; }
+.summary-line { text-align:center; font-size:13px; color:#4a5568; margin-bottom:14px; font-weight:600; }
+.list-grid { display:flex; flex-direction:row; gap:28px; align-items:flex-start; }
+.col { flex:1; min-width:0; }
+.row {
+  display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between;
+  direction: ltr; padding: 7px 0; border-bottom: 1px solid #e2e8f4; gap: 10px;
+}
+.bp-print-namewrap { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.name { font-weight:700; font-size:13px; color:#111111; letter-spacing:.1px; line-height:1.2; }
+.bp-print-dafs { font-size:0.76em; color:#666666; font-weight:600; }
+.test-right { display:flex; align-items:baseline; gap:8px; flex-shrink:0; white-space:nowrap; }
+.test-badge { font-size:0.76em; font-weight:800; padding:2px 9px; border-radius:999px; letter-spacing:.3px; }
+.test-badge.pass { background:#E3FBF4; color:#0e9f76; }
+.test-badge.unmarked { background:#eef0f5; color:#888888; }
+@media print {
+  @page { margin: 0; size: letter portrait; }
+  html { height:auto; background:#c5d6eb!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  body { background:#c5d6eb!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; padding:18px!important; margin:0!important; min-height:auto!important; height:auto!important; display:block!important; width:100%!important; box-sizing:border-box!important; }
+  .card {
+    background:#ffffff!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
+    border-radius:0!important; max-width:100%!important; width:100%!important;
+    min-height: calc(11in - 36px) !important; height:auto!important;
+    box-shadow:none!important; outline:none!important; border:none!important; overflow:visible!important;
+  }
+  .card-inner { padding:14px 36px 20px!important; background:#ffffff!important; }
+  .list-grid { page-break-inside:auto; }
+  .row { page-break-inside:avoid; break-inside:avoid; }
+  .page-break { page-break-after: always; break-after: page; }
+  .no-print { display: none !important; }
+}`;
+
+  // ── Pagination — see generateTestResultList for the full rationale; identical
+  // measure-then-pack approach so variable row heights (Dafim list on/off)
+  // still fit each page exactly.
+  const PAGE_W=816, PAGE_H=1056;          // 8.5in x 11in @ 96px/in
+  const BODY_PAD=36, CARD_PAD_H=72, CARD_PAD_V=34, COL_GAP=28;
+  const contentW=PAGE_W-BODY_PAD-CARD_PAD_H;
+  const colW=(contentW-COL_GAP)/2;
+  const pageContentH=PAGE_H-BODY_PAD-CARD_PAD_V;
+  const SAFETY_MARGIN=48;
+
+  const chromeHtml=`<div class="header-wrap"><span class="bh">&#x05D1;&#x05F4;&#x05D4;</span><img class="header-img" src="${headerUrl}" alt="YKP Header"></div>
+    <hr class="divider">
+    ${(engDate||cleanHebDate)?`<div class="date-row">
+      ${engDate?`<span class="eng-date">${esc(engDate)}</span>`:'<span></span>'}
+      ${cleanHebDate?`<span class="heb-date">${esc(cleanHebDate)}</span>`:''}
+    </div>`:''}
+    <div class="title" style="font-size:${headingSize};line-height:${headingLH}">${esc(heading)}</div>
+    <div class="summary-line">${summaryLine}</div>`;
+
+  const measureHost=document.createElement('div');
+  measureHost.style.cssText='position:fixed;left:-99999px;top:0;background:#fff';
+  measureHost.innerHTML=`<style>${css}</style>
+    <div id="mChrome" style="width:${contentW}px">${chromeHtml}</div>
+    <div id="mRows" style="width:${colW}px">${entries.map(mkRow).join('')}</div>`;
+  document.body.appendChild(measureHost);
+  const chromeH=measureHost.querySelector('#mChrome').getBoundingClientRect().height;
+  const rowHeights=[...measureHost.querySelector('#mRows').children].map(el=>el.getBoundingClientRect().height);
+  document.body.removeChild(measureHost);
+
+  const pages=[]; // {first, colA:[entries], colB:[entries]}
+  let i=0, first=true;
+  while(i<entries.length){
+    const budget=pageContentH-(first?chromeH:0)-SAFETY_MARGIN;
+    const colA=[], colB=[];
+    let hh=0;
+    while(i<entries.length && hh+rowHeights[i]<=budget){ colA.push(entries[i]); hh+=rowHeights[i]; i++; }
+    if(i<entries.length){
+      hh=0;
+      while(i<entries.length && hh+rowHeights[i]<=budget){ colB.push(entries[i]); hh+=rowHeights[i]; i++; }
+    }
+    if(!colA.length && !colB.length && i<entries.length){ colA.push(entries[i]); i++; }
+    pages.push({first,colA,colB});
+    first=false;
+  }
+
+  const pageHtml=pages.map((p,pi)=>{
+    const isLast=pi===pages.length-1;
+    return `<div class="card${isLast?'':' page-break'}">
+  <div class="card-inner">
+    ${p.first?chromeHtml:''}
+    <div class="list-grid">
+      <div class="col">${p.colA.map(mkRow).join('')}</div>
+      <div class="col">${p.colB.map(mkRow).join('')}</div>
+    </div>
+  </div>
+</div>`;
+  }).join('');
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Baal Peh Progress</title><style>${css}</style></head><body>${pageHtml}<script>window.onload=function(){setTimeout(function(){window.print();},500);}<\/script></body></html>`;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,'_blank');
+  if(!w) toast('Allow pop-ups to generate the PDF',true);
 }
 
 function openBpSheet(existing){
